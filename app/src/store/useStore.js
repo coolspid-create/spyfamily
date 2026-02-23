@@ -7,6 +7,15 @@ const INITIAL_PAYMENTS = [];
 const INITIAL_HISTORY = [];
 const INITIAL_OPS = [];
 
+const getInitialNotices = () => {
+    try {
+        const stored = localStorage.getItem('spyfamily_notices');
+        return stored ? JSON.parse(stored) : [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }];
+    } catch {
+        return [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }];
+    }
+};
+
 export const useStore = create((set, get) => ({
     // ---- State ----
     weeklyData: INITIAL_WEEKLY,
@@ -15,7 +24,7 @@ export const useStore = create((set, get) => ({
     payments: INITIAL_PAYMENTS,
     opsData: INITIAL_OPS,
     transactionHistory: INITIAL_HISTORY,
-    notices: [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }],
+    notices: getInitialNotices(),
     isLoading: false,
 
     // Auth State
@@ -49,25 +58,90 @@ export const useStore = create((set, get) => ({
         }));
     },
 
-    // 2. Missions Data Actions
-    addMission: (mission) => set((state) => ({
-        missionsData: [...state.missionsData, mission].sort((a, b) => a.day - b.day)
-    })),
-    updateMission: (mission) => set((state) => ({
-        missionsData: state.missionsData.map(m => m.id === mission.id ? mission : m).sort((a, b) => a.day - b.day)
-    })),
-    removeMission: (id) => set((state) => ({
-        missionsData: state.missionsData.filter(m => m.id !== id)
-    })),
+    // 2. Missions Data Actions (Supabase Sync)
+    addMission: async (mission) => {
+        set({ isLoading: true });
+        if (mission.type === 'fund') {
+            const { error } = await supabase.from('payment').insert([{
+                source: mission.title.replace(' 결제', ''),
+                amount: 0,
+                method: '미지정',
+                payment_day: mission.day,
+                is_completed: false
+            }]);
+            if (error) alert('일정 추가 실패: ' + error.message);
+        } else {
+            const year = new Date().getFullYear();
+            const month = String(new Date().getMonth() + 1).padStart(2, '0');
+            const day = String(mission.day).padStart(2, '0');
+            const { error } = await supabase.from('ops').insert([{
+                title: mission.title,
+                execution_date: `${year}-${month}-${day}`,
+                status: 'PENDING',
+                priority: 'LOW'
+            }]);
+            if (error) alert('일정 추가 실패: ' + error.message);
+        }
+        await get().fetchDataFromDB();
+        set({ isLoading: false });
+    },
+    updateMission: async (mission) => {
+        set({ isLoading: true });
+        if (mission.type === 'fund') {
+            const { error } = await supabase.from('payment').update({
+                source: mission.title.replace(' 결제', ''),
+                payment_day: mission.day
+            }).eq('id', mission.id);
+            if (error) alert('일정 수정 실패: ' + error.message);
+        } else {
+            const year = new Date().getFullYear();
+            const month = String(new Date().getMonth() + 1).padStart(2, '0');
+            const day = String(mission.day).padStart(2, '0');
+            const { error } = await supabase.from('ops').update({
+                title: mission.title,
+                execution_date: `${year}-${month}-${day}`
+            }).eq('id', mission.id);
+            if (error) alert('일정 수정 실패: ' + error.message);
+        }
+        await get().fetchDataFromDB();
+        set({ isLoading: false });
+    },
+    removeMission: async (id) => {
+        const state = get();
+        const mission = state.missionsData.find(m => m.id === id);
+        if (!mission) return;
 
-    // 3. Notices Actions
-    addNotice: (notice) => set((state) => ({ notices: [...state.notices, notice] })),
-    updateNotice: (id) => set((state) => ({
-        notices: state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n)
-    })),
-    removeNotice: (id) => set((state) => ({
-        notices: state.notices.filter(n => n.id !== id)
-    })),
+        if (mission.type === 'fund') {
+            const { error } = await supabase.from('payment').delete().eq('id', id);
+            if (error) { alert('삭제 실패: ' + error.message); return; }
+        } else {
+            const { error } = await supabase.from('ops').delete().eq('id', id);
+            if (error) { alert('삭제 실패: ' + error.message); return; }
+        }
+
+        set((state) => ({
+            payments: state.payments.filter(p => p.id !== id),
+            opsData: state.opsData.filter(o => o.id !== id),
+            missionsData: state.missionsData.filter(m => m.id !== id)
+        }));
+    },
+
+    // 3. Notices Actions (Persisted via LocalStorage)
+    addNotice: (notice) => set((state) => {
+        const updated = [...state.notices, notice];
+        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
+        return { notices: updated };
+    }),
+    updateNotice: (id) => set((state) => {
+        const updated = state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n);
+        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
+        return { notices: updated };
+    }),
+    removeNotice: (id) => set((state) => {
+        const updated = state.notices.filter(n => n.id !== id);
+        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
+        return { notices: updated };
+    }),
 
     // 4. Payments Actions
     addPayment: async (paymentData) => {
