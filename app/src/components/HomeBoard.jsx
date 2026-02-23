@@ -356,7 +356,7 @@ export default function HomeBoard() {
             <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="fixed bottom-20 right-4 bg-accent-red text-white p-4 rounded-full shadow-xl border-2 border-white flex items-center justify-center animate-bounce z-40"
+                className="hidden fixed bottom-20 right-4 bg-accent-red text-white p-4 rounded-full shadow-xl border-2 border-white flex items-center justify-center animate-bounce z-40"
             >
                 <ShieldAlert size={24} />
             </motion.button>
