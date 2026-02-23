@@ -1,53 +1,26 @@
 import React, { useState } from 'react';
 import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const INITIAL_OPS = [
-    {
-        id: 'ops-1',
-        title: '신학기 입학식',
-        date: '2026.03.02',
-        description: '오전 10시 본관 대강당 입학식 및 학부모 오리엔테이션',
-        priority: 'HIGH',
-        status: 'PENDING',
-        participants: {
-            mom: true,
-            dad: false
-        },
-        checklist: [
-            { id: 'c1', task: '실내화 및 가방 구매 완료', checked: true },
-            { id: 'c2', task: '가족 외식 장소 예약', checked: false },
-            { id: 'c3', task: '오전 반차/연차 결재 (엄마)', checked: true }
-        ]
-    },
-    {
-        id: 'ops-2',
-        title: '시아 치과 정기 검진',
-        date: '2026.03.15',
-        description: '오후 4시 예스치과. 불소 도포 및 충치 확인',
-        priority: 'MEDIUM',
-        status: 'IN_PROGRESS',
-        participants: {
-            mom: false,
-            dad: true
-        },
-        checklist: [
-            { id: 'c4', task: '예약 확인 알람 설정', checked: false },
-            { id: 'c5', task: '양치 잘 시키고 출발', checked: false }
-        ]
-    }
-];
+import { useStore } from '../store/useStore';
 
 export default function SpecialOpsTab() {
-    const [ops, setOps] = useState(INITIAL_OPS);
-    const [expandedOpId, setExpandedOpId] = useState(INITIAL_OPS.length > 0 ? INITIAL_OPS[0].id : null);
+    const ops = useStore(state => state.opsData);
+    const addOp = useStore(state => state.addOp);
+    const removeOp = useStore(state => state.removeOp);
+    const updateOp = useStore(state => state.updateOp);
+
+    // Default expanded tab logic based on incoming data
+    const firstOpId = ops.length > 0 ? ops[0].id : null;
+    const [expandedOpId, setExpandedOpId] = useState(firstOpId);
     const [showForm, setShowForm] = useState(false);
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});
 
     const handleDeleteOp = (opsId) => {
-        setOps(ops.filter(op => op.id !== opsId));
-        if (expandedOpId === opsId) setExpandedOpId(null);
+        if (window.confirm('이 작전을 완전히 파기(삭제)하시겠습니까?')) {
+            removeOp(opsId);
+            if (expandedOpId === opsId) setExpandedOpId(null);
+        }
     };
 
     const handleAddOp = () => {
@@ -55,14 +28,14 @@ export default function SpecialOpsTab() {
         const operation = {
             id: `ops-${Date.now()}`,
             title: newOp.title,
-            date: newOp.date,
+            date: newOp.date.replace(/-/g, '.'),
             description: newOp.description,
             priority: newOp.priority,
             status: 'PENDING',
             participants: { mom: false, dad: false },
             checklist: []
         };
-        setOps([...ops, operation]);
+        addOp(operation);
         setShowForm(false);
         setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' });
     };
@@ -70,39 +43,39 @@ export default function SpecialOpsTab() {
     const handleAddTask = (opsId) => {
         const taskText = newTaskInputs[opsId];
         if (!taskText || !taskText.trim()) return;
-        setOps(ops.map(op => {
-            if (op.id !== opsId) return op;
-            return {
+        const op = ops.find(o => o.id === opsId);
+        if (op) {
+            updateOp({
                 ...op,
                 checklist: [...op.checklist, { id: `c-${Date.now()}`, task: taskText.trim(), checked: false }]
-            };
-        }));
+            });
+        }
         setNewTaskInputs({ ...newTaskInputs, [opsId]: '' });
     };
 
     const toggleChecklist = (opsId, checklistId) => {
-        setOps(ops.map(op => {
-            if (op.id !== opsId) return op;
-            return {
+        const op = ops.find(o => o.id === opsId);
+        if (op) {
+            updateOp({
                 ...op,
                 checklist: op.checklist.map(item =>
                     item.id === checklistId ? { ...item, checked: !item.checked } : item
                 )
-            };
-        }));
+            });
+        }
     };
 
     const toggleParticipant = (opsId, person) => {
-        setOps(ops.map(op => {
-            if (op.id !== opsId) return op;
-            return {
+        const op = ops.find(o => o.id === opsId);
+        if (op) {
+            updateOp({
                 ...op,
                 participants: {
                     ...op.participants,
                     [person]: !op.participants[person]
                 }
-            };
-        }));
+            });
+        }
     };
 
     return (
@@ -129,7 +102,7 @@ export default function SpecialOpsTab() {
 
             {/* Ops List */}
             <div className="space-y-4">
-                {ops.map((op) => {
+                {ops.map((op, index) => {
                     const progress = op.checklist.length === 0 ? 0 : Math.round((op.checklist.filter(c => c.checked).length / op.checklist.length) * 100);
                     const isExpanded = expandedOpId === op.id;
 
@@ -140,7 +113,7 @@ export default function SpecialOpsTab() {
                                 className="absolute top-[-10px] left-4 bg-navy text-white text-[10px] font-bold px-2 py-0.5 rounded-t tracking-widest cursor-pointer hover:bg-navy/80 hover:h-[22px] transition-all flex items-center gap-1"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
                             >
-                                OP CODE: {op.id.toUpperCase()}
+                                OP CODE: OPS-{String(index + 1).padStart(2, '0')}
                             </div>
 
                             <div
@@ -159,15 +132,13 @@ export default function SpecialOpsTab() {
                                     <div className={`font-stencil text-xs px-2 py-1 rounded border-2 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
                                         {progress === 100 ? 'CLEARED' : `${progress}%`}
                                     </div>
-                                    {progress === 100 && (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteOp(op.id); }}
-                                            className="text-white bg-accent-red hover:bg-red-700 p-1 rounded-sm shadow-sm transition-colors animate-pulse"
-                                            title="완료된 작전 파기"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteOp(op.id); }}
+                                        className={`p-1 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20'}`}
+                                        title="작전 파기"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
                             </div>
 

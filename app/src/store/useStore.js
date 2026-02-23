@@ -1,86 +1,11 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-export const INITIAL_MISSIONS = [
-    { id: 'm1', type: 'fund', day: 3, title: '김재희 미술교실 결제 (70,000₩)' },
-    { id: 'm2', type: 'fund', day: 5, title: '신동음악학원 분할결제' },
-    { id: 'm3', type: 'fund', day: 5, title: '삼성영어셀레나 결제 (200,000₩)' },
-    { id: 'm4', type: 'fund', day: 6, title: '삼성영어셀레나 결제 기한' },
-    { id: 'm5', type: 'fund', day: 11, title: 'MTA 태권도 결제 (160,000₩)' },
-    { id: 'm6', type: 'fund', day: 15, title: '스쿨뱅킹 잔액 충전 (335,000₩)' },
-    { id: 'm7', type: 'fund', day: 19, title: 'AK 아이체스 결제' },
-    { id: 'm8', type: 'fund', day: 20, title: '한마음 수영장 결제' },
-    { id: 'm9', type: 'fund', day: 27, title: '돌핀수영 결제 (185,000₩)' },
-    { id: 'm10', type: 'event', day: 18, title: '가족 나들이 (Y-Tab 연동 예정)' }
-];
-
-// 임시 로컬 데이터를 기본값으로 설정 (DB 연동 시 덮어써짐)
-const INITIAL_WEEKLY = {
-    '월': [
-        { id: 'M1_mon', time: '09:00', title: '1~4교시 정규수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'M2_mon', time: '12:10', title: '점심시간', agent: '학교', location: '급식실', isEarly: false },
-        { id: 'M3_mon', time: '13:00', title: '5교시 수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'S1', time: '14:10', title: '로봇과학 (방과후)', agent: '태권도', location: '방과후교실', isEarly: false },
-        { id: 'S2', time: '16:00', title: '태권도 학원', agent: '태권도', location: 'MTA 태권도', isUrgent: true },
-        { id: 'S3', time: '17:00', title: '영어 학원(셀레나)', agent: '엄마', location: '상탑학원', isUrgent: false },
-        { id: 'S4', time: '18:00', title: '음악 학원', agent: '아빠', location: '신동음악학원', isUrgent: false }
-    ],
-    '화': [
-        { id: 'M1_tue', time: '09:00', title: '1~4교시 정규수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'M2_tue', time: '12:10', title: '점심시간', agent: '학교', location: '급식실', isEarly: false },
-        { id: 'M3_tue', time: '13:00', title: '5교시 수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'S5', time: '13:45', title: '배드민턴 또는 미술', agent: '태권도', location: '학교/미술학원', isEarly: false },
-        { id: 'S6', time: '16:00', title: '한마음 수영장', agent: '엄마', location: '한마음복지관', isUrgent: false },
-        { id: 'S7', time: '17:00', title: '미술 학원', agent: '엄마', location: '아트&가베', isUrgent: false }
-    ],
-    '수': [
-        { id: 'M1_wed', time: '09:00', title: '1~4교시 정규수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'M2_wed', time: '12:10', title: '점심시간', agent: '학교', location: '급식실', isEarly: false },
-        { id: 'S8', time: '13:00', title: '독서 논술 또는 한자', agent: '아빠', location: '학교', isEarly: true, isUrgent: true },
-        { id: 'S9', time: '16:00', title: '태권도 학원', agent: '태권도', location: 'MTA 태권도', isUrgent: false },
-        { id: 'S10', time: '17:00', title: '영어 학원(셀레나)', agent: '엄마', location: '상탑학원', isUrgent: false },
-        { id: 'S11', time: '18:00', title: '음악 학원', agent: '아빠', location: '신동음악학원', isUrgent: false }
-    ],
-    '목': [
-        { id: 'M1_thu', time: '09:00', title: '1~4교시 정규수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'M2_thu', time: '12:10', title: '점심시간', agent: '학교', location: '급식실', isEarly: false },
-        { id: 'M3_thu', time: '13:00', title: '5교시 수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'S12', time: '13:45', title: '쿠킹&베이킹 또는 주산', agent: '태권도', location: '방과후교실', isEarly: false },
-        { id: 'S13', time: '16:00', title: '한마음 수영장', agent: '엄마', location: '한마음복지관', isUrgent: false },
-        { id: 'S14', time: '17:00', title: '미술 학원', agent: '엄마', location: '아트&가베', isUrgent: false }
-    ],
-    '금': [
-        { id: 'M1_fri', time: '09:00', title: '1~4교시 정규수업', agent: '학교', location: '일반교실', isEarly: false },
-        { id: 'M2_fri', time: '12:10', title: '점심시간', agent: '학교', location: '급식실', isEarly: false },
-        { id: 'S15', time: '13:00', title: '컴퓨터 또는 방송댄스', agent: '아빠', location: '방과후교실', isEarly: true, isUrgent: true },
-        { id: 'S16', time: '16:00', title: '태권도 학원', agent: '태권도', location: 'MTA 태권도', isUrgent: false },
-        { id: 'S17', time: '17:00', title: '영어 학원(셀레나)', agent: '엄마', location: '상탑학원', isUrgent: false },
-        { id: 'S18', time: '18:00', title: '음악 학원', agent: '아빠', location: '신동음악학원', isUrgent: false }
-    ],
-    '토': [
-        { id: 'S19', time: '10:00', title: '돌핀수영', agent: '자율', location: '돌핀수영', isEarly: false },
-        { id: 'S20', time: '11:40', title: 'AK 아이체스', agent: '자율', location: 'AK백화점', isEarly: false }
-    ]
-};
-
-const INITIAL_FUNDS = [
-    { id: 'A01', name: '성남사랑상품권', balance: 3326, updated: '26.02.03' },
-    { id: 'A02', name: '아동수당', balance: 124100, updated: '26.02.03' },
-];
-
-const INITIAL_PAYMENTS = [
-    { id: 'P01', source: '돌핀수영', amount: 185000, method: '신용카드', day: '27일', discount: '', isCompleted: false },
-    { id: 'P02', source: '신동음악학원', amount: 140000, method: '성남사랑 + 카드', day: '5일', discount: '분할결제 데이터 취합', isCompleted: false },
-    { id: 'P03', source: '삼성영어셀레나', amount: 200000, method: '성남사랑상품권', day: '5~6일', discount: '', isCompleted: false },
-    { id: 'P04', source: '김재희 미술교실', amount: 70000, method: '성남사랑상품권', day: '3~10일', discount: '', isCompleted: false },
-    { id: 'P05', source: 'MTA 태권도', amount: 160000, method: '아동수당', day: '11~14일', discount: '', isCompleted: false },
-    { id: 'P07', source: '스쿨뱅킹 (방과후)', amount: 335000, method: '스쿨뱅킹', day: '16일 전날', discount: '자동이체', isCompleted: false },
-];
-
-const INITIAL_HISTORY = [
-    { id: 'H01', paymentId: 'past_1', month: '2026-01', date: '2026.01.27 10:15', source: '돌핀수영', amount: 185000, method: '신용카드' },
-    { id: 'H02', paymentId: 'past_2', month: '2026-02', date: '2026.02.05 14:30', source: '삼성영어셀레나', amount: 200000, method: '성남사랑상품권' },
-    { id: 'H03', paymentId: 'past_3', month: '2026-02', date: '2026.02.11 09:00', source: 'MTA 태권도', amount: 160000, method: '아동수당' },
-];
+export const INITIAL_MISSIONS = [];
+const INITIAL_WEEKLY = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] };
+const INITIAL_FUNDS = [];
+const INITIAL_PAYMENTS = [];
+const INITIAL_HISTORY = [];
+const INITIAL_OPS = [];
 
 export const useStore = create((set, get) => ({
     // ---- State ----
@@ -88,15 +13,41 @@ export const useStore = create((set, get) => ({
     missionsData: INITIAL_MISSIONS,
     funds: INITIAL_FUNDS,
     payments: INITIAL_PAYMENTS,
+    opsData: INITIAL_OPS,
     transactionHistory: INITIAL_HISTORY,
     notices: [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }],
     isLoading: false,
 
+    // Auth State
+    session: null,
+
     // ---- Actions ----
+    // 0. Auth Actions
+    setSession: (session) => set({ session }),
+
+    signIn: async (email, password) => {
+        set({ isLoading: true });
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        set({ isLoading: false });
+        if (error) throw error;
+        return data;
+    },
+
+    signOut: async () => {
+        await supabase.auth.signOut();
+        set({ session: null });
+    },
+
     // 1. Weekly Data Actions
-    updateSchedule: (day, newSchedule) => set((state) => ({
-        weeklyData: { ...state.weeklyData, [day]: newSchedule }
-    })),
+    updateSchedule: async (day, newSchedule) => {
+        // Not syncing Schedule individually for now, but keeping local update structure
+        set((state) => ({
+            weeklyData: { ...state.weeklyData, [day]: newSchedule }
+        }));
+    },
 
     // 2. Missions Data Actions
     addMission: (mission) => set((state) => ({
@@ -119,9 +70,86 @@ export const useStore = create((set, get) => ({
     })),
 
     // 4. Payments Actions
-    processPayment: (paymentId) => set((state) => {
+    addPayment: async (paymentData) => {
+        const { data, error } = await supabase.from('payment').insert([{
+            source: paymentData.source,
+            amount: paymentData.amount,
+            method: paymentData.method,
+            payment_day: parseInt(paymentData.day.replace('일', ''), 10) || 1,
+            discount_info: paymentData.discount,
+            is_completed: false
+        }]).select();
+
+        if (error) { alert('요청 실패: ' + error.message); return; }
+
+        if (data && data.length > 0) {
+            const p = data[0];
+            const newPayment = {
+                id: p.id,
+                source: p.source,
+                amount: p.amount,
+                method: p.method,
+                day: `${p.payment_day}일`,
+                discount: p.discount_info || '',
+                isCompleted: p.is_completed
+            };
+            const newFundMission = {
+                id: p.id,
+                type: 'fund',
+                day: p.payment_day,
+                title: `${p.source} 결제 (${p.amount.toLocaleString()}₩)`
+            };
+            set((state) => ({
+                payments: [...state.payments, newPayment].sort((a, b) => {
+                    const numA = parseInt(a.day.replace('일', ''));
+                    const numB = parseInt(b.day.replace('일', ''));
+                    return numA - numB;
+                }),
+                missionsData: [...state.missionsData, newFundMission]
+            }));
+        }
+    },
+    removePayment: async (paymentId) => {
+        const { error } = await supabase.from('payment').delete().eq('id', paymentId);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+
+        set((state) => ({
+            payments: state.payments.filter(p => p.id !== paymentId),
+            missionsData: state.missionsData.filter(m => m.id !== paymentId),
+            transactionHistory: state.transactionHistory.filter(h => h.paymentId !== paymentId)
+        }));
+    },
+    updatePayment: async (payment) => {
+        const { error } = await supabase.from('payment').update({
+            source: payment.source,
+            amount: payment.amount,
+            method: payment.method,
+            payment_day: parseInt(payment.day.replace('일', ''), 10) || 1,
+            discount_info: payment.discount
+        }).eq('id', payment.id);
+
+        if (error) { alert('수정 실패: ' + error.message); return; }
+
+        set((state) => {
+            const numDay = parseInt(payment.day.replace('일', ''), 10) || 1;
+            return {
+                payments: state.payments.map(p => p.id === payment.id ? payment : p).sort((a, b) => {
+                    const numA = parseInt(a.day.replace('일', ''));
+                    const numB = parseInt(b.day.replace('일', ''));
+                    return numA - numB;
+                }),
+                missionsData: state.missionsData.map(m => m.id === payment.id ? {
+                    ...m,
+                    day: numDay,
+                    title: `${payment.source} 결제 (${payment.amount.toLocaleString()}₩)`
+                } : m)
+            };
+        });
+    },
+    processPayment: async (paymentId) => {
+        const state = get();
         const payment = state.payments.find(p => p.id === paymentId);
-        if (!payment || payment.isCompleted) return state;
+        if (!payment || payment.isCompleted) return;
 
         const now = new Date();
         const year = now.getFullYear();
@@ -133,84 +161,299 @@ export const useStore = create((set, get) => ({
         const currentMonth = `${year}-${month}`;
         const completedAt = `${year}.${month}.${day} ${hours}:${minutes}`;
 
-        const newHistoryRecord = {
-            id: `H-${Date.now()}`,
-            paymentId: payment.id,
+        let updatedFunds = state.funds;
+        if (!payment.method.includes('+') && payment.method !== '신용카드' && payment.method !== '스쿨뱅킹') {
+            const fund = state.funds.find(f => f.name === payment.method);
+            if (fund && fund.balance < payment.amount) {
+                alert(`[WARNING: FUNDS INSUFFICIENT]\n요청 자금: ${payment.amount.toLocaleString()}₩\n현재 잔액: ${fund.balance.toLocaleString()}₩\n자금을 충전하십시오.`);
+                return;
+            }
+            if (fund) {
+                const newBalance = fund.balance - payment.amount;
+                await supabase.from('asset').update({ balance: newBalance, last_updated: new Date().toISOString() }).eq('id', fund.id);
+                updatedFunds = state.funds.map(f => f.id === fund.id ? { ...f, balance: newBalance, updated: '방금 전' } : f);
+            }
+        }
+
+        await supabase.from('payment').update({ is_completed: true }).eq('id', paymentId);
+
+        const { data: histData } = await supabase.from('transactionhistory').insert([{
+            payment_id: paymentId,
+            month: currentMonth,
+            date_formatted: completedAt,
+            source: payment.source,
+            amount: payment.amount,
+            method: payment.method
+        }]).select();
+
+        const newHistoryRecord = histData && histData.length > 0 ? {
+            id: histData[0].id,
+            paymentId,
             month: currentMonth,
             date: completedAt,
             source: payment.source,
             amount: payment.amount,
             method: payment.method
-        };
+        } : null;
 
-        if (payment.method.includes('+') || payment.method === '스쿨뱅킹') {
-            return {
-                payments: state.payments.map(p =>
-                    p.id === paymentId ? { ...p, isCompleted: true, completedAt } : p
-                ),
-                transactionHistory: [newHistoryRecord, ...state.transactionHistory]
-            };
-        }
-
-        const fund = state.funds.find(f => f.name === payment.method);
-        if (fund && payment.method !== '신용카드' && fund.balance < payment.amount) {
-            alert(`[WARNING: FUNDS INSUFFICIENT]\n요청 자금: ${payment.amount.toLocaleString()}₩\n현재 잔액: ${fund.balance.toLocaleString()}₩\n자금을 충전하십시오.`);
-            return state;
-        }
-
-        return {
-            funds: state.funds.map(f => {
-                if (f.name === payment.method && payment.method !== '신용카드') {
-                    return { ...f, balance: f.balance - payment.amount, updated: 'Just now' };
-                }
-                return f;
-            }),
+        set((state) => ({
+            funds: updatedFunds,
             payments: state.payments.map(p =>
                 p.id === paymentId ? { ...p, isCompleted: true, completedAt } : p
             ),
-            transactionHistory: [newHistoryRecord, ...state.transactionHistory]
-        };
-    }),
-    undoPayment: (paymentId) => set((state) => {
+            transactionHistory: newHistoryRecord ? [newHistoryRecord, ...state.transactionHistory] : state.transactionHistory
+        }));
+    },
+    undoPayment: async (paymentId) => {
+        const state = get();
         const payment = state.payments.find(p => p.id === paymentId);
-        if (!payment || !payment.isCompleted) return state;
+        if (!payment || !payment.isCompleted) return;
 
         let updatedFunds = state.funds;
         if (!payment.method.includes('+') && payment.method !== '신용카드' && payment.method !== '스쿨뱅킹') {
-            updatedFunds = state.funds.map(f => {
-                if (f.name === payment.method) {
-                    return { ...f, balance: f.balance + payment.amount, updated: 'Just now' };
-                }
-                return f;
-            });
+            const fund = state.funds.find(f => f.name === payment.method);
+            if (fund) {
+                const newBalance = fund.balance + payment.amount;
+                await supabase.from('asset').update({ balance: newBalance, last_updated: new Date().toISOString() }).eq('id', fund.id);
+                updatedFunds = state.funds.map(f => f.id === fund.id ? { ...f, balance: newBalance, updated: '방금 전' } : f);
+            }
         }
 
-        return {
+        await supabase.from('payment').update({ is_completed: false }).eq('id', paymentId);
+        await supabase.from('transactionhistory').delete().eq('payment_id', paymentId);
+
+        set((state) => ({
             funds: updatedFunds,
             payments: state.payments.map(p =>
                 p.id === paymentId ? { ...p, isCompleted: false, completedAt: null } : p
             ),
             transactionHistory: state.transactionHistory.filter(h => h.paymentId !== paymentId)
-        };
-    }),
-    updateFund: (fund) => set((state) => ({
-        funds: state.funds.map(f => f.id === fund.id ? fund : f)
-    })),
-    updatePayment: (payment) => set((state) => ({
-        payments: state.payments.map(p => p.id === payment.id ? payment : p)
-    })),
+        }));
+    },
+    updateFund: async (fund) => {
+        await supabase.from('asset').update({ balance: fund.balance, last_updated: new Date().toISOString() }).eq('id', fund.id);
+        const todayStr = new Date().toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '');
+        set((state) => ({
+            funds: state.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f)
+        }));
+    },
+
+    // 5. Ops Actions
+    setOpsData: (ops) => set({ opsData: ops }),
+    addOp: async (opData) => {
+        const { data, error } = await supabase.from('ops').insert([{
+            title: opData.title,
+            execution_date: opData.date.replace(/\./g, '-'),
+            description: opData.description,
+            priority: opData.priority,
+            status: 'PENDING'
+        }]).select();
+
+        if (error) { alert('요청 실패: ' + error.message); return; }
+
+        if (data && data.length > 0) {
+            const newOp = data[0];
+            const parsedOp = {
+                id: newOp.id,
+                title: newOp.title,
+                date: newOp.execution_date.replace(/-/g, '.'),
+                description: newOp.description,
+                priority: newOp.priority,
+                status: newOp.status,
+                participants: { mom: false, dad: false },
+                checklist: []
+            };
+            const newEventMission = {
+                id: newOp.id,
+                type: 'event',
+                day: parseInt(parsedOp.date.split('.')[2], 10),
+                title: parsedOp.title
+            };
+            set(state => ({
+                opsData: [...state.opsData, parsedOp],
+                missionsData: [...state.missionsData, newEventMission]
+            }));
+        }
+    },
+    removeOp: async (id) => {
+        const { error } = await supabase.from('ops').delete().eq('id', id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+
+        set(state => ({
+            opsData: state.opsData.filter(op => op.id !== id),
+            missionsData: state.missionsData.filter(m => m.id !== id)
+        }));
+    },
+    updateOp: async (updatedOp) => {
+        const state = get();
+        const oldOp = state.opsData.find(o => o.id === updatedOp.id);
+
+        const { error } = await supabase.from('ops').update({
+            title: updatedOp.title,
+            execution_date: updatedOp.date.replace(/\./g, '-'),
+            description: updatedOp.description,
+            priority: updatedOp.priority,
+            status: updatedOp.status
+        }).eq('id', updatedOp.id);
+
+        if (error) { console.error('Ops update error:', error); alert('업데이트 실패: ' + error.message); return; }
+
+        // Sync Participants
+        if (oldOp && oldOp.participants !== updatedOp.participants) {
+            await supabase.from('opsparticipant').delete().eq('ops_id', updatedOp.id);
+            const pInserts = [];
+            if (updatedOp.participants.mom) pInserts.push({ ops_id: updatedOp.id, agent_id: 'mom', is_assigned: true });
+            if (updatedOp.participants.dad) pInserts.push({ ops_id: updatedOp.id, agent_id: 'dad', is_assigned: true });
+            if (pInserts.length > 0) await supabase.from('opsparticipant').insert(pInserts);
+        }
+
+        // Sync Checklist
+        if (oldOp && oldOp.checklist !== updatedOp.checklist) {
+            const newItems = updatedOp.checklist.filter(c => String(c.id).startsWith('c-'));
+            if (newItems.length > 0) {
+                const { data } = await supabase.from('opschecklist').insert(newItems.map(c => ({
+                    ops_id: updatedOp.id,
+                    task: c.task,
+                    is_checked: c.checked
+                }))).select();
+
+                if (data) {
+                    updatedOp.checklist = updatedOp.checklist.map(c => {
+                        const dbItem = data.find(d => d.task === c.task);
+                        return dbItem ? { ...c, id: dbItem.id } : c;
+                    });
+                }
+            }
+            const existingItems = updatedOp.checklist.filter(c => !String(c.id).startsWith('c-'));
+            for (let c of existingItems) {
+                await supabase.from('opschecklist').update({ is_checked: c.checked }).eq('id', c.id);
+            }
+        }
+
+        set(state => ({
+            opsData: state.opsData.map(op => op.id === updatedOp.id ? updatedOp : op),
+            missionsData: state.missionsData.map(m => m.id === updatedOp.id ? {
+                ...m,
+                day: parseInt(updatedOp.date.split('.')[2], 10),
+                title: updatedOp.title
+            } : m)
+        }));
+    },
 
     // ---- Async Actions (Supabase) ----
-    // 나중에 데이터베이스와 실제 연동할 때 사용할 함수
     fetchDataFromDB: async () => {
         set({ isLoading: true });
         try {
-            // let { data: schedules } = await supabase.from('Schedule').select('*');
-            // let { data: payments } = await supabase.from('Payment').select('*');
-            // set({ weeklyData: format(schedules), payments });
-            console.log('DB Fetched');
+            // Fetch Assets
+            const { data: assetsData } = await supabase.from('asset').select('*').order('last_updated', { ascending: false });
+            if (assetsData) {
+                const formattedFunds = assetsData.map(a => ({
+                    id: a.id,
+                    name: a.name,
+                    balance: a.balance,
+                    updated: new Date(a.last_updated).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '')
+                }));
+                set({ funds: formattedFunds });
+            }
+
+            // Fetch Payments
+            const { data: paymentsData } = await supabase.from('payment').select('*').order('payment_day', { ascending: true });
+            if (paymentsData) {
+                const formattedPayments = paymentsData.map(p => ({
+                    id: p.id,
+                    source: p.source,
+                    amount: p.amount,
+                    method: p.method,
+                    day: `${p.payment_day}일`,
+                    discount: p.discount_info || '',
+                    isCompleted: p.is_completed
+                }));
+                set({ payments: formattedPayments });
+
+                // Update Planner Missions based on Payments
+                const fundMissions = paymentsData.map(p => ({
+                    id: p.id,
+                    type: 'fund',
+                    day: p.payment_day,
+                    title: `${p.source} 결제 (${p.amount.toLocaleString()}₩)`
+                }));
+
+                // Fetch Ops for Planner & Ops Tab
+                const { data: opsData } = await supabase.from('ops').select('*, opschecklist(*), opsparticipant(*)');
+                if (opsData) {
+                    const parsedOps = opsData.map(o => {
+                        const momParticipant = o.opsparticipant?.find(p => p.agent_id === 'mom');
+                        const dadParticipant = o.opsparticipant?.find(p => p.agent_id === 'dad');
+
+                        return {
+                            id: o.id,
+                            title: o.title,
+                            date: o.execution_date.replace(/-/g, '.'),
+                            description: o.description,
+                            priority: o.priority,
+                            status: o.status,
+                            participants: {
+                                mom: momParticipant ? momParticipant.is_assigned : false,
+                                dad: dadParticipant ? dadParticipant.is_assigned : false
+                            },
+                            checklist: (o.opschecklist || []).map(c => ({
+                                id: c.id,
+                                task: c.task,
+                                checked: c.is_checked
+                            }))
+                        };
+                    });
+                    set({ opsData: parsedOps });
+
+                    const eventMissions = parsedOps.map(o => ({
+                        id: o.id,
+                        type: 'event',
+                        day: parseInt(o.date.split('.')[2], 10), // extract day
+                        title: o.title
+                    }));
+                    set({ missionsData: [...fundMissions, ...eventMissions] });
+                } else {
+                    set({ missionsData: fundMissions });
+                }
+            }
+
+            // Fetch Transaction History
+            const { data: historyData } = await supabase.from('transactionhistory').select('*').order('created_at', { ascending: false });
+            if (historyData) {
+                const formattedHistory = historyData.map(h => ({
+                    id: h.id,
+                    paymentId: h.payment_id,
+                    month: h.month,
+                    date: h.date_formatted,
+                    source: h.source,
+                    amount: h.amount,
+                    method: h.method
+                }));
+                set({ transactionHistory: formattedHistory });
+            }
+
+            // Fetch Schedule
+            const { data: scheduleData } = await supabase.from('schedule').select('*').order('start_time', { ascending: true });
+            if (scheduleData) {
+                const newWeekly = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] };
+                scheduleData.forEach(s => {
+                    if (newWeekly[s.day_of_week]) {
+                        newWeekly[s.day_of_week].push({
+                            id: s.id,
+                            time: s.start_time.slice(0, 5), // 'HH:MM:SS' -> 'HH:MM'
+                            title: s.title,
+                            agent: s.pickup_agent || s.drop_agent || '자율',
+                            location: s.location || '',
+                            isEarly: s.is_early,
+                            isUrgent: s.is_urgent
+                        });
+                    }
+                });
+                set({ weeklyData: newWeekly });
+            }
+
         } catch (err) {
-            console.error(err);
+            console.error('Error fetching data:', err);
         } finally {
             set({ isLoading: false });
         }

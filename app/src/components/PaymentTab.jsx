@@ -12,6 +12,8 @@ export default function PaymentTab() {
     const transactionHistory = useStore(state => state.transactionHistory);
     const updateFund = useStore(state => state.updateFund);
     const updatePayment = useStore(state => state.updatePayment);
+    const addPayment = useStore(state => state.addPayment);
+    const removePayment = useStore(state => state.removePayment);
 
     // Editing States
     const [editingFundId, setEditingFundId] = useState(null);
@@ -19,6 +21,9 @@ export default function PaymentTab() {
 
     const [editingPaymentId, setEditingPaymentId] = useState(null);
     const [paymentForm, setPaymentForm] = useState(null);
+
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newPaymentForm, setNewPaymentForm] = useState({ source: '', amount: 0, method: '신용카드', day: '1일', discount: '' });
 
     const [expandedArchiveMonth, setExpandedArchiveMonth] = useState(null);
 
@@ -34,6 +39,27 @@ export default function PaymentTab() {
     const handleSavePayment = () => {
         updatePayment(paymentForm);
         setEditingPaymentId(null);
+    };
+
+    const handleDeletePayment = (id) => {
+        if (window.confirm('이 결제 항목을 완전히 삭제(파기)하시겠습니까?')) {
+            removePayment(id);
+        }
+    };
+
+    const handleAddPayment = () => {
+        if (!newPaymentForm.source || newPaymentForm.amount <= 0) return;
+        addPayment({
+            id: `P-${Date.now()}`,
+            source: newPaymentForm.source,
+            amount: newPaymentForm.amount,
+            method: newPaymentForm.method,
+            day: newPaymentForm.day,
+            discount: newPaymentForm.discount,
+            isCompleted: false
+        });
+        setShowAddForm(false);
+        setNewPaymentForm({ source: '', amount: 0, method: '신용카드', day: '1일', discount: '' });
     };
 
     const methodTotals = payments.reduce((acc, p) => {
@@ -126,12 +152,66 @@ export default function PaymentTab() {
             </div>
 
             {/* Required Transactions */}
-            <div className="flex items-center gap-3 mt-8">
-                <h2 className="font-stencil text-xl border-b-2 border-navy flex-1">REQUIRED TRANSACTIONS</h2>
+            <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
+                <div className="flex items-center gap-3">
+                    <h2 className="font-stencil text-xl flex-1 text-navy">REQUIRED TRANSACTIONS</h2>
+                </div>
+                <button
+                    onClick={() => setShowAddForm(true)}
+                    className="bg-navy text-white p-1 rounded hover:bg-navy/80 transition-colors"
+                >
+                    <Plus size={16} />
+                </button>
             </div>
 
             <div className="space-y-4 pb-4">
                 <AnimatePresence>
+                    {showAddForm && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-amber-50 p-4 rounded shadow-sm border-2 border-navy relative overflow-hidden"
+                        >
+                            <div className="space-y-3 relative z-10 py-1">
+                                <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
+                                    <span className="text-xs font-bold font-stencil text-navy">NEW TRANSACTION</span>
+                                    <button onClick={() => setShowAddForm(false)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">Source</label>
+                                        <input type="text" value={newPaymentForm.source} onChange={e => setNewPaymentForm({ ...newPaymentForm, source: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" placeholder="ex. 태권도 학원" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">Amount (₩)</label>
+                                        <input type="number" value={newPaymentForm.amount || ''} onChange={e => setNewPaymentForm({ ...newPaymentForm, amount: Number(e.target.value) })} className="w-full text-sm font-bold font-mono border border-navy/30 rounded p-1 outline-none bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">Method</label>
+                                        <select value={newPaymentForm.method} onChange={e => setNewPaymentForm({ ...newPaymentForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer bg-white">
+                                            <option>성남사랑상품권</option>
+                                            <option>아동수당</option>
+                                            <option>신용카드</option>
+                                            <option>성남사랑 + 카드</option>
+                                            <option>스쿨뱅킹</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">Day / Period</label>
+                                        <input type="text" value={newPaymentForm.day} onChange={e => setNewPaymentForm({ ...newPaymentForm, day: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" placeholder="ex. 5일" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-navy/70 block">Discount / Memo</label>
+                                    <input type="text" value={newPaymentForm.discount} onChange={e => setNewPaymentForm({ ...newPaymentForm, discount: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" />
+                                </div>
+                                <button onClick={handleAddPayment} className="w-full bg-navy text-white text-xs font-bold py-2 rounded mt-2 flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
+                                    <Save size={14} /> CONFIRM NEW PAYMENT
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
                     {sortedPayments.map((payment) => (
                         <motion.div
                             key={payment.id}
@@ -196,30 +276,40 @@ export default function PaymentTab() {
                                 </div>
                             ) : (
                                 <>
-                                    <button
-                                        onClick={() => {
-                                            setEditingPaymentId(payment.id);
-                                            setPaymentForm(payment);
-                                        }}
-                                        className="absolute top-2 left-2 text-navy/30 hover:text-navy transition-colors bg-white/80 p-1.5 rounded-br-md border-b border-r border-navy/10 z-30"
-                                    >
-                                        <Edit2 size={16} />
-                                    </button>
+                                    <div className="absolute top-2 left-2 z-30 flex flex-col gap-1">
+                                        <button
+                                            onClick={() => {
+                                                setEditingPaymentId(payment.id);
+                                                setPaymentForm(payment);
+                                            }}
+                                            className="text-navy/30 hover:text-navy transition-colors bg-white/80 p-1.5 rounded border border-navy/10 shadow-sm"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeletePayment(payment.id)}
+                                            className="text-navy/30 hover:text-accent-red transition-colors bg-white/80 p-1.5 rounded border border-navy/10 shadow-sm"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
 
-                                    <div className="flex justify-between items-start mb-2 relative z-10 pl-8">
+                                    <div className="flex justify-between items-start mb-2 relative z-10 pl-12 pr-4">
                                         <div>
                                             <h3 className={`font-bold text-lg ${payment.isCompleted ? 'text-gray-500 line-through' : 'text-navy'}`}>
                                                 {payment.source}
                                             </h3>
-                                            <span className="text-xs bg-black/10 px-1 py-0.5 rounded mr-1">D-{payment.day}</span>
-                                            {payment.discount && <span className="text-xs bg-amber-200 text-amber-800 px-1 py-0.5 rounded font-bold">{payment.discount}</span>}
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                <span className="text-xs bg-black/10 px-1 py-0.5 rounded">D-{payment.day}</span>
+                                                {payment.discount && <span className="text-xs bg-amber-200 text-amber-800 px-1 py-0.5 rounded font-bold">{payment.discount}</span>}
+                                            </div>
                                         </div>
-                                        <div className={`font-mono font-bold ${payment.isCompleted ? 'text-gray-500' : 'text-accent-red'}`}>
+                                        <div className={`font-mono font-bold shrink-0 ${payment.isCompleted ? 'text-gray-500' : 'text-accent-red'}`}>
                                             {payment.amount.toLocaleString()} ₩
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-between items-end mt-4 relative z-10 pl-8">
+                                    <div className="flex justify-between items-end mt-4 relative z-10 pl-12">
                                         <div className="text-xs font-bold text-navy/70 flex items-center gap-1">
                                             <AlertCircle size={14} /> {payment.method}
                                         </div>

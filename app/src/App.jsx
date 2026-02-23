@@ -1,17 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import HomeBoard from './components/HomeBoard';
 import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
-import { Home, CalendarDays, CreditCard, Star } from 'lucide-react';
+import Login from './components/Login';
+import { Home, CalendarDays, CreditCard, Star, LogOut } from 'lucide-react';
+import { useStore } from './store/useStore';
+import { supabase } from './lib/supabase';
 
 function App() {
   const [activeTab, setActiveTab] = useState('home');
+  const session = useStore(state => state.session);
+  const setSession = useStore(state => state.setSession);
+  const signOut = useStore(state => state.signOut);
+  const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchDataFromDB();
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      if (session && event === 'SIGNED_IN') {
+        fetchDataFromDB();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [setSession, fetchDataFromDB]);
+
+  if (!session) {
+    return <Login />;
+  }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0">
+      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative">
+        <button
+          onClick={signOut}
+          className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+          title="기밀 보안 해제 (로그아웃)"
+        >
+          <LogOut size={18} />
+        </button>
         <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
           <span className="tracking-tight">SPY</span>
           <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
@@ -34,31 +70,31 @@ function App() {
       <nav className="sticky bottom-0 w-full bg-navy text-background grid grid-cols-4 py-3 pb-safe border-t-4 border-accent-red shadow-[0_-10px_20px_rgba(0,0,0,0.15)] z-50 mt-auto">
         <button
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
         >
-          <Home size={24} />
-          <span className="text-[10px] mt-1 font-bold">HOME</span>
+          <Home size={22} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">작전본부</span>
         </button>
         <button
           onClick={() => setActiveTab('map')}
-          className={`flex flex-col items-center ${activeTab === 'map' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 ${activeTab === 'map' ? 'text-accent-red' : 'text-background/70'}`}
         >
-          <CalendarDays size={24} />
-          <span className="text-[10px] mt-1 font-bold">PLAN</span>
+          <CalendarDays size={22} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">작전계획</span>
         </button>
         <button
           onClick={() => setActiveTab('payment')}
-          className={`flex flex-col items-center ${activeTab === 'payment' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 ${activeTab === 'payment' ? 'text-accent-red' : 'text-background/70'}`}
         >
-          <CreditCard size={24} />
-          <span className="text-[10px] mt-1 font-bold">FUNDS</span>
+          <CreditCard size={22} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">결제미션</span>
         </button>
         <button
           onClick={() => setActiveTab('ops')}
-          className={`flex flex-col items-center ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
         >
-          <Star size={24} />
-          <span className="text-[10px] mt-1 font-bold">OPS</span>
+          <Star size={22} />
+          <span className="text-[10px] mt-1 font-bold tracking-tight">특수임무</span>
         </button>
       </nav>
     </div>
