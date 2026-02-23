@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -98,8 +98,8 @@ export default function RouteMapTab() {
                         <div>
                             <label className="text-xs font-bold opacity-70 block">Type</label>
                             <select value={manageMissionForm.type} onChange={e => setManageMissionForm({ ...manageMissionForm, type: e.target.value })} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
-                                <option value="fund">결제 미션 (FUNDS)</option>
-                                <option value="event">특수 임무 (OPS)</option>
+                                <option value="fund">결제미션</option>
+                                <option value="event">특수임무</option>
                             </select>
                         </div>
                         <div>
@@ -176,15 +176,15 @@ export default function RouteMapTab() {
                 </div>
 
                 <div className="flex gap-4 mt-6 justify-center text-xs font-bold text-navy/70 border-t border-navy/10 pt-3">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제(FUNDS)</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 작전(OPS)</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제미션</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 특수임무</div>
                 </div>
             </div>
 
             {/* Calendar Data Manager */}
             <div className="bg-navy/5 p-4 rounded border-2 border-navy/20 space-y-4">
                 <h3 className="font-stencil text-navy mb-1 flex items-center gap-2 border-b-2 border-navy/20 pb-2">
-                    DATA MANAGER
+                    <Database size={20} className="text-navy" /> DATA MANAGER
                 </h3>
                 <button onClick={() => openManageMissionForm()} className="w-full bg-navy text-background font-bold text-sm py-3 rounded border-2 border-navy flex justify-center items-center gap-2 hover:bg-white hover:text-navy transition-colors">
                     <Plus size={16} /> 새로운 일정/결제일 추가

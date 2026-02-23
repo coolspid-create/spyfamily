@@ -154,6 +154,7 @@ export default function PaymentTab() {
             {/* Required Transactions */}
             <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
                 <div className="flex items-center gap-3">
+                    <CheckCircle2 size={24} className="text-navy" />
                     <h2 className="font-stencil text-xl flex-1 text-navy">REQUIRED TRANSACTIONS</h2>
                 </div>
                 <button
