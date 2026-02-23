@@ -6,16 +6,6 @@ const INITIAL_FUNDS = [];
 const INITIAL_PAYMENTS = [];
 const INITIAL_HISTORY = [];
 const INITIAL_OPS = [];
-
-const getInitialNotices = () => {
-    try {
-        const stored = localStorage.getItem('spyfamily_notices');
-        return stored ? JSON.parse(stored) : [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }];
-    } catch {
-        return [{ id: 1, text: '신규 학원 교재비 결제 (카드 준비)', checked: false }];
-    }
-};
-
 export const useStore = create((set, get) => ({
     // ---- State ----
     weeklyData: INITIAL_WEEKLY,
@@ -24,7 +14,7 @@ export const useStore = create((set, get) => ({
     payments: INITIAL_PAYMENTS,
     opsData: INITIAL_OPS,
     transactionHistory: INITIAL_HISTORY,
-    notices: getInitialNotices(),
+    notices: [],
     isLoading: false,
 
     // Auth State
@@ -126,22 +116,33 @@ export const useStore = create((set, get) => ({
         }));
     },
 
-    // 3. Notices Actions (Persisted via LocalStorage)
-    addNotice: (notice) => set((state) => {
-        const updated = [...state.notices, notice];
-        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
-        return { notices: updated };
-    }),
-    updateNotice: (id) => set((state) => {
-        const updated = state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n);
-        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
-        return { notices: updated };
-    }),
-    removeNotice: (id) => set((state) => {
-        const updated = state.notices.filter(n => n.id !== id);
-        localStorage.setItem('spyfamily_notices', JSON.stringify(updated));
-        return { notices: updated };
-    }),
+    // 3. Notices Actions (Supabase Sync)
+    addNotice: async (notice) => {
+        const { data, error } = await supabase.from('notice').insert([{
+            text: notice.text,
+            is_checked: notice.checked
+        }]).select();
+        if (error) { console.error(error); return; }
+        if (data && data.length > 0) {
+            set((state) => ({ notices: [...state.notices, { id: data[0].id, text: data[0].text, checked: data[0].is_checked }] }));
+        }
+    },
+    updateNotice: async (id) => {
+        const state = get();
+        const notice = state.notices.find(n => n.id === id);
+        if (notice) {
+            await supabase.from('notice').update({ is_checked: !notice.checked }).eq('id', id);
+            set((state) => ({
+                notices: state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n)
+            }));
+        }
+    },
+    removeNotice: async (id) => {
+        await supabase.from('notice').delete().eq('id', id);
+        set((state) => ({
+            notices: state.notices.filter(n => n.id !== id)
+        }));
+    },
 
     // 4. Payments Actions
     addPayment: async (paymentData) => {
@@ -524,6 +525,18 @@ export const useStore = create((set, get) => ({
                     }
                 });
                 set({ weeklyData: newWeekly });
+            }
+
+            // Fetch Notices
+            const { data: noticeData } = await supabase.from('notice').select('*').order('created_at', { ascending: true });
+            if (noticeData) {
+                set({
+                    notices: noticeData.map(n => ({
+                        id: n.id,
+                        text: n.text,
+                        checked: n.is_checked
+                    }))
+                });
             }
 
         } catch (err) {
