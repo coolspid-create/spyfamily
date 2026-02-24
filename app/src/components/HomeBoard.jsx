@@ -30,16 +30,22 @@ export default function HomeBoard() {
     const [showPast, setShowPast] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newSchedule, setNewSchedule] = useState({ title: '', time: '09:00', agent: '자율', location: '' });
+    const [isCustomAgentAdd, setIsCustomAgentAdd] = useState(false);
+    const [isCustomAgentEdit, setIsCustomAgentEdit] = useState(false);
+
+    const presetAgents = ['엄마', '아빠', '태권도', '학교', '자율'];
 
     const schedule = weeklyData[selectedDay] || [];
 
     const startEdit = (item) => {
         setEditingId(item.id);
         setEditForm({ ...item });
+        setIsCustomAgentEdit(!presetAgents.includes(item.agent));
     };
 
     const saveEdit = async () => {
-        await updateScheduleItem(editForm);
+        const finalForm = { ...editForm, agent: editForm.agent.trim() || '자율' };
+        await updateScheduleItem(finalForm);
         setEditingId(null);
     };
 
@@ -51,9 +57,11 @@ export default function HomeBoard() {
 
     const handleAddSchedule = async () => {
         if (!newSchedule.title.trim()) return;
-        await addSchedule(selectedDay, newSchedule);
+        const finalSchedule = { ...newSchedule, agent: newSchedule.agent.trim() || '자율' };
+        await addSchedule(selectedDay, finalSchedule);
         setShowAddForm(false);
         setNewSchedule({ title: '', time: '09:00', agent: '자율', location: '' });
+        setIsCustomAgentAdd(false);
     };
 
     const handleAddNotice = () => {
@@ -320,15 +328,38 @@ export default function HomeBoard() {
                                                 <input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full font-bold text-lg outline-none bg-transparent" placeholder="일정명" />
                                             </div>
                                             <div className="flex flex-col gap-2">
-                                                <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
-                                                    <span className="text-xs font-bold w-12 text-navy/70 shrink-0">담당자</span>
-                                                    <select value={editForm.agent} onChange={(e) => setEditForm({ ...editForm, agent: e.target.value })} className="w-full font-bold outline-none bg-transparent cursor-pointer">
-                                                        <option>엄마</option>
-                                                        <option>아빠</option>
-                                                        <option>태권도</option>
-                                                        <option>학교</option>
-                                                        <option>자율</option>
-                                                    </select>
+                                                <div className="flex flex-col gap-2 border-b border-navy/30 pb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">담당자</span>
+                                                        <select
+                                                            value={isCustomAgentEdit ? '직접입력' : editForm.agent}
+                                                            onChange={(e) => {
+                                                                if (e.target.value === '직접입력') {
+                                                                    setIsCustomAgentEdit(true);
+                                                                    setEditForm({ ...editForm, agent: '' });
+                                                                } else {
+                                                                    setIsCustomAgentEdit(false);
+                                                                    setEditForm({ ...editForm, agent: e.target.value });
+                                                                }
+                                                            }}
+                                                            className="w-full font-bold outline-none bg-transparent cursor-pointer"
+                                                        >
+                                                            {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
+                                                            <option value="직접입력">직접입력...</option>
+                                                        </select>
+                                                    </div>
+                                                    {isCustomAgentEdit && (
+                                                        <div className="flex items-center gap-2 pl-14">
+                                                            <input
+                                                                type="text"
+                                                                value={editForm.agent}
+                                                                onChange={(e) => setEditForm({ ...editForm, agent: e.target.value })}
+                                                                placeholder="추가 담당자 입력"
+                                                                className="w-full font-bold outline-none bg-transparent border-b border-navy/30 text-accent-red text-sm"
+                                                                autoFocus
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
                                                     <span className="text-xs font-bold w-12 text-navy/70 shrink-0">시간</span>
@@ -391,15 +422,38 @@ export default function HomeBoard() {
                                         <span className="text-xs font-bold w-12 text-navy/70 shrink-0">시간</span>
                                         <input type="time" value={newSchedule.time} onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })} className="w-full font-bold outline-none bg-transparent" />
                                     </div>
-                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
-                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">담당자</span>
-                                        <select value={newSchedule.agent} onChange={(e) => setNewSchedule({ ...newSchedule, agent: e.target.value })} className="w-full font-bold outline-none bg-transparent cursor-pointer">
-                                            <option>엄마</option>
-                                            <option>아빠</option>
-                                            <option>태권도</option>
-                                            <option>학교</option>
-                                            <option>자율</option>
-                                        </select>
+                                    <div className="flex flex-col gap-2 border-b border-navy/30 pb-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold w-12 text-navy/70 shrink-0">담당자</span>
+                                            <select
+                                                value={isCustomAgentAdd ? '직접입력' : newSchedule.agent}
+                                                onChange={(e) => {
+                                                    if (e.target.value === '직접입력') {
+                                                        setIsCustomAgentAdd(true);
+                                                        setNewSchedule({ ...newSchedule, agent: '' });
+                                                    } else {
+                                                        setIsCustomAgentAdd(false);
+                                                        setNewSchedule({ ...newSchedule, agent: e.target.value });
+                                                    }
+                                                }}
+                                                className="w-full font-bold outline-none bg-transparent cursor-pointer"
+                                            >
+                                                {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
+                                                <option value="직접입력">직접입력...</option>
+                                            </select>
+                                        </div>
+                                        {isCustomAgentAdd && (
+                                            <div className="flex items-center gap-2 pl-14">
+                                                <input
+                                                    type="text"
+                                                    value={newSchedule.agent}
+                                                    onChange={(e) => setNewSchedule({ ...newSchedule, agent: e.target.value })}
+                                                    placeholder="추가 담당자 입력"
+                                                    className="w-full font-bold outline-none bg-transparent border-b border-navy/30 text-accent-red text-sm"
+                                                    autoFocus
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
                                         <span className="text-xs font-bold w-12 text-navy/70 shrink-0">장소</span>
@@ -407,7 +461,7 @@ export default function HomeBoard() {
                                     </div>
                                 </div>
                                 <div className="flex gap-2 mt-4">
-                                    <button onClick={() => setShowAddForm(false)} className="flex-1 bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded transition-colors hover:bg-gray-300">
+                                    <button onClick={() => { setShowAddForm(false); setIsCustomAgentAdd(false); }} className="flex-1 bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded transition-colors hover:bg-gray-300">
                                         취소
                                     </button>
                                     <button onClick={handleAddSchedule} className="flex-1 bg-navy text-white font-bold text-xs px-3 py-2 rounded flex items-center justify-center gap-1 hover:bg-navy/90 transition-colors">
