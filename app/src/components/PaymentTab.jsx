@@ -81,6 +81,29 @@ export default function PaymentTab() {
     }, {});
     const sortedMonths = Object.keys(historyByMonth).sort((a, b) => b.localeCompare(a));
 
+    const calculateDDay = (targetDayStr) => {
+        const targetDay = parseInt(String(targetDayStr).replace(/[^0-9]/g, ''), 10);
+        if (isNaN(targetDay)) return targetDayStr;
+
+        const today = new Date();
+        // Today at midnight for accurate day diff
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth();
+        const currentDate = today.getDate();
+
+        let targetDate = new Date(currentYear, currentMonth, targetDay);
+
+        if (currentDate > targetDay) {
+            targetDate = new Date(currentYear, currentMonth + 1, targetDay);
+        }
+
+        const diffTime = targetDate.getTime() - new Date(currentYear, currentMonth, currentDate).getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return 'D-Day';
+        return `D-${diffDays}`;
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -301,7 +324,11 @@ export default function PaymentTab() {
                                                 {payment.source}
                                             </h3>
                                             <div className="flex flex-wrap gap-1 mt-1">
-                                                <span className="text-xs bg-black/10 px-1 py-0.5 rounded">D-{payment.day}</span>
+                                                <span className={`text-xs px-2 py-0.5 rounded font-bold ${payment.isCompleted ? 'bg-black/10 text-gray-500' :
+                                                        calculateDDay(payment.day).includes('D-Day') || parseInt(calculateDDay(payment.day).replace('D-', '')) <= 3 ? 'bg-accent-red text-white' : 'bg-black/10'
+                                                    }`}>
+                                                    {payment.isCompleted ? `결제일: ${payment.day}` : calculateDDay(payment.day)}
+                                                </span>
                                                 {payment.discount && <span className="text-xs bg-amber-200 text-amber-800 px-1 py-0.5 rounded font-bold">{payment.discount}</span>}
                                             </div>
                                         </div>
