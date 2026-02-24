@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, X, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -16,6 +16,15 @@ export default function SpecialOpsTab() {
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});
 
+    const handleEditOp = (op) => {
+        setNewOp({
+            ...op,
+            date: op.date.replace(/\./g, '-')
+        });
+        setShowForm(true);
+        window.setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
+    };
+
     const handleDeleteOp = (opsId) => {
         if (window.confirm('이 작전을 완전히 파기(삭제)하시겠습니까?')) {
             removeOp(opsId);
@@ -25,17 +34,25 @@ export default function SpecialOpsTab() {
 
     const handleAddOp = () => {
         if (!newOp.title.trim() || !newOp.date) return;
-        const operation = {
-            id: `ops-${Date.now()}`,
-            title: newOp.title,
-            date: newOp.date.replace(/-/g, '.'),
-            description: newOp.description,
-            priority: newOp.priority,
-            status: 'PENDING',
-            participants: { mom: false, dad: false },
-            checklist: []
-        };
-        addOp(operation);
+
+        if (newOp.id) {
+            updateOp({
+                ...newOp,
+                date: newOp.date.replace(/-/g, '.')
+            });
+        } else {
+            const operation = {
+                id: `ops-${Date.now()}`,
+                title: newOp.title,
+                date: newOp.date.replace(/-/g, '.'),
+                description: newOp.description,
+                priority: newOp.priority,
+                status: 'PENDING',
+                participants: { mom: false, dad: false },
+                checklist: []
+            };
+            addOp(operation);
+        }
         setShowForm(false);
         setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' });
     };
@@ -132,13 +149,22 @@ export default function SpecialOpsTab() {
                                     <div className={`font-stencil text-xs px-2 py-1 rounded border-2 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
                                         {progress === 100 ? 'CLEARED' : `${progress}%`}
                                     </div>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteOp(op.id); }}
-                                        className={`p-1 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20'}`}
-                                        title="작전 파기"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEditOp(op); }}
+                                            className={`p-1 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20`}
+                                            title="작전 수정"
+                                        >
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteOp(op.id); }}
+                                            className={`p-1 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20'}`}
+                                            title="작전 파기"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -226,8 +252,8 @@ export default function SpecialOpsTab() {
                         className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden"
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
-                            <span>DRAFT NEW OPERATION</span>
-                            <button onClick={() => setShowForm(false)} className="text-navy/50 hover:text-accent-red transition-colors"><X size={18} /></button>
+                            <span>{newOp.id ? 'EDIT OPERATION' : 'DRAFT NEW OPERATION'}</span>
+                            <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><X size={18} /></button>
                         </h3>
 
                         <div className="space-y-4">
