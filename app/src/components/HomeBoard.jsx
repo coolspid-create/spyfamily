@@ -342,15 +342,15 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-1 right-1 flex bg-white/50 rounded-bl-md border-b border-l border-gray-300 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1 border-r border-gray-300">
+                                            <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-gray-300 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 border-b border-gray-300">
                                                     <Edit2 size={14} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
-                                            <div className="flex justify-between items-center pr-10">
+                                            <div className="flex justify-between items-center pr-8">
                                                 <h3 className="font-bold text-gray-600 line-through">{item.title}</h3>
                                                 <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-1 rounded">{item.agent}</span>
                                             </div>
@@ -446,15 +446,15 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded-bl-md border-b border-l border-navy/10 overflow-hidden">
-                                                <button onClick={() => startEdit(item)} className="text-navy/30 hover:text-navy transition-colors p-1 border-r border-navy/10">
-                                                    <Edit2 size={16} />
+                                            <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-navy/10 overflow-hidden z-10">
+                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-1.5 border-b border-navy/10">
+                                                    <Edit2 size={14} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-navy/30 hover:text-accent-red transition-colors p-1">
-                                                    <Trash2 size={16} />
+                                                <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-1.5">
+                                                    <Trash2 size={14} />
                                                 </button>
                                             </div>
-                                            <div className="flex justify-between items-start mb-2 pr-6">
+                                            <div className="flex justify-between items-start mb-2 pr-8">
                                                 <h3 className={`font-bold text-lg ${item.isEarly ? 'text-accent-red' : ''}`}>{item.title}</h3>
                                                 <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 shrink-0">
                                                     {getAgentIcon(item.agent)}
