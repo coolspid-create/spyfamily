@@ -283,11 +283,79 @@ export default function HomeBoard() {
                                 </div>
 
                                 {/* Card */}
-                                <div className="bg-gray-100 border-2 p-2 rounded shadow-sm border-gray-300">
-                                    <div className="flex justify-between items-center pr-2">
-                                        <h3 className="font-bold text-gray-600 line-through">{item.title}</h3>
-                                        <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-1 rounded">{item.agent}</span>
-                                    </div>
+                                <div className="bg-gray-100 border-2 p-2 rounded shadow-sm border-gray-300 relative group">
+                                    {editingId === item.id ? (
+                                        <motion.div
+                                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                            className="space-y-3 mt-1"
+                                        >
+                                            <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
+                                                <span className="text-xs font-bold w-12 text-gray-500 shrink-0">일정명</span>
+                                                <input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full font-bold text-lg outline-none bg-transparent text-gray-800" placeholder="일정명" />
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex flex-col gap-2 border-b border-gray-300 pb-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold w-12 text-gray-500 shrink-0">담당자</span>
+                                                        <select
+                                                            value={isCustomAgentEdit ? '직접입력' : editForm.agent}
+                                                            onChange={(e) => {
+                                                                if (e.target.value === '직접입력') {
+                                                                    setIsCustomAgentEdit(true);
+                                                                    setEditForm({ ...editForm, agent: '' });
+                                                                } else {
+                                                                    setIsCustomAgentEdit(false);
+                                                                    setEditForm({ ...editForm, agent: e.target.value });
+                                                                }
+                                                            }}
+                                                            className="w-full font-bold outline-none bg-transparent cursor-pointer text-gray-800"
+                                                        >
+                                                            {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
+                                                            <option value="직접입력">직접입력...</option>
+                                                        </select>
+                                                    </div>
+                                                    {isCustomAgentEdit && (
+                                                        <div className="flex items-center gap-2 pl-14">
+                                                            <input
+                                                                type="text"
+                                                                value={editForm.agent}
+                                                                onChange={(e) => setEditForm({ ...editForm, agent: e.target.value })}
+                                                                placeholder="추가 담당자 입력"
+                                                                className="w-full font-bold outline-none bg-transparent border-b border-gray-300 text-gray-800 text-sm"
+                                                                autoFocus
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">시간</span>
+                                                    <input type="time" value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" />
+                                                </div>
+                                                <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">장소</span>
+                                                    <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="장소" />
+                                                </div>
+                                            </div>
+                                            <button onClick={saveEdit} className="bg-gray-500 text-white font-bold text-xs px-3 py-2 mt-2 rounded w-full flex items-center justify-center gap-1 hover:bg-gray-600 transition-colors">
+                                                <Save size={14} /> SAVE & SORT
+                                            </button>
+                                        </motion.div>
+                                    ) : (
+                                        <>
+                                            <div className="absolute top-1 right-1 flex bg-white/50 rounded-bl-md border-b border-l border-gray-300 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1 border-r border-gray-300">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                            <div className="flex justify-between items-center pr-10">
+                                                <h3 className="font-bold text-gray-600 line-through">{item.title}</h3>
+                                                <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-1 rounded">{item.agent}</span>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
