@@ -7,17 +7,25 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
+    const [isSignUp, setIsSignUp] = useState(false);
 
     const signIn = useStore(state => state.signIn);
+    const signUp = useStore(state => state.signUp);
     const isLoading = useStore(state => state.isLoading);
 
-    const handleLogin = async (e) => {
+    const handleAuth = async (e) => {
         e.preventDefault();
         setErrorMsg('');
         try {
-            await signIn(email, password);
+            if (isSignUp) {
+                await signUp(email, password);
+                alert("요원 등록이 완료되었습니다. 로그인을 진행해 주십시오.");
+                setIsSignUp(false);
+            } else {
+                await signIn(email, password);
+            }
         } catch (error) {
-            setErrorMsg('정체 확인 실패: 접근 권한이 없는 요원입니다.');
+            setErrorMsg(isSignUp ? `등록 실패: ${error.message}` : `정체 확인 실패: ${error.message}`);
         }
     };
 
@@ -54,7 +62,7 @@ export default function Login() {
                     </p>
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleAuth} className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold text-navy mb-1 flex items-center gap-1">
                             <ShieldAlert size={14} className="text-accent-red" /> 요원 식별 코드 (Email)
@@ -93,9 +101,19 @@ export default function Login() {
                         disabled={isLoading}
                         className={`w-full bg-navy text-white font-bold tracking-widest py-4 mt-4 rounded border-b-4 border-black active:border-b-0 active:translate-y-1 transition-all flex justify-center items-center gap-2 ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-navy/90'}`}
                     >
-                        {isLoading ? '신원조회 중...' : <><Lock size={18} /> SECURITY CLEARANCE</>}
+                        {isLoading ? (isSignUp ? '등록 중...' : '신원조회 중...') : <><Lock size={18} /> {isSignUp ? 'REGISTER AGENT' : 'SECURITY CLEARANCE'}</>}
                     </button>
                 </form>
+
+                <div className="mt-4 text-center">
+                    <button
+                        type="button"
+                        onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(''); }}
+                        className="text-xs text-navy font-bold underline hover:text-accent-red"
+                    >
+                        {isSignUp ? '기존 요원이십니까? (로그인)' : '신규 요원으로 등록하시겠습니까? (회원가입)'}
+                    </button>
+                </div>
 
                 <div className="text-center mt-6">
                     <p className="text-[9px] text-navy/40 font-bold uppercase">Authorized personnel only.</p>

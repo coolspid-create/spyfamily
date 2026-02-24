@@ -35,6 +35,17 @@ export const useStore = create((set, get) => ({
         return data;
     },
 
+    signUp: async (email, password) => {
+        set({ isLoading: true });
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+        });
+        set({ isLoading: false });
+        if (error) throw error;
+        return data;
+    },
+
     signOut: async () => {
         await supabase.auth.signOut();
         set({ session: null });
@@ -42,10 +53,39 @@ export const useStore = create((set, get) => ({
 
     // 1. Weekly Data Actions
     updateSchedule: async (day, newSchedule) => {
-        // Not syncing Schedule individually for now, but keeping local update structure
         set((state) => ({
             weeklyData: { ...state.weeklyData, [day]: newSchedule }
         }));
+    },
+    addSchedule: async (day, item) => {
+        const { data, error } = await supabase.from('schedule').insert([{
+            title: item.title,
+            day_of_week: day,
+            start_time: item.time + ':00',
+            pickup_agent: item.agent,
+            drop_agent: item.agent,
+            location: item.location || '',
+            is_urgent: item.isUrgent || false,
+            is_early: item.isEarly || false
+        }]).select();
+        if (error) { alert('일정 추가 실패: ' + error.message); return; }
+        await get().fetchDataFromDB();
+    },
+    updateScheduleItem: async (item) => {
+        const { error } = await supabase.from('schedule').update({
+            title: item.title,
+            start_time: item.time + (item.time.length === 5 ? ':00' : ''),
+            pickup_agent: item.agent,
+            drop_agent: item.agent,
+            location: item.location || ''
+        }).eq('id', item.id);
+        if (error) { alert('수정 실패: ' + error.message); return; }
+        await get().fetchDataFromDB();
+    },
+    removeScheduleItem: async (id) => {
+        const { error } = await supabase.from('schedule').delete().eq('id', id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+        await get().fetchDataFromDB();
     },
 
     // 2. Missions Data Actions (Supabase Sync)
@@ -420,7 +460,17 @@ export const useStore = create((set, get) => ({
         set({ isLoading: true });
         try {
             // Fetch Assets
-            const { data: assetsData } = await supabase.from('asset').select('*').order('last_updated', { ascending: false });
+            let { data: assetsData } = await supabase.from('asset').select('*').order('last_updated', { ascending: false });
+            if (assetsData && assetsData.length === 0) {
+                // Multi-tenant: Initialize default funds for new user
+                const defaultFunds = [
+                    { name: '아동수당', balance: 0 },
+                    { name: '성남사랑상품권', balance: 0 }
+                ];
+                const { data: insertedData } = await supabase.from('asset').insert(defaultFunds).select('*').order('last_updated', { ascending: false });
+                if (insertedData) assetsData = insertedData;
+            }
+
             if (assetsData) {
                 const formattedFunds = assetsData.map(a => ({
                     id: a.id,

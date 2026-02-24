@@ -13,7 +13,9 @@ const getAgentIcon = (agent) => {
 export default function HomeBoard() {
     // Zustand Store
     const weeklyData = useStore(state => state.weeklyData);
-    const updateSchedule = useStore(state => state.updateSchedule);
+    const addSchedule = useStore(state => state.addSchedule);
+    const updateScheduleItem = useStore(state => state.updateScheduleItem);
+    const removeScheduleItem = useStore(state => state.removeScheduleItem);
     const notices = useStore(state => state.notices);
     const addNotice = useStore(state => state.addNotice);
     const updateNotice = useStore(state => state.updateNotice);
@@ -26,6 +28,8 @@ export default function HomeBoard() {
     const [editForm, setEditForm] = useState(null);
     const [newNotice, setNewNotice] = useState('');
     const [showPast, setShowPast] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newSchedule, setNewSchedule] = useState({ title: '', time: '09:00', agent: '자율', location: '' });
 
     const schedule = weeklyData[selectedDay] || [];
 
@@ -34,11 +38,22 @@ export default function HomeBoard() {
         setEditForm({ ...item });
     };
 
-    const saveEdit = () => {
-        const updated = schedule.map(s => s.id === editingId ? editForm : s);
-        updated.sort((a, b) => a.time.localeCompare(b.time));
-        updateSchedule(selectedDay, updated);
+    const saveEdit = async () => {
+        await updateScheduleItem(editForm);
         setEditingId(null);
+    };
+
+    const handleDelete = async (id) => {
+        if (window.confirm('일정을 삭제하시겠습니까?')) {
+            await removeScheduleItem(id);
+        }
+    };
+
+    const handleAddSchedule = async () => {
+        if (!newSchedule.title.trim()) return;
+        await addSchedule(selectedDay, newSchedule);
+        setShowAddForm(false);
+        setNewSchedule({ title: '', time: '09:00', agent: '자율', location: '' });
     };
 
     const handleAddNotice = () => {
@@ -169,7 +184,7 @@ export default function HomeBoard() {
                 )}
 
                 <AnimatePresence>
-                    {isAllCompleted && (
+                    {isAllCompleted && !showPast && (
                         <motion.div
                             initial={{ scale: 3, opacity: 0 }}
                             animate={{ scale: 1, opacity: 0.95 }}
@@ -330,9 +345,14 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <button onClick={() => startEdit(item)} className="absolute top-2 right-2 text-navy/30 hover:text-navy transition-colors bg-white/50 p-1 rounded-bl-md border-b border-l border-navy/10">
-                                                <Edit2 size={16} />
-                                            </button>
+                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded-bl-md border-b border-l border-navy/10 overflow-hidden">
+                                                <button onClick={() => startEdit(item)} className="text-navy/30 hover:text-navy transition-colors p-1 border-r border-navy/10">
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className="text-navy/30 hover:text-accent-red transition-colors p-1">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                             <div className="flex justify-between items-start mb-2 pr-6">
                                                 <h3 className={`font-bold text-lg ${item.isEarly ? 'text-accent-red' : ''}`}>{item.title}</h3>
                                                 <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 shrink-0">
@@ -350,6 +370,65 @@ export default function HomeBoard() {
                         )
                     })}
                 </AnimatePresence>
+
+                {/* Add Schedule Form */}
+                <AnimatePresence>
+                    {showAddForm && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="relative pl-6 overflow-hidden mt-4"
+                        >
+                            <div className="bg-white border-2 border-dashed border-navy/50 p-3 rounded shadow-sm relative">
+                                <h3 className="font-bold text-navy mb-3 flex items-center gap-1"><Plus size={16} /> 신규 투입 일정 작성</h3>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">일정명</span>
+                                        <input type="text" value={newSchedule.title} onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="예) 피아노 학원" />
+                                    </div>
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">시간</span>
+                                        <input type="time" value={newSchedule.time} onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })} className="w-full font-bold outline-none bg-transparent" />
+                                    </div>
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">담당자</span>
+                                        <select value={newSchedule.agent} onChange={(e) => setNewSchedule({ ...newSchedule, agent: e.target.value })} className="w-full font-bold outline-none bg-transparent cursor-pointer">
+                                            <option>엄마</option>
+                                            <option>아빠</option>
+                                            <option>태권도</option>
+                                            <option>학교</option>
+                                            <option>자율</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">장소</span>
+                                        <input type="text" value={newSchedule.location} onChange={(e) => setNewSchedule({ ...newSchedule, location: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="장소 입력 (선택)" />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button onClick={() => setShowAddForm(false)} className="flex-1 bg-gray-200 text-gray-700 font-bold text-xs px-3 py-2 rounded transition-colors hover:bg-gray-300">
+                                        취소
+                                    </button>
+                                    <button onClick={handleAddSchedule} className="flex-1 bg-navy text-white font-bold text-xs px-3 py-2 rounded flex items-center justify-center gap-1 hover:bg-navy/90 transition-colors">
+                                        <Save size={14} /> 작성 완료
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {!showAddForm && (
+                    <div className="relative pl-6 mt-4">
+                        <button
+                            onClick={() => setShowAddForm(true)}
+                            className="w-full bg-transparent border-2 border-dashed border-navy/30 text-navy/60 font-bold text-sm py-3 rounded-md flex items-center justify-center gap-2 hover:bg-navy hover:text-white hover:border-navy transition-colors"
+                        >
+                            <Plus size={18} /> 새 일정 추가
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Floating Action Button for Emergency */}
