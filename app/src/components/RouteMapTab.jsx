@@ -186,9 +186,12 @@ export default function RouteMapTab() {
                 <h3 className="font-stencil text-navy mb-1 flex items-center gap-2 border-b-2 border-navy/20 pb-2">
                     <Database size={20} className="text-navy" /> DATA MANAGER
                 </h3>
+                {/* 
+                // [NOTE] 결제미션 및 특수임무 탭과 데이터가 연동되므로 임시 가림 처리
                 <button onClick={() => openManageMissionForm()} className="w-full bg-navy text-background font-bold text-sm py-3 rounded border-2 border-navy flex justify-center items-center gap-2 hover:bg-white hover:text-navy transition-colors">
                     <Plus size={16} /> 새로운 일정/결제일 추가
                 </button>
+                */}
 
                 <AnimatePresence>
                     {editingMissionId && !missionsData.find(m => m.id === editingMissionId) && renderManageForm()}
