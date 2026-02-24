@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { User, Baby, Car, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin } from 'lucide-react';
+import { User, Baby, Car, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
 const getAgentIcon = (agent) => {
     if (agent.includes('엄마')) return <Baby className="w-5 h-5 text-accent-red" />;
-    if (agent.includes('아빠')) return <User className="w-5 h-5 text-navy border-2 border-navy rounded-full" />;
+    if (agent.includes('아빠')) return <User className="w-5 h-5 text-navy border-2 border-navy rounded-full p-[1px]" />;
     if (agent.includes('태권도')) return <Bus className="w-5 h-5 text-accent-green" />;
-    return <User className="w-5 h-5" />;
+    if (agent.includes('학교')) return <School className="w-5 h-5 text-blue-600" />;
+    if (agent.includes('자율')) return <Rocket className="w-5 h-5 text-orange-500" />;
+    return <User className="w-4 h-4 text-gray-500 border border-gray-400 rounded-full p-[1px]" />;
 };
 
 export default function HomeBoard() {
