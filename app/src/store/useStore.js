@@ -21,6 +21,13 @@ const savedChildCount = (() => {
         return 1;
     }
 })();
+const savedCurrentChild = (() => {
+    try {
+        return localStorage.getItem('spy_currentChild') || 'child1';
+    } catch {
+        return 'child1';
+    }
+})();
 
 export const useStore = create((set, get) => ({
     // ---- State ----
@@ -34,15 +41,18 @@ export const useStore = create((set, get) => ({
     isLoading: false,
     // Multi-Child Profile State
     childCount: savedChildCount, // Number of children currently managed (max 3)
-    currentChild: 'child1',
+    currentChild: savedCurrentChild,
     childProfiles: savedProfiles,
 
     // Auth State
     session: null,
+    isAuthChecking: true,
 
     // ---- Actions ----
-    setCurrentChild: (childId) => {
+    setCurrentChild: async (childId) => {
+        localStorage.setItem('spy_currentChild', childId);
         set({ currentChild: childId });
+        await get().syncProfilesToCloud();
         get().fetchDataFromDB();
     },
     addChildProfile: async () => {
@@ -78,10 +88,14 @@ export const useStore = create((set, get) => ({
         await get().syncProfilesToCloud();
     },
     syncProfilesToCloud: async () => {
-        const { childCount, childProfiles, session } = get();
+        const { childCount, childProfiles, currentChild, session } = get();
         if (session) {
             await supabase.auth.updateUser({
-                data: { spy_childCount: childCount, spy_childProfiles: childProfiles }
+                data: {
+                    spy_childCount: childCount,
+                    spy_childProfiles: childProfiles,
+                    spy_currentChild: currentChild
+                }
             });
         }
     },
@@ -98,8 +112,12 @@ export const useStore = create((set, get) => ({
                 localStorage.setItem('spy_childProfiles', JSON.stringify(meta.spy_childProfiles));
                 set({ childProfiles: meta.spy_childProfiles });
             }
+            if (meta.spy_currentChild) {
+                localStorage.setItem('spy_currentChild', meta.spy_currentChild);
+                set({ currentChild: meta.spy_currentChild });
+            }
         }
-        set({ session });
+        set({ session, isAuthChecking: false });
     },
 
     signIn: async (email, password) => {

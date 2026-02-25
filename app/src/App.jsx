@@ -53,6 +53,8 @@ function App() {
     setIsDropdownOpen(false);
   };
 
+  const isAuthChecking = useStore(state => state.isAuthChecking);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -70,6 +72,16 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, [setSession, fetchDataFromDB]);
+
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-navy flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="animate-pulse flex flex-col items-center">
+          <span className="text-white/50 font-mono text-xl font-bold tracking-widest gap-2 flex items-center"><Star size={16} className="animate-spin" /> ESTABLISHING SECURE LINK...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return <Login />;
