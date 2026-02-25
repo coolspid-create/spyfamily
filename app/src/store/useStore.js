@@ -45,16 +45,17 @@ export const useStore = create((set, get) => ({
         set({ currentChild: childId });
         get().fetchDataFromDB();
     },
-    addChildProfile: () => {
+    addChildProfile: async () => {
         const counts = get().childCount;
         if (counts < 3) {
             const nextIdx = counts + 1;
             localStorage.setItem('spy_childCount', nextIdx.toString());
             set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
+            await get().syncProfilesToCloud();
             get().fetchDataFromDB();
         }
     },
-    removeChildProfile: () => {
+    removeChildProfile: async () => {
         const counts = get().childCount;
         if (counts > 1) {
             const nextIdx = counts - 1;
@@ -65,18 +66,41 @@ export const useStore = create((set, get) => ({
             } else {
                 set({ childCount: nextIdx });
             }
+            await get().syncProfilesToCloud();
             get().fetchDataFromDB();
         }
     },
-    updateChildName: (id, name) => {
+    updateChildName: async (id, name) => {
         if (!name.trim()) return;
         const newProfiles = { ...get().childProfiles, [id]: name };
         localStorage.setItem('spy_childProfiles', JSON.stringify(newProfiles));
         set({ childProfiles: newProfiles });
+        await get().syncProfilesToCloud();
+    },
+    syncProfilesToCloud: async () => {
+        const { childCount, childProfiles, session } = get();
+        if (session) {
+            await supabase.auth.updateUser({
+                data: { spy_childCount: childCount, spy_childProfiles: childProfiles }
+            });
+        }
     },
 
     // 0. Auth Actions
-    setSession: (session) => set({ session }),
+    setSession: (session) => {
+        if (session && session.user && session.user.user_metadata) {
+            const meta = session.user.user_metadata;
+            if (meta.spy_childCount) {
+                localStorage.setItem('spy_childCount', meta.spy_childCount.toString());
+                set({ childCount: meta.spy_childCount });
+            }
+            if (meta.spy_childProfiles) {
+                localStorage.setItem('spy_childProfiles', JSON.stringify(meta.spy_childProfiles));
+                set({ childProfiles: meta.spy_childProfiles });
+            }
+        }
+        set({ session });
+    },
 
     signIn: async (email, password) => {
         set({ isLoading: true });
