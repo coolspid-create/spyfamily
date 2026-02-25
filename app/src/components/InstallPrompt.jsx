@@ -3,26 +3,19 @@ import { Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function InstallPrompt() {
-    const [isMobile, setIsMobile] = useState(false);
-    const [isStandalone, setIsStandalone] = useState(true);
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [showPrompt, setShowPrompt] = useState(false);
-    const [isIOS, setIsIOS] = useState(false);
+    const [isIOS] = useState(() => /iphone|ipad|ipod/.test(window.navigator?.userAgent?.toLowerCase() || ''));
 
     useEffect(() => {
         // 1. Check if user is on a mobile device
         const userAgent = window.navigator.userAgent.toLowerCase();
         const isMobileDevice = /iphone|ipad|ipod|android/i.test(userAgent);
-        const iOS = /iphone|ipad|ipod/.test(userAgent);
-        setIsMobile(isMobileDevice);
-        setIsIOS(iOS);
 
         // 2. Check if app is already running in standalone mode (installed)
         const isInStandaloneMode = () =>
             ('standalone' in window.navigator) && (window.navigator.standalone) ||
             window.matchMedia('(display-mode: standalone)').matches;
-
-        setIsStandalone(isInStandaloneMode());
 
         // 3. Prevent nagging logic - check if dismissed recently
         const isDismissed = localStorage.getItem('spy_installDismissed') === 'true';

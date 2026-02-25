@@ -155,7 +155,7 @@ export const useStore = create((set, get) => ({
     },
     addSchedule: async (day, item) => {
         const currentChild = get().currentChild;
-        const { data, error } = await supabase.from('schedule').insert([{
+        const { error } = await supabase.from('schedule').insert([{
             title: item.title,
             day_of_week: day,
             start_time: item.time + ':00',

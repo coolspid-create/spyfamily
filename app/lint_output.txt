@@ -1,0 +1,45 @@
+
+> app@0.0.0 lint
+> eslint .
+
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\HomeBoard.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\InstallPrompt.jsx
+   3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+   6:12  error  'isMobile' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+   7:12  error  'isStandalone' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+  17:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  15 |         const isMobileDevice = /iphone|ipad|ipod|android/i.test(userAgent);
+  16 |         const iOS = /iphone|ipad|ipod/.test(userAgent);
+> 17 |         setIsMobile(isMobileDevice);
+     |         ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  18 |         setIsIOS(iOS);
+  19 |
+  20 |         // 2. Check if app is already running in standalone mode (installed)  react-hooks/set-state-in-effect
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\Login.jsx
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\PaymentTab.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\RouteMapTab.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\components\SpecialOpsTab.jsx
+  3:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\KPSA\.gemini\antigravity\scratch\spyfamily\app\src\store\useStore.js
+  158:17  error  'data' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+✖ 10 problems (10 errors, 0 warnings)
+
