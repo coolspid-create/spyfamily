@@ -58,6 +58,9 @@ export default function InstallPrompt() {
         } else if (isIOS) {
             // iOS: User must interact manually, just show tooltip instructions
             alert('아이폰(iOS) 설치 방법:\n\n하단의 탭 바에서 [공유하기(↑)] 버튼을 누른 후,\n메뉴를 조금 내려서 [홈 화면에 추가]를 선택해주세요!');
+        } else {
+            // Android / Fallbacks (Samsung Internet, WebViews like KakaoTalk)
+            alert('설치 안내:\n\n안드로이드 기기에서는 우측 상단(또는 하단)의 [ ⋮ ] 메뉴 버튼을 누른 후, [홈 화면에 추가] 또는 [앱 설치]를 선택해주세요!\n\n※ 만약 카카오톡이나 네이버 앱 브라우저로 접속하셨다면, 우측 하단 [ ⋮ ] 메뉴를 눌러 "다른 브라우저(크롬 등)로 열기" 후 진행해주세요.');
         }
     };
 
