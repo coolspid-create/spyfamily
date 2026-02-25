@@ -16,11 +16,18 @@ export const useStore = create((set, get) => ({
     transactionHistory: INITIAL_HISTORY,
     notices: [],
     isLoading: false,
+    // Multi-Child Profile State
+    currentChild: 'child1', // 'child1', 'child2', 'child3'
 
     // Auth State
     session: null,
 
     // ---- Actions ----
+    setCurrentChild: (childId) => {
+        set({ currentChild: childId });
+        get().fetchDataFromDB();
+    },
+
     // 0. Auth Actions
     setSession: (session) => set({ session }),
 
@@ -58,6 +65,7 @@ export const useStore = create((set, get) => ({
         }));
     },
     addSchedule: async (day, item) => {
+        const currentChild = get().currentChild;
         const { data, error } = await supabase.from('schedule').insert([{
             title: item.title,
             day_of_week: day,
@@ -66,7 +74,8 @@ export const useStore = create((set, get) => ({
             drop_agent: item.agent,
             location: item.location || '',
             is_urgent: item.isUrgent || false,
-            is_early: item.isEarly || false
+            is_early: item.isEarly || false,
+            child_id: currentChild
         }]).select();
         if (error) { alert('일정 추가 실패: ' + error.message); return; }
         await get().fetchDataFromDB();
@@ -91,13 +100,15 @@ export const useStore = create((set, get) => ({
     // 2. Missions Data Actions (Supabase Sync)
     addMission: async (mission) => {
         set({ isLoading: true });
+        const currentChild = get().currentChild;
         if (mission.type === 'fund') {
             const { error } = await supabase.from('payment').insert([{
                 source: mission.title.replace(' 결제', ''),
                 amount: 0,
                 method: '미지정',
                 payment_day: mission.day,
-                is_completed: false
+                is_completed: false,
+                child_id: currentChild
             }]);
             if (error) alert('일정 추가 실패: ' + error.message);
         } else {
@@ -108,7 +119,8 @@ export const useStore = create((set, get) => ({
                 title: mission.title,
                 execution_date: `${year}-${month}-${day}`,
                 status: 'PENDING',
-                priority: 'LOW'
+                priority: 'LOW',
+                child_id: currentChild
             }]);
             if (error) alert('일정 추가 실패: ' + error.message);
         }
@@ -186,13 +198,15 @@ export const useStore = create((set, get) => ({
 
     // 4. Payments Actions
     addPayment: async (paymentData) => {
+        const currentChild = get().currentChild;
         const { data, error } = await supabase.from('payment').insert([{
             source: paymentData.source,
             amount: paymentData.amount,
             method: paymentData.method,
             payment_day: parseInt(paymentData.day.replace('일', ''), 10) || 1,
             discount_info: paymentData.discount,
-            is_completed: false
+            is_completed: false,
+            child_id: currentChild
         }]).select();
 
         if (error) { alert('요청 실패: ' + error.message); return; }
@@ -298,7 +312,8 @@ export const useStore = create((set, get) => ({
             date_formatted: completedAt,
             source: payment.source,
             amount: payment.amount,
-            method: payment.method
+            method: payment.method,
+            child_id: get().currentChild
         }]).select();
 
         const newHistoryRecord = histData && histData.length > 0 ? {
@@ -353,15 +368,16 @@ export const useStore = create((set, get) => ({
         }));
     },
 
-    // 5. Ops Actions
     setOpsData: (ops) => set({ opsData: ops }),
     addOp: async (opData) => {
+        const currentChild = get().currentChild;
         const { data, error } = await supabase.from('ops').insert([{
             title: opData.title,
             execution_date: opData.date.replace(/\./g, '-'),
             description: opData.description,
             priority: opData.priority,
-            status: 'PENDING'
+            status: 'PENDING',
+            child_id: currentChild
         }]).select();
 
         if (error) { alert('요청 실패: ' + error.message); return; }
@@ -481,8 +497,10 @@ export const useStore = create((set, get) => ({
                 set({ funds: formattedFunds });
             }
 
+            const currentChild = get().currentChild;
+
             // Fetch Payments
-            const { data: paymentsData } = await supabase.from('payment').select('*').order('payment_day', { ascending: true });
+            const { data: paymentsData } = await supabase.from('payment').select('*').eq('child_id', currentChild).order('payment_day', { ascending: true });
             if (paymentsData) {
                 const formattedPayments = paymentsData.map(p => ({
                     id: p.id,
@@ -504,7 +522,7 @@ export const useStore = create((set, get) => ({
                 }));
 
                 // Fetch Ops for Planner & Ops Tab
-                const { data: opsData } = await supabase.from('ops').select('*, opschecklist(*), opsparticipant(*)');
+                const { data: opsData } = await supabase.from('ops').select('*, opschecklist(*), opsparticipant(*)').eq('child_id', currentChild);
                 if (opsData) {
                     const parsedOps = opsData.map(o => {
                         const momParticipant = o.opsparticipant?.find(p => p.agent_id === 'mom');
@@ -543,7 +561,7 @@ export const useStore = create((set, get) => ({
             }
 
             // Fetch Transaction History
-            const { data: historyData } = await supabase.from('transactionhistory').select('*').order('created_at', { ascending: false });
+            const { data: historyData } = await supabase.from('transactionhistory').select('*').eq('child_id', currentChild).order('created_at', { ascending: false });
             if (historyData) {
                 const formattedHistory = historyData.map(h => ({
                     id: h.id,
@@ -558,7 +576,7 @@ export const useStore = create((set, get) => ({
             }
 
             // Fetch Schedule
-            const { data: scheduleData } = await supabase.from('schedule').select('*').order('start_time', { ascending: true });
+            const { data: scheduleData } = await supabase.from('schedule').select('*').eq('child_id', currentChild).order('start_time', { ascending: true });
             if (scheduleData) {
                 const newWeekly = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] };
                 scheduleData.forEach(s => {

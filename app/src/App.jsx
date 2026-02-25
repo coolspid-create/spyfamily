@@ -14,6 +14,8 @@ function App() {
   const setSession = useStore(state => state.setSession);
   const signOut = useStore(state => state.signOut);
   const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
+  const currentChild = useStore(state => state.currentChild);
+  const setCurrentChild = useStore(state => state.setCurrentChild);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -40,7 +42,24 @@ function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative">
+      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative flex flex-col items-center">
+        {/* Child Profile Switcher */}
+        <div className="absolute top-4 left-4 flex bg-white/10 rounded-full p-1 border border-white/20 shadow-inner">
+          {['child1', 'child2', 'child3'].map((childId, idx) => (
+            <button
+              key={childId}
+              onClick={() => setCurrentChild(childId)}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentChild === childId
+                  ? 'bg-accent-red text-white shadow-md scale-110 z-10'
+                  : 'text-white/50 hover:text-white hover:bg-white/20'
+                }`}
+              title={`대상 ${idx + 1}`}
+            >
+              {['👦', '👧', '👶'][idx]}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={signOut}
           className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
@@ -48,7 +67,8 @@ function App() {
         >
           <LogOut size={18} />
         </button>
-        <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
+
+        <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center mt-6">
           <span className="tracking-tight">SPY</span>
           <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
           <span className="tracking-tight">FAMILY</span>
