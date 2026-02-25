@@ -68,53 +68,53 @@ function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
+      {/* Child Profile Dropdown Manager - Moved outside header to prevent clipping */}
+      <div className="absolute top-2 left-2 z-50">
+        <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1 px-2.5 border border-white/20 shadow-sm"
+        >
+          <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
+            {childProfiles[currentChild]}
+          </span>
+          <ChevronDown size={14} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isDropdownOpen && (
+          <div className="absolute top-full left-0 mt-1.5 w-28 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left">
+            {Array.from({ length: childCount }).map((_, idx) => {
+              const cId = `child${idx + 1}`;
+              return (
+                <div
+                  key={cId}
+                  className={`flex items-center justify-between px-2.5 py-2 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
+                  onClick={() => selectChild(cId)}
+                >
+                  <span className="truncate flex-1">{childProfiles[cId]}</span>
+                  <button
+                    onClick={(e) => handleRenameChild(e, cId)}
+                    className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors shrink-0 ml-1"
+                    title="이름 수정"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                </div>
+              );
+            })}
+            {childCount < 3 && (
+              <div
+                className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
+                onClick={handleAddChild}
+              >
+                <Plus size={12} /> 추가
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Header / Dossier Tab */}
       <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative">
-        {/* Child Profile Dropdown Manager */}
-        <div className="absolute top-2 left-2 z-50">
-          <button
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1 px-3 border border-white/20 shadow-sm"
-          >
-            <span className="font-bold text-[11px] tracking-wide text-white">
-              {childProfiles[currentChild]}
-            </span>
-            <ChevronDown size={14} className={`text-white/70 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {isDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1.5 w-36 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left">
-              {Array.from({ length: childCount }).map((_, idx) => {
-                const cId = `child${idx + 1}`;
-                return (
-                  <div
-                    key={cId}
-                    className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
-                    onClick={() => selectChild(cId)}
-                  >
-                    <span>{childProfiles[cId]}</span>
-                    <button
-                      onClick={(e) => handleRenameChild(e, cId)}
-                      className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors"
-                      title="이름 수정"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                  </div>
-                );
-              })}
-              {childCount < 3 && (
-                <div
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
-                  onClick={handleAddChild}
-                >
-                  <Plus size={12} /> 새로운 대상 추가
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
         <button
           onClick={signOut}
           className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
