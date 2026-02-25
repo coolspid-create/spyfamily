@@ -6,6 +6,22 @@ const INITIAL_FUNDS = [];
 const INITIAL_PAYMENTS = [];
 const INITIAL_HISTORY = [];
 const INITIAL_OPS = [];
+
+const savedProfiles = (() => {
+    try {
+        return JSON.parse(localStorage.getItem('spy_childProfiles')) || { child1: '대상 1', child2: '대상 2', child3: '대상 3' };
+    } catch {
+        return { child1: '대상 1', child2: '대상 2', child3: '대상 3' };
+    }
+})();
+const savedChildCount = (() => {
+    try {
+        return parseInt(localStorage.getItem('spy_childCount')) || 1;
+    } catch {
+        return 1;
+    }
+})();
+
 export const useStore = create((set, get) => ({
     // ---- State ----
     weeklyData: INITIAL_WEEKLY,
@@ -17,8 +33,9 @@ export const useStore = create((set, get) => ({
     notices: [],
     isLoading: false,
     // Multi-Child Profile State
-    childCount: 1, // Number of children currently managed (max 3)
+    childCount: savedChildCount, // Number of children currently managed (max 3)
     currentChild: 'child1',
+    childProfiles: savedProfiles,
 
     // Auth State
     session: null,
@@ -32,9 +49,16 @@ export const useStore = create((set, get) => ({
         const counts = get().childCount;
         if (counts < 3) {
             const nextIdx = counts + 1;
+            localStorage.setItem('spy_childCount', nextIdx.toString());
             set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
             get().fetchDataFromDB();
         }
+    },
+    updateChildName: (id, name) => {
+        if (!name.trim()) return;
+        const newProfiles = { ...get().childProfiles, [id]: name };
+        localStorage.setItem('spy_childProfiles', JSON.stringify(newProfiles));
+        set({ childProfiles: newProfiles });
     },
 
     // 0. Auth Actions

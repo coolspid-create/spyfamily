@@ -4,7 +4,7 @@ import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -19,20 +19,29 @@ function App() {
   const childCount = useStore(state => state.childCount);
   const addChildProfile = useStore(state => state.addChildProfile);
 
-  const childIndex = parseInt(currentChild.replace('child', '')) - 1;
+  const childProfiles = useStore(state => state.childProfiles);
+  const updateChildName = useStore(state => state.updateChildName);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const handlePrevChild = () => {
-    if (childIndex > 0) {
-      setCurrentChild(`child${childIndex}`);
+  const handleRenameChild = (e, childId) => {
+    e.stopPropagation();
+    const currentName = childProfiles[childId];
+    const newName = prompt('대상 이름을 입력하세요:', currentName);
+    if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
+      updateChildName(childId, newName.trim());
     }
   };
 
-  const handleNextChild = () => {
-    if (childIndex < childCount - 1) {
-      setCurrentChild(`child${childIndex + 2}`);
-    } else if (childCount < 3) {
+  const handleAddChild = () => {
+    if (childCount < 3) {
       addChildProfile();
+      setIsDropdownOpen(false);
     }
+  };
+
+  const selectChild = (childId) => {
+    setCurrentChild(childId);
+    setIsDropdownOpen(false);
   };
 
   useEffect(() => {
@@ -61,30 +70,49 @@ function App() {
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
       <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative">
-        {/* Child Profile Switcher - Absolute Minimalist */}
-        <div className="absolute top-2 left-2 flex items-center bg-white/5 rounded-full py-0.5 px-1 border border-white/10 shadow-inner z-10">
+        {/* Child Profile Dropdown Manager */}
+        <div className="absolute top-2 left-2 z-50">
           <button
-            onClick={handlePrevChild}
-            disabled={childIndex === 0}
-            className={`p-1 rounded-full transition-colors ${childIndex === 0 ? 'text-white/20' : 'text-white/70 hover:text-white hover:bg-white/20'}`}
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1 px-3 border border-white/20 shadow-sm"
           >
-            <ChevronLeft size={16} />
+            <span className="font-bold text-[11px] tracking-wide text-white">
+              {childProfiles[currentChild]}
+            </span>
+            <ChevronDown size={14} className={`text-white/70 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          <div className="w-10 flex justify-center items-center font-bold text-[10px] tracking-wide text-white/90 select-none">
-            대상 {childIndex + 1}
-          </div>
-
-          <button
-            onClick={handleNextChild}
-            disabled={childIndex === 2 && childCount === 3}
-            className={`p-1 rounded-full transition-colors ${(childIndex === 2 && childCount === 3)
-              ? 'text-white/20 bg-transparent'
-              : 'text-white/70 hover:text-white hover:bg-white/20'
-              }`}
-          >
-            {childIndex < childCount - 1 ? <ChevronRight size={16} /> : <Plus size={16} />}
-          </button>
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1.5 w-36 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left">
+              {Array.from({ length: childCount }).map((_, idx) => {
+                const cId = `child${idx + 1}`;
+                return (
+                  <div
+                    key={cId}
+                    className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
+                    onClick={() => selectChild(cId)}
+                  >
+                    <span>{childProfiles[cId]}</span>
+                    <button
+                      onClick={(e) => handleRenameChild(e, cId)}
+                      className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors"
+                      title="이름 수정"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+              {childCount < 3 && (
+                <div
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
+                  onClick={handleAddChild}
+                >
+                  <Plus size={12} /> 새로운 대상 추가
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <button
