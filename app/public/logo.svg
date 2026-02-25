@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Deep Navy Background -->
+  <rect width="512" height="512" rx="112" fill="#1e245a"/>
+  
+  <!-- Outer Ring (White/opacity) -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#ffffff" stroke-width="8" stroke-opacity="0.2"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#ffffff" stroke-width="2" stroke-opacity="0.1" stroke-dasharray="10 10"/>
+
+  <!-- Center Stylized 'S' and 'F' -->
+  <g fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" text-anchor="middle" font-size="140">
+    <text x="170" y="300" letter-spacing="-5">S</text>
+    <!-- Red Cross in the middle -->
+    <path d="M 230 220 L 280 270 M 280 220 L 230 270" stroke="#ef4444" stroke-width="24" stroke-linecap="round"/>
+    <text x="340" y="300" letter-spacing="-5">F</text>
+  </g>
+  
+  <!-- TOP SECRET Stamp Element -->
+  <g transform="translate(196, 360) rotate(-5)">
+    <rect x="0" y="0" width="120" height="30" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>
+    <text x="60" y="20" fill="#ef4444" font-family="'Courier New', Courier, monospace" font-weight="bold" font-size="16" text-anchor="middle" letter-spacing="1">SECRET</text>
+  </g>
+</svg>

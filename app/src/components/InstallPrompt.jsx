@@ -42,8 +42,16 @@ export default function InstallPrompt() {
             }
         };
 
+        const handleManualTrigger = () => {
+            setShowPrompt(true);
+        };
+
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.addEventListener('manualInstallPrompt', handleManualTrigger);
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+            window.removeEventListener('manualInstallPrompt', handleManualTrigger);
+        };
     }, []);
 
     const handleInstallClick = async () => {
