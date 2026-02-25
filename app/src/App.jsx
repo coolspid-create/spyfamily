@@ -4,7 +4,7 @@ import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
-import { Home, CalendarDays, CreditCard, Star, LogOut } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -16,6 +16,24 @@ function App() {
   const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
   const currentChild = useStore(state => state.currentChild);
   const setCurrentChild = useStore(state => state.setCurrentChild);
+  const childCount = useStore(state => state.childCount);
+  const addChildProfile = useStore(state => state.addChildProfile);
+
+  const childIndex = parseInt(currentChild.replace('child', '')) - 1;
+
+  const handlePrevChild = () => {
+    if (childIndex > 0) {
+      setCurrentChild(`child${childIndex}`);
+    }
+  };
+
+  const handleNextChild = () => {
+    if (childIndex < childCount - 1) {
+      setCurrentChild(`child${childIndex + 2}`);
+    } else if (childCount < 3) {
+      addChildProfile();
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -44,20 +62,29 @@ function App() {
       {/* Header / Dossier Tab */}
       <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative flex flex-col items-center">
         {/* Child Profile Switcher */}
-        <div className="absolute top-4 left-4 flex bg-white/10 rounded-full p-1 border border-white/20 shadow-inner">
-          {['child1', 'child2', 'child3'].map((childId, idx) => (
-            <button
-              key={childId}
-              onClick={() => setCurrentChild(childId)}
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentChild === childId
-                  ? 'bg-accent-red text-white shadow-md scale-110 z-10'
-                  : 'text-white/50 hover:text-white hover:bg-white/20'
-                }`}
-              title={`대상 ${idx + 1}`}
-            >
-              {['👦', '👧', '👶'][idx]}
-            </button>
-          ))}
+        <div className="absolute top-4 left-4 flex items-center bg-white/10 rounded-full py-1 px-2 border border-white/20 shadow-inner">
+          <button
+            onClick={handlePrevChild}
+            disabled={childIndex === 0}
+            className={`p-1 rounded-full transition-colors ${childIndex === 0 ? 'text-white/20' : 'text-white/70 hover:text-white hover:bg-white/20'}`}
+          >
+            <ChevronLeft size={16} />
+          </button>
+
+          <div className="w-14 flex justify-center items-center font-bold text-xs tracking-widest text-accent-red select-none">
+            대상 {childIndex + 1}
+          </div>
+
+          <button
+            onClick={handleNextChild}
+            disabled={childIndex === 2 && childCount === 3}
+            className={`p-1 rounded-full transition-colors ${(childIndex === 2 && childCount === 3)
+                ? 'text-white/20 bg-transparent'
+                : 'text-white/70 hover:text-white hover:bg-white/20'
+              }`}
+          >
+            {childIndex < childCount - 1 ? <ChevronRight size={16} /> : <Plus size={16} />}
+          </button>
         </div>
 
         <button

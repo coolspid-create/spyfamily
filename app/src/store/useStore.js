@@ -17,7 +17,8 @@ export const useStore = create((set, get) => ({
     notices: [],
     isLoading: false,
     // Multi-Child Profile State
-    currentChild: 'child1', // 'child1', 'child2', 'child3'
+    childCount: 1, // Number of children currently managed (max 3)
+    currentChild: 'child1',
 
     // Auth State
     session: null,
@@ -26,6 +27,14 @@ export const useStore = create((set, get) => ({
     setCurrentChild: (childId) => {
         set({ currentChild: childId });
         get().fetchDataFromDB();
+    },
+    addChildProfile: () => {
+        const counts = get().childCount;
+        if (counts < 3) {
+            const nextIdx = counts + 1;
+            set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
+            get().fetchDataFromDB();
+        }
     },
 
     // 0. Auth Actions
