@@ -54,6 +54,20 @@ export const useStore = create((set, get) => ({
             get().fetchDataFromDB();
         }
     },
+    removeChildProfile: () => {
+        const counts = get().childCount;
+        if (counts > 1) {
+            const nextIdx = counts - 1;
+            localStorage.setItem('spy_childCount', nextIdx.toString());
+            const current = get().currentChild;
+            if (current === `child${counts}`) {
+                set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
+            } else {
+                set({ childCount: nextIdx });
+            }
+            get().fetchDataFromDB();
+        }
+    },
     updateChildName: (id, name) => {
         if (!name.trim()) return;
         const newProfiles = { ...get().childProfiles, [id]: name };

@@ -4,7 +4,7 @@ import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2 } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -18,10 +18,19 @@ function App() {
   const setCurrentChild = useStore(state => state.setCurrentChild);
   const childCount = useStore(state => state.childCount);
   const addChildProfile = useStore(state => state.addChildProfile);
+  const removeChildProfile = useStore(state => state.removeChildProfile);
 
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const handleRemoveChild = (e, childId) => {
+    e.stopPropagation();
+    if (window.confirm(`${childProfiles[childId]} 프로필을 삭제하시겠습니까?\n(삭제 후 복구할 수 없습니다)`)) {
+      removeChildProfile();
+      setIsDropdownOpen(false);
+    }
+  };
 
   const handleRenameChild = (e, childId) => {
     e.stopPropagation();
@@ -91,13 +100,24 @@ function App() {
                   onClick={() => selectChild(cId)}
                 >
                   <span className="truncate flex-1">{childProfiles[cId]}</span>
-                  <button
-                    onClick={(e) => handleRenameChild(e, cId)}
-                    className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors shrink-0 ml-1"
-                    title="이름 수정"
-                  >
-                    <Edit2 size={12} />
-                  </button>
+                  <div className="flex items-center shrink-0">
+                    <button
+                      onClick={(e) => handleRenameChild(e, cId)}
+                      className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors ml-1"
+                      title="이름 수정"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                    {idx === childCount - 1 && childCount > 1 && (
+                      <button
+                        onClick={(e) => handleRemoveChild(e, cId)}
+                        className="p-1 hover:bg-accent-red/10 rounded text-accent-red/60 hover:text-accent-red transition-colors ml-1"
+                        title="프로필 삭제"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
