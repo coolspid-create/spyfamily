@@ -1,13 +1,26 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>app</title>
-  </head>
-  <body class="overflow-y-scroll">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SPY × FAMILY</title>
+
+  <!-- PWA & Mobile Native App Metas -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1e245a" /> <!-- Navy Tone matching the app -->
+
+  <!-- iOS Specific PWA Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SPYxFAMILY" />
+  <link rel="apple-touch-icon" href="/vite.svg" />
+</head>
+
+<body class="overflow-y-scroll overscroll-none select-none">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>
