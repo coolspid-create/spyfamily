@@ -60,9 +60,9 @@ function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative flex flex-col items-center">
-        {/* Child Profile Switcher */}
-        <div className="absolute top-4 left-4 flex items-center bg-white/10 rounded-full py-1 px-2 border border-white/20 shadow-inner">
+      <header className="bg-navy text-background p-4 pt-5 clip-paper mb-2 shadow-md shrink-0 relative">
+        {/* Child Profile Switcher - Absolute Minimalist */}
+        <div className="absolute top-2 left-2 flex items-center bg-white/5 rounded-full py-0.5 px-1 border border-white/10 shadow-inner z-10">
           <button
             onClick={handlePrevChild}
             disabled={childIndex === 0}
@@ -71,7 +71,7 @@ function App() {
             <ChevronLeft size={16} />
           </button>
 
-          <div className="w-14 flex justify-center items-center font-bold text-xs tracking-widest text-accent-red select-none">
+          <div className="w-10 flex justify-center items-center font-bold text-[10px] tracking-wide text-white/90 select-none">
             대상 {childIndex + 1}
           </div>
 
@@ -79,8 +79,8 @@ function App() {
             onClick={handleNextChild}
             disabled={childIndex === 2 && childCount === 3}
             className={`p-1 rounded-full transition-colors ${(childIndex === 2 && childCount === 3)
-                ? 'text-white/20 bg-transparent'
-                : 'text-white/70 hover:text-white hover:bg-white/20'
+              ? 'text-white/20 bg-transparent'
+              : 'text-white/70 hover:text-white hover:bg-white/20'
               }`}
           >
             {childIndex < childCount - 1 ? <ChevronRight size={16} /> : <Plus size={16} />}
@@ -95,7 +95,7 @@ function App() {
           <LogOut size={18} />
         </button>
 
-        <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center mt-6">
+        <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
           <span className="tracking-tight">SPY</span>
           <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
           <span className="tracking-tight">FAMILY</span>
