@@ -91,14 +91,14 @@ function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background pt-5 pb-5 px-4 clip-paper mb-2 shadow-md shrink-0 relative z-50">
+      <header className="bg-navy text-background pt-4 pb-4 px-4 clip-paper mb-2 shadow-md shrink-0 relative z-50">
         {/* Absolute Left Controls */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 relative">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
           {/* Child Profile Dropdown Manager */}
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1.5 px-3 border border-white/20 shadow-sm"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1 px-3 border border-white/20 shadow-sm"
             >
               <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
                 {childProfiles[currentChild]}
@@ -152,7 +152,7 @@ function App() {
 
           <button
             onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
-            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 p-1.5 px-2.5 rounded-full text-white/50 hover:text-white transition-colors border border-white/10 w-fit"
+            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 py-1 px-2.5 rounded-full text-white/50 hover:text-white transition-colors border border-white/10 w-fit"
             title="바탕화면에 앱 설치하기 (즐겨찾기)"
           >
             <Download size={10} />
@@ -164,21 +164,21 @@ function App() {
         <div className="absolute top-3 right-3 z-10">
           <button
             onClick={signOut}
-            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[30px] h-[30px] rounded-full border border-white/10"
+            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
             title="로그아웃"
           >
-            <LogOut size={14} className="ml-0.5" />
+            <LogOut size={13} className="ml-0.5" />
           </button>
         </div>
 
         {/* Header Title Space */}
-        <div className="relative mt-2">
-          <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center pt-2">
+        <div className="relative pt-6">
+          <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
             <span className="tracking-tight">SPY</span>
             <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
             <span className="tracking-tight">FAMILY</span>
           </h1>
-          <p className="text-center text-[9px] uppercase tracking-widest mt-1 font-bold pt-1 text-background/70">
+          <p className="text-center text-[9px] uppercase tracking-widest font-bold pt-1 text-background/70">
             Top Secret <span className="text-accent-red font-black text-[11px] opacity-100">S</span>chedule & <span className="text-accent-red font-black text-[11px] opacity-100">P</span>ayment & <span className="text-accent-red font-black text-[11px] opacity-100">Y</span>outh
           </p>
         </div>
