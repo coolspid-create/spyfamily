@@ -136,8 +136,8 @@ export default function SpecialOpsTab() {
                                 className="mt-2 flex justify-between items-start mb-2 cursor-pointer group"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
                             >
-                                <div className="flex-1 pr-2">
-                                    <div className="flex items-center gap-2 mb-1">
+                                <div className="flex-1 pr-2 flex items-center">
+                                    <div className="flex items-center gap-2">
                                         {isExpanded ? <ChevronUp size={20} className="text-navy/50 shrink-0" /> : <ChevronDown size={20} className="text-navy/50 shrink-0" />}
                                         <h4 className="font-bold text-lg text-navy group-hover:text-accent-red transition-colors flex flex-wrap items-center gap-2 leading-tight">
                                             <span>{op.title}</span>
@@ -145,11 +145,11 @@ export default function SpecialOpsTab() {
                                             <span className={`font-stencil text-[10px] px-1.5 py-0.5 rounded border inline-block shrink-0 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
                                                 {progress === 100 ? 'CLEARED' : `PROG: ${progress}%`}
                                             </span>
+                                            <span className="text-xs font-mono text-navy/50 font-bold tracking-tight ml-1">
+                                                {op.date}
+                                            </span>
                                         </h4>
                                     </div>
-                                    <p className="text-xs font-mono text-navy/60 font-bold tracking-tight pl-7 mt-1">
-                                        EXECUTION DATE: {op.date}
-                                    </p>
                                 </div>
                                 <div className="flex gap-1 shrink-0 pt-0.5" onClick={e => e.stopPropagation()}>
                                     <button
