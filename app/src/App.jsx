@@ -91,9 +91,12 @@ function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background pt-4 pb-4 px-4 clip-paper mb-2 shadow-md shrink-0 relative z-50">
+      <header className="relative z-50 shrink-0 mb-2 pt-4 pb-4 px-4 text-background">
+        {/* Background with clip-path */}
+        <div className="absolute inset-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
+
         {/* Absolute Left Controls */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-[100]">
           {/* Child Profile Dropdown Manager */}
           <div className="relative">
             <button
@@ -107,7 +110,7 @@ function App() {
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[70]">
+              <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[100]">
                 {Array.from({ length: childCount }).map((_, idx) => {
                   const cId = `child${idx + 1}`;
                   return (
@@ -116,7 +119,7 @@ function App() {
                       className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
                       onClick={() => selectChild(cId)}
                     >
-                      <span className="truncate flex-1">{childProfiles[cId]}</span>
+                      <span className="truncate flex-1 text-navy">{childProfiles[cId]}</span>
                       <div className="flex items-center shrink-0">
                         <button
                           onClick={(e) => handleRenameChild(e, cId)}
