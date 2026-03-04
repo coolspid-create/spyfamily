@@ -10,8 +10,7 @@ export default function SpecialOpsTab() {
     const updateOp = useStore(state => state.updateOp);
 
     // Default expanded tab logic based on incoming data
-    const firstOpId = ops.length > 0 ? ops[0].id : null;
-    const [expandedOpId, setExpandedOpId] = useState(firstOpId);
+    const [expandedOpId, setExpandedOpId] = useState(null);
     const [showForm, setShowForm] = useState(false);
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});

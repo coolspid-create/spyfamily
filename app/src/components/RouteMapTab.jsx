@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, Database } from 'lucide-react';
+import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, Database, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -13,6 +13,12 @@ export default function RouteMapTab() {
     const [manageMissionForm, setManageMissionForm] = useState({ id: '', type: 'fund', day: 1, title: '' });
     const [editingMissionId, setEditingMissionId] = useState(null);
     const [currentDate, setCurrentDate] = useState(new Date());
+
+    const [isFundsExpanded, setIsFundsExpanded] = useState(false);
+    const [isEventsExpanded, setIsEventsExpanded] = useState(false);
+
+    const fundMissions = missionsData.filter(m => m.type === 'fund');
+    const eventMissions = missionsData.filter(m => m.type === 'event');
 
     const openManageMissionForm = (mission = null) => {
         if (mission) {
@@ -222,43 +228,130 @@ export default function RouteMapTab() {
                     {editingMissionId && !missionsData.find(m => m.id === editingMissionId) && renderManageForm()}
                 </AnimatePresence>
 
-                <div className="space-y-2 mt-4">
-                    <AnimatePresence>
-                        {missionsData.map((item, idx) => (
-                            <motion.div
-                                layout
-                                key={item.id}
-                                id={`mission-day-${item.day}`}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                transition={{ delay: idx * 0.05 }}
-                            >
-                                <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
-                                    <div className="flex items-center gap-3">
-                                        <span className={`font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center ${item.type === 'fund' ? 'bg-accent-red' : 'bg-accent-green'}`}>
-                                            {item.type === 'fund' ? `${item.day}일` : `${item.month}/${item.day}`}
-                                        </span>
-                                        <div>
-                                            <h4 className="font-bold text-sm">{item.title}</h4>
-                                            <p className="text-xs opacity-70">{item.type === 'fund' ? '결제 미션' : '특수 임무'}</p>
-                                        </div>
+                <div className="space-y-4 mt-4">
+                    {/* Funds Accordion */}
+                    <div className="bg-white border-2 border-navy/20 rounded-md shadow-sm overflow-hidden">
+                        <div
+                            onClick={() => setIsFundsExpanded(!isFundsExpanded)}
+                            className="bg-navy/5 p-3 flex justify-between items-center border-b-2 border-navy/20 cursor-pointer hover:bg-navy/10 transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-navy font-mono flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div>
+                                    결제미션 ({fundMissions.length})
+                                </h4>
+                                {isFundsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
+                            </div>
+                        </div>
+                        <AnimatePresence>
+                            {isFundsExpanded && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="p-2 space-y-2 pb-3 bg-navy/5">
+                                        {fundMissions.map((item, idx) => (
+                                            <motion.div
+                                                layout
+                                                key={item.id}
+                                                id={`mission-day-${item.day}`}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 20 }}
+                                                transition={{ delay: idx * 0.05 }}
+                                            >
+                                                <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center bg-accent-red">
+                                                            {item.day}일
+                                                        </span>
+                                                        <div>
+                                                            <h4 className="font-bold text-sm">{item.title}</h4>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => openManageMissionForm(item)} className="p-2 hover:bg-navy/10 rounded text-navy transition-colors">
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        <button onClick={() => removeMission(item.id)} className="p-2 hover:bg-accent-red/10 rounded text-accent-red transition-colors">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <AnimatePresence>
+                                                    {editingMissionId === item.id && renderManageForm()}
+                                                </AnimatePresence>
+                                            </motion.div>
+                                        ))}
                                     </div>
-                                    <div className="flex gap-1">
-                                        <button onClick={() => openManageMissionForm(item)} className="p-2 hover:bg-navy/10 rounded text-navy transition-colors">
-                                            <Edit2 size={16} />
-                                        </button>
-                                        <button onClick={() => removeMission(item.id)} className="p-2 hover:bg-accent-red/10 rounded text-accent-red transition-colors">
-                                            <Trash2 size={16} />
-                                        </button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Events Accordion */}
+                    <div className="bg-white border-2 border-navy/20 rounded-md shadow-sm overflow-hidden">
+                        <div
+                            onClick={() => setIsEventsExpanded(!isEventsExpanded)}
+                            className="bg-navy/5 p-3 flex justify-between items-center border-b-2 border-navy/20 cursor-pointer hover:bg-navy/10 transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-navy font-mono flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div>
+                                    특수임무 ({eventMissions.length})
+                                </h4>
+                                {isEventsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
+                            </div>
+                        </div>
+                        <AnimatePresence>
+                            {isEventsExpanded && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="p-2 space-y-2 pb-3 bg-navy/5">
+                                        {eventMissions.map((item, idx) => (
+                                            <motion.div
+                                                layout
+                                                key={item.id}
+                                                id={`mission-day-${item.day}`}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 20 }}
+                                                transition={{ delay: idx * 0.05 }}
+                                            >
+                                                <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center bg-accent-green">
+                                                            {item.month}/{item.day}
+                                                        </span>
+                                                        <div>
+                                                            <h4 className="font-bold text-sm">{item.title}</h4>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => openManageMissionForm(item)} className="p-2 hover:bg-navy/10 rounded text-navy transition-colors">
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        <button onClick={() => removeMission(item.id)} className="p-2 hover:bg-accent-red/10 rounded text-accent-red transition-colors">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <AnimatePresence>
+                                                    {editingMissionId === item.id && renderManageForm()}
+                                                </AnimatePresence>
+                                            </motion.div>
+                                        ))}
                                     </div>
-                                </div>
-                                <AnimatePresence>
-                                    {editingMissionId === item.id && renderManageForm()}
-                                </AnimatePresence>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
         </motion.div>
