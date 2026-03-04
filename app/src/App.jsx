@@ -91,95 +91,97 @@ function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
       {/* Header / Dossier Tab */}
-      <header className="bg-navy text-background p-4 clip-paper mb-2 shadow-md shrink-0 relative z-50">
-        {/* Top Controls Bar */}
-        <div className="flex justify-between items-center mb-3">
-          {/* Left Controls */}
-          <div className="flex items-center gap-2">
+      <header className="bg-navy text-background pt-5 pb-5 px-4 clip-paper mb-2 shadow-md shrink-0 relative z-50">
+        {/* Absolute Left Controls */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 relative">
+          {/* Child Profile Dropdown Manager */}
+          <div className="relative">
             <button
-              onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
-              className="bg-white/10 hover:bg-white/20 p-1.5 rounded-full text-white/50 hover:text-white transition-colors border border-white/10"
-              title="바탕화면에 앱 설치하기"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1.5 px-3 border border-white/20 shadow-sm"
             >
-              <Download size={14} />
+              <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
+                {childProfiles[currentChild]}
+              </span>
+              <ChevronDown size={14} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Child Profile Dropdown Manager */}
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1.5 px-3 border border-white/20 shadow-sm"
-              >
-                <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
-                  {childProfiles[currentChild]}
-                </span>
-                <ChevronDown size={14} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[70]">
-                  {Array.from({ length: childCount }).map((_, idx) => {
-                    const cId = `child${idx + 1}`;
-                    return (
-                      <div
-                        key={cId}
-                        className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
-                        onClick={() => selectChild(cId)}
-                      >
-                        <span className="truncate flex-1">{childProfiles[cId]}</span>
-                        <div className="flex items-center shrink-0">
-                          <button
-                            onClick={(e) => handleRenameChild(e, cId)}
-                            className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors ml-1"
-                            title="이름 수정"
-                          >
-                            <Edit2 size={12} />
-                          </button>
-                          {idx === childCount - 1 && childCount > 1 && (
-                            <button
-                              onClick={(e) => handleRemoveChild(e, cId)}
-                              className="p-1 hover:bg-accent-red/10 rounded text-accent-red/60 hover:text-accent-red transition-colors ml-1"
-                              title="프로필 삭제"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {childCount < 3 && (
+            {isDropdownOpen && (
+              <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[70]">
+                {Array.from({ length: childCount }).map((_, idx) => {
+                  const cId = `child${idx + 1}`;
+                  return (
                     <div
-                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
-                      onClick={handleAddChild}
+                      key={cId}
+                      className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
+                      onClick={() => selectChild(cId)}
                     >
-                      <Plus size={12} /> 추가
+                      <span className="truncate flex-1">{childProfiles[cId]}</span>
+                      <div className="flex items-center shrink-0">
+                        <button
+                          onClick={(e) => handleRenameChild(e, cId)}
+                          className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors ml-1"
+                          title="이름 수정"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        {idx === childCount - 1 && childCount > 1 && (
+                          <button
+                            onClick={(e) => handleRemoveChild(e, cId)}
+                            className="p-1 hover:bg-accent-red/10 rounded text-accent-red/60 hover:text-accent-red transition-colors ml-1"
+                            title="프로필 삭제"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+                {childCount < 3 && (
+                  <div
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
+                    onClick={handleAddChild}
+                  >
+                    <Plus size={12} /> 추가
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Right Control */}
           <button
-            onClick={signOut}
-            className="text-white/50 hover:text-white transition-colors flex items-center gap-1 bg-white/5 hover:bg-white/10 py-1.5 px-2.5 rounded-full border border-white/10"
-            title="기밀 보안 해제 (로그아웃)"
+            onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
+            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 p-1.5 px-2.5 rounded-full text-white/50 hover:text-white transition-colors border border-white/10 w-fit"
+            title="바탕화면에 앱 설치하기 (즐겨찾기)"
           >
-            <span className="text-[10px] font-bold">로그아웃</span>
-            <LogOut size={14} />
+            <Download size={10} />
+            <span className="text-[9px] font-bold tracking-tight">즐겨찾기</span>
           </button>
         </div>
 
-        <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
-          <span className="tracking-tight">SPY</span>
-          <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
-          <span className="tracking-tight">FAMILY</span>
-        </h1>
-        <p className="text-center text-[9px] uppercase tracking-widest mt-1 font-bold pt-1 text-background/70">
-          Top Secret <span className="text-accent-red font-black text-[11px] opacity-100">S</span>chedule & <span className="text-accent-red font-black text-[11px] opacity-100">P</span>ayment & <span className="text-accent-red font-black text-[11px] opacity-100">Y</span>outh
-        </p>
+        {/* Absolute Right Control */}
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            onClick={signOut}
+            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[30px] h-[30px] rounded-full border border-white/10"
+            title="로그아웃"
+          >
+            <LogOut size={14} className="ml-0.5" />
+          </button>
+        </div>
+
+        {/* Header Title Space */}
+        <div className="relative mt-2">
+          <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center pt-2">
+            <span className="tracking-tight">SPY</span>
+            <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
+            <span className="tracking-tight">FAMILY</span>
+          </h1>
+          <p className="text-center text-[9px] uppercase tracking-widest mt-1 font-bold pt-1 text-background/70">
+            Top Secret <span className="text-accent-red font-black text-[11px] opacity-100">S</span>chedule & <span className="text-accent-red font-black text-[11px] opacity-100">P</span>ayment & <span className="text-accent-red font-black text-[11px] opacity-100">Y</span>outh
+          </p>
+        </div>
       </header>
 
       {/* Main Content Area */}
