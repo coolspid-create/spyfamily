@@ -17,7 +17,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
       },
       devOptions: {
-        enabled: true // Important to test PWA locally in dev mode
+        enabled: false // Disabled in dev mode to avoid caching older versions
       }
     })
   ],
