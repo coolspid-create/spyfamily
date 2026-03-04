@@ -145,27 +145,29 @@ export default function SpecialOpsTab() {
                                             <span className={`font-stencil text-[10px] px-1.5 py-0.5 rounded border inline-block shrink-0 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
                                                 {progress === 100 ? 'CLEARED' : `PROG: ${progress}%`}
                                             </span>
-                                            <span className="text-xs font-mono text-navy/50 font-bold tracking-tight ml-1">
-                                                {op.date}
-                                            </span>
                                         </h4>
                                     </div>
                                 </div>
-                                <div className="flex gap-1 shrink-0 pt-0.5" onClick={e => e.stopPropagation()}>
-                                    <button
-                                        onClick={() => handleEditOp(op)}
-                                        className={`p-1.5 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20 group-hover:border-navy/40`}
-                                        title="작전 수정"
-                                    >
-                                        <Edit2 size={12} />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeleteOp(op.id)}
-                                        className={`p-1.5 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40'}`}
-                                        title="작전 파기"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
+                                <div className="flex flex-col items-end shrink-0 gap-1.5 pt-0.5" onClick={e => e.stopPropagation()}>
+                                    <span className="text-xs font-mono text-navy/70 font-bold tracking-tight">
+                                        {op.date}
+                                    </span>
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => handleEditOp(op)}
+                                            className={`p-1.5 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20 group-hover:border-navy/40`}
+                                            title="작전 수정"
+                                        >
+                                            <Edit2 size={12} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteOp(op.id)}
+                                            className={`p-1.5 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40'}`}
+                                            title="작전 파기"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
