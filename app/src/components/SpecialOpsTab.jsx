@@ -133,43 +133,43 @@ export default function SpecialOpsTab() {
                             </div>
 
                             <div
-                                className="mt-2 flex justify-between items-start mb-3 cursor-pointer group"
+                                className="mt-2 flex justify-between items-start mb-2 cursor-pointer group"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
                             >
-                                <div>
-                                    <h4 className="font-bold text-lg text-navy flex items-center gap-1 group-hover:text-accent-red transition-colors">
-                                        {isExpanded ? <ChevronUp size={20} className="text-navy/50" /> : <ChevronDown size={20} className="text-navy/50" />}
-                                        {op.title}
-                                        {op.priority === 'HIGH' && <span className="text-[10px] bg-accent-red text-white px-1.5 py-0.5 rounded font-bold ml-1">HIGH TARGET</span>}
-                                    </h4>
-                                    <p className="text-xs font-mono text-navy/60 font-bold tracking-tight pl-6">EXECUTION DATE: {op.date}</p>
+                                <div className="flex-1 pr-2">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        {isExpanded ? <ChevronUp size={20} className="text-navy/50 shrink-0" /> : <ChevronDown size={20} className="text-navy/50 shrink-0" />}
+                                        <h4 className="font-bold text-lg text-navy group-hover:text-accent-red transition-colors flex flex-wrap items-center gap-2 leading-tight">
+                                            <span>{op.title}</span>
+                                            {op.priority === 'HIGH' && <span className="text-[10px] bg-accent-red text-white px-1.5 py-0.5 rounded font-bold inline-block">HIGH TARGET</span>}
+                                        </h4>
+                                    </div>
+                                    <p className="text-xs font-mono text-navy/60 font-bold tracking-tight pl-7">
+                                        EXECUTION DATE: {op.date}
+                                    </p>
                                 </div>
-                                <div className="flex flex-col gap-2 items-end shrink-0">
+                                <div className="flex flex-col justify-between items-end shrink-0 gap-3" onClick={e => e.stopPropagation()}>
                                     <div className={`font-stencil text-xs px-2 py-1 rounded border-2 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                        {progress === 100 ? 'CLEARED' : `${progress}%`}
+                                        {progress === 100 ? 'CLEARED' : `PROGRESS: ${progress}%`}
                                     </div>
                                     <div className="flex gap-1">
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleEditOp(op); }}
-                                            className={`p-1 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20`}
+                                            onClick={() => handleEditOp(op)}
+                                            className={`p-1.5 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20 group-hover:border-navy/40`}
                                             title="작전 수정"
                                         >
-                                            <Edit2 size={14} />
+                                            <Edit2 size={12} />
                                         </button>
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteOp(op.id); }}
-                                            className={`p-1 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20'}`}
+                                            onClick={() => handleDeleteOp(op.id)}
+                                            className={`p-1.5 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40'}`}
                                             title="작전 파기"
                                         >
-                                            <Trash2 size={14} />
+                                            <Trash2 size={12} />
                                         </button>
                                     </div>
                                 </div>
                             </div>
-
-                            <p className="text-sm font-bold opacity-80 mb-2 bg-gray-100 p-2 rounded border-l-4 border-navy cursor-pointer hover:bg-gray-200 transition-colors" onClick={() => setExpandedOpId(isExpanded ? null : op.id)}>
-                                {op.description}
-                            </p>
 
                             <AnimatePresence>
                                 {isExpanded && (
@@ -177,60 +177,68 @@ export default function SpecialOpsTab() {
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
-                                        className="overflow-hidden pt-2"
+                                        className="overflow-hidden"
                                     >
-                                        {/* Resource Allocation */}
-                                        <div className="mb-4 bg-navy/5 p-3 rounded border border-navy/10">
-                                            <h5 className="font-bold text-xs text-navy mb-2 flex items-center gap-2">
-                                                <Users size={14} /> FIELD AGENT ASSIGNMENT
-                                            </h5>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => toggleParticipant(op.id, 'mom')}
-                                                    className={`flex-1 py-1 text-xs font-bold rounded border-2 transition-colors ${op.participants.mom ? 'bg-navy text-white border-navy' : 'bg-transparent text-navy/50 border-navy/30'}`}
-                                                >
-                                                    [엄마] 요원 대기
-                                                </button>
-                                                <button
-                                                    onClick={() => toggleParticipant(op.id, 'dad')}
-                                                    className={`flex-1 py-1 text-xs font-bold rounded border-2 transition-colors ${op.participants.dad ? 'bg-navy text-white border-navy' : 'bg-transparent text-navy/50 border-navy/30'}`}
-                                                >
-                                                    [아빠] 요원 대기
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <div className="pt-3 border-t-2 border-dashed border-navy/10 mt-1">
+                                            {op.description && (
+                                                <p className="text-sm font-bold opacity-80 mb-4 bg-gray-100 p-2 rounded border-l-4 border-navy leading-relaxed">
+                                                    {op.description}
+                                                </p>
+                                            )}
 
-                                        {/* Checklist */}
-                                        <div>
-                                            <h5 className="font-bold text-xs text-navy mb-2 border-b-2 border-navy/20 pb-1 flex justify-between items-end">
-                                                <span>OPERATIONAL CHECKLIST</span>
-                                                <span className="text-[10px] opacity-50 font-mono">CONFIRM ALL TASKS</span>
-                                            </h5>
-                                            <ul className="space-y-1">
-                                                {op.checklist.map((item) => (
-                                                    <li key={item.id} className="flex items-center gap-2 text-sm font-bold opacity-80 cursor-pointer group" onClick={() => toggleChecklist(op.id, item.id)}>
-                                                        <div className="w-4 h-4 rounded border-2 border-navy flex items-center justify-center shrink-0 mt-0.5">
-                                                            {item.checked && <div className="w-2 h-2 bg-accent-red rounded-sm"></div>}
-                                                        </div>
-                                                        <span className={`flex-1 ${item.checked ? 'line-through opacity-50' : 'group-hover:opacity-100'}`}>
-                                                            {item.task}
-                                                        </span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                            {/* Add Task Input */}
-                                            <div className="mt-3 flex gap-2 items-center">
-                                                <input
-                                                    type="text"
-                                                    placeholder="새로운 체크리스트 추가..."
-                                                    value={newTaskInputs[op.id] || ''}
-                                                    onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [op.id]: e.target.value })}
-                                                    onKeyPress={(e) => e.key === 'Enter' && handleAddTask(op.id)}
-                                                    className="flex-1 border-b-2 border-navy/20 bg-transparent text-sm font-bold outline-none px-1 py-1 focus:border-navy"
-                                                />
-                                                <button onClick={() => handleAddTask(op.id)} className="text-navy bg-navy/5 hover:bg-navy/10 rounded transition-colors p-1.5 border border-navy/20">
-                                                    <Plus size={16} />
-                                                </button>
+                                            {/* Resource Allocation */}
+                                            <div className="mb-4 bg-navy/5 p-3 rounded border border-navy/10">
+                                                <h5 className="font-bold text-xs text-navy mb-2 flex items-center gap-2">
+                                                    <Users size={14} /> FIELD AGENT ASSIGNMENT
+                                                </h5>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => toggleParticipant(op.id, 'mom')}
+                                                        className={`flex-1 py-1.5 text-xs font-bold rounded border-2 transition-colors ${op.participants.mom ? 'bg-navy text-white border-navy shadow-sm' : 'bg-transparent text-navy/50 border-navy/30 hover:bg-navy/5'}`}
+                                                    >
+                                                        [엄마] 대기
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleParticipant(op.id, 'dad')}
+                                                        className={`flex-1 py-1.5 text-xs font-bold rounded border-2 transition-colors ${op.participants.dad ? 'bg-navy text-white border-navy shadow-sm' : 'bg-transparent text-navy/50 border-navy/30 hover:bg-navy/5'}`}
+                                                    >
+                                                        [아빠] 대기
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Checklist */}
+                                            <div>
+                                                <h5 className="font-bold text-xs text-navy mb-2 border-b-2 border-navy/20 pb-1 flex justify-between items-end">
+                                                    <span className="flex items-center gap-1">OPERATIONAL CHECKLIST</span>
+                                                    <span className="text-[10px] opacity-50 font-mono tracking-tighter">CONFIRM TASKS</span>
+                                                </h5>
+                                                <ul className="space-y-1">
+                                                    {op.checklist.map((item) => (
+                                                        <li key={item.id} className="flex items-start gap-2 text-sm font-bold opacity-80 cursor-pointer group py-1" onClick={() => toggleChecklist(op.id, item.id)}>
+                                                            <div className="w-4 h-4 rounded border-2 border-navy flex items-center justify-center shrink-0 mt-0.5 transition-colors group-hover:border-accent-red">
+                                                                {item.checked && <div className="w-2 h-2 bg-accent-red rounded-sm"></div>}
+                                                            </div>
+                                                            <span className={`flex-1 leading-tight ${item.checked ? 'line-through opacity-50 text-navy' : 'group-hover:opacity-100 group-hover:text-accent-red'}`}>
+                                                                {item.task}
+                                                            </span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                                {/* Add Task Input */}
+                                                <div className="mt-3 flex gap-2 items-center bg-navy/5 p-1 rounded border border-navy/10">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="새로운 체크리스트 추가..."
+                                                        value={newTaskInputs[op.id] || ''}
+                                                        onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [op.id]: e.target.value })}
+                                                        onKeyPress={(e) => e.key === 'Enter' && handleAddTask(op.id)}
+                                                        className="flex-1 bg-transparent text-sm font-bold outline-none px-2 py-1 placeholder:opacity-50 text-navy"
+                                                    />
+                                                    <button onClick={() => handleAddTask(op.id)} className="text-navy bg-white hover:bg-navy hover:text-white shadow-sm rounded transition-colors p-1.5 border border-navy/20">
+                                                        <Plus size={16} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </motion.div>
