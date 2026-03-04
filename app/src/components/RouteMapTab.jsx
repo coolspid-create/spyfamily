@@ -20,7 +20,8 @@ export default function RouteMapTab() {
             setEditingMissionId(mission.id);
         } else {
             const newId = Date.now().toString();
-            setManageMissionForm({ id: newId, type: 'fund', day: 1, title: '' });
+            const today = new Date();
+            setManageMissionForm({ id: newId, type: 'fund', day: 1, year: today.getFullYear(), month: today.getMonth() + 1, title: '' });
             setEditingMissionId(newId);
         }
     };
@@ -56,7 +57,11 @@ export default function RouteMapTab() {
 
         // Current month days
         for (let i = 1; i <= daysInMonth; i++) {
-            const hasMissions = missionsData.filter(m => m.day === i);
+            const hasMissions = missionsData.filter(m => {
+                if (m.type === 'fund') return m.day === i;
+                if (m.type === 'event') return m.day === i && m.month === (month + 1) && m.year === year;
+                return false;
+            });
             cells.push({ type: 'current', day: i, currentMonthDay: i, missions: hasMissions });
         }
 
@@ -97,15 +102,35 @@ export default function RouteMapTab() {
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="text-xs font-bold opacity-70 block">Type</label>
-                            <select value={manageMissionForm.type} onChange={e => setManageMissionForm({ ...manageMissionForm, type: e.target.value })} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
+                            <select value={manageMissionForm.type} onChange={e => {
+                                const today = new Date();
+                                setManageMissionForm({
+                                    ...manageMissionForm,
+                                    type: e.target.value,
+                                    year: manageMissionForm.year || today.getFullYear(),
+                                    month: manageMissionForm.month || (today.getMonth() + 1)
+                                });
+                            }} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
                                 <option value="fund">결제미션</option>
                                 <option value="event">특수임무</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="text-xs font-bold opacity-70 block">Day (1~31)</label>
-                            <input type="number" min="1" max="31" value={manageMissionForm.day} onChange={e => setManageMissionForm({ ...manageMissionForm, day: Number(e.target.value) })} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
-                        </div>
+                        {manageMissionForm.type === 'fund' ? (
+                            <div>
+                                <label className="text-xs font-bold opacity-70 block">Day (1~31)</label>
+                                <input type="number" min="1" max="31" value={manageMissionForm.day || ''} onChange={e => setManageMissionForm({ ...manageMissionForm, day: Number(e.target.value) })} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="text-xs font-bold opacity-70 block">Date</label>
+                                <input type="date" value={manageMissionForm.year && manageMissionForm.month ? `${manageMissionForm.year}-${String(manageMissionForm.month).padStart(2, '0')}-${String(manageMissionForm.day).padStart(2, '0')}` : ''} onChange={e => {
+                                    if (e.target.value) {
+                                        const [y, m, d] = e.target.value.split('-');
+                                        setManageMissionForm({ ...manageMissionForm, year: Number(y), month: Number(m), day: Number(d) });
+                                    }
+                                }} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <label className="text-xs font-bold opacity-70 block">Mission Title</label>
@@ -211,8 +236,8 @@ export default function RouteMapTab() {
                             >
                                 <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
                                     <div className="flex items-center gap-3">
-                                        <span className={`font-mono font-bold text-white px-2 py-1 rounded w-10 text-center ${item.type === 'fund' ? 'bg-accent-red' : 'bg-accent-green'}`}>
-                                            {item.day}일
+                                        <span className={`font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center ${item.type === 'fund' ? 'bg-accent-red' : 'bg-accent-green'}`}>
+                                            {item.type === 'fund' ? `${item.day}일` : `${item.month}/${item.day}`}
                                         </span>
                                         <div>
                                             <h4 className="font-bold text-sm">{item.title}</h4>

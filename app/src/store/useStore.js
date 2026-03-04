@@ -201,8 +201,8 @@ export const useStore = create((set, get) => ({
             }]);
             if (error) alert('일정 추가 실패: ' + error.message);
         } else {
-            const year = new Date().getFullYear();
-            const month = String(new Date().getMonth() + 1).padStart(2, '0');
+            const year = mission.year || new Date().getFullYear();
+            const month = String(mission.month || new Date().getMonth() + 1).padStart(2, '0');
             const day = String(mission.day).padStart(2, '0');
             const { error } = await supabase.from('ops').insert([{
                 title: mission.title,
@@ -225,8 +225,8 @@ export const useStore = create((set, get) => ({
             }).eq('id', mission.id);
             if (error) alert('일정 수정 실패: ' + error.message);
         } else {
-            const year = new Date().getFullYear();
-            const month = String(new Date().getMonth() + 1).padStart(2, '0');
+            const year = mission.year || new Date().getFullYear();
+            const month = String(mission.month || new Date().getMonth() + 1).padStart(2, '0');
             const day = String(mission.day).padStart(2, '0');
             const { error } = await supabase.from('ops').update({
                 title: mission.title,
@@ -418,7 +418,7 @@ export const useStore = create((set, get) => ({
         set((state) => ({
             funds: updatedFunds,
             payments: state.payments.map(p =>
-                p.id === paymentId ? { ...p, isCompleted: true, completedAt } : p
+                p.id === paymentId ? { ...p, isCompleted: true, completedAt, justCompleted: true } : p
             ),
             transactionHistory: newHistoryRecord ? [newHistoryRecord, ...state.transactionHistory] : state.transactionHistory
         }));
@@ -486,6 +486,8 @@ export const useStore = create((set, get) => ({
             const newEventMission = {
                 id: newOp.id,
                 type: 'event',
+                year: parseInt(parsedOp.date.split('.')[0], 10),
+                month: parseInt(parsedOp.date.split('.')[1], 10),
                 day: parseInt(parsedOp.date.split('.')[2], 10),
                 title: parsedOp.title
             };
@@ -554,6 +556,8 @@ export const useStore = create((set, get) => ({
             opsData: state.opsData.map(op => op.id === updatedOp.id ? updatedOp : op),
             missionsData: state.missionsData.map(m => m.id === updatedOp.id ? {
                 ...m,
+                year: parseInt(updatedOp.date.split('.')[0], 10),
+                month: parseInt(updatedOp.date.split('.')[1], 10),
                 day: parseInt(updatedOp.date.split('.')[2], 10),
                 title: updatedOp.title
             } : m)
@@ -588,25 +592,58 @@ export const useStore = create((set, get) => ({
 
             const currentChild = get().currentChild;
 
+            // Fetch Transaction History
+            const { data: historyData } = await supabase.from('transactionhistory').select('*').eq('child_id', currentChild).order('created_at', { ascending: false });
+            let formattedHistory = [];
+            if (historyData) {
+                formattedHistory = historyData.map(h => ({
+                    id: h.id,
+                    paymentId: h.payment_id,
+                    month: h.month,
+                    date: h.date_formatted,
+                    source: h.source,
+                    amount: h.amount,
+                    method: h.method
+                }));
+                set({ transactionHistory: formattedHistory });
+            }
+
             // Fetch Payments
             const { data: paymentsData } = await supabase.from('payment').select('*').eq('child_id', currentChild).order('payment_day', { ascending: true });
             if (paymentsData) {
-                const formattedPayments = paymentsData.map(p => ({
-                    id: p.id,
-                    source: p.source,
-                    amount: p.amount,
-                    method: p.method,
-                    day: `${p.payment_day}일`,
-                    discount: p.discount_info || '',
-                    isCompleted: p.is_completed
-                }));
+                const now = new Date();
+                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+                const formattedPayments = [];
+                for (const p of paymentsData) {
+                    let isCompleted = p.is_completed;
+
+                    if (isCompleted) {
+                        const hasCurrentMonthTx = formattedHistory.some(h => h.paymentId === p.id && h.month === currentMonthStr);
+                        if (!hasCurrentMonthTx) {
+                            await supabase.from('payment').update({ is_completed: false }).eq('id', p.id);
+                            isCompleted = false;
+                        }
+                    }
+
+                    formattedPayments.push({
+                        id: p.id,
+                        source: p.source,
+                        amount: p.amount,
+                        method: p.method,
+                        day: `${p.payment_day}일`,
+                        discount: p.discount_info || '',
+                        isCompleted: isCompleted,
+                        justCompleted: false
+                    });
+                }
                 set({ payments: formattedPayments });
 
                 // Update Planner Missions based on Payments
-                const fundMissions = paymentsData.map(p => ({
+                const fundMissions = formattedPayments.map(p => ({
                     id: p.id,
                     type: 'fund',
-                    day: p.payment_day,
+                    day: parseInt(p.day.replace('일', ''), 10),
                     title: `${p.source} 결제 (${p.amount.toLocaleString()}₩)`
                 }));
 
@@ -640,28 +677,15 @@ export const useStore = create((set, get) => ({
                     const eventMissions = parsedOps.map(o => ({
                         id: o.id,
                         type: 'event',
-                        day: parseInt(o.date.split('.')[2], 10), // extract day
+                        year: parseInt(o.date.split('.')[0], 10),
+                        month: parseInt(o.date.split('.')[1], 10),
+                        day: parseInt(o.date.split('.')[2], 10),
                         title: o.title
                     }));
                     set({ missionsData: [...fundMissions, ...eventMissions] });
                 } else {
                     set({ missionsData: fundMissions });
                 }
-            }
-
-            // Fetch Transaction History
-            const { data: historyData } = await supabase.from('transactionhistory').select('*').eq('child_id', currentChild).order('created_at', { ascending: false });
-            if (historyData) {
-                const formattedHistory = historyData.map(h => ({
-                    id: h.id,
-                    paymentId: h.payment_id,
-                    month: h.month,
-                    date: h.date_formatted,
-                    source: h.source,
-                    amount: h.amount,
-                    method: h.method
-                }));
-                set({ transactionHistory: formattedHistory });
             }
 
             // Fetch Schedule

@@ -250,9 +250,9 @@ export default function PaymentTab() {
                             <AnimatePresence>
                                 {payment.isCompleted && (
                                     <motion.div
-                                        initial={{ scale: 3, opacity: 0, rotate: -45 }}
+                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45 } : false}
                                         animate={{ scale: 1, opacity: 0.8, rotate: -15, y: -10 }}
-                                        transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                                        transition={payment.justCompleted ? { type: "spring", stiffness: 200, damping: 10 } : { duration: 0 }}
                                         className="absolute top-4 right-4 stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
                                     >
                                         MISSION CLEARED
@@ -325,7 +325,7 @@ export default function PaymentTab() {
                                             </h3>
                                             <div className="flex flex-wrap gap-1 mt-1">
                                                 <span className={`text-xs px-2 py-0.5 rounded font-bold ${payment.isCompleted ? 'bg-black/10 text-gray-500' :
-                                                        calculateDDay(payment.day).includes('D-Day') || parseInt(calculateDDay(payment.day).replace('D-', '')) <= 3 ? 'bg-accent-red text-white' : 'bg-black/10'
+                                                    calculateDDay(payment.day).includes('D-Day') || parseInt(calculateDDay(payment.day).replace('D-', '')) <= 3 ? 'bg-accent-red text-white' : 'bg-black/10'
                                                     }`}>
                                                     {payment.isCompleted ? `결제일: ${payment.day}` : calculateDDay(payment.day)}
                                                 </span>
