@@ -153,24 +153,23 @@ function App() {
             )}
           </div>
 
-          <button
-            onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
-            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 py-1 px-2.5 rounded-full text-white/50 hover:text-white transition-colors border border-white/10 w-fit"
-            title="바탕화면에 앱 설치하기 (즐겨찾기)"
-          >
-            <Download size={10} />
-            <span className="text-[9px] font-bold tracking-tight">즐겨찾기</span>
-          </button>
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
           <button
             onClick={signOut}
             className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
             title="로그아웃"
           >
             <LogOut size={13} className="ml-0.5" />
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
+            className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
+            title="바탕화면에 앱 설치하기"
+          >
+            <Download size={13} />
           </button>
         </div>
 

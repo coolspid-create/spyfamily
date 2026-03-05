@@ -116,14 +116,14 @@ export default function PaymentTab() {
                 <h2 className="font-stencil text-xl flex-1 text-navy">ESTIMATED FUNDS SUMMARY</h2>
             </div>
 
-            <div className="bg-navy text-white rounded shadow-sm p-4 border-2 border-navy relative overflow-hidden">
+            <div className="bg-navy text-white rounded shadow-sm p-3 border-2 border-navy relative overflow-hidden">
                 <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
                     <CheckCircle2 size={120} />
                 </div>
-                <h3 className="font-bold mb-3 border-b border-white/20 pb-2 flex items-center gap-2 relative z-10">
+                <h3 className="font-bold mb-2 border-b border-white/20 pb-1 flex items-center gap-2 relative z-10">
                     <CheckCircle2 size={16} className="text-accent-green" /> 결제 수단별 예상 금액
                 </h3>
-                <div className="space-y-2 mb-4 relative z-10">
+                <div className="space-y-1 mb-2 relative z-10">
                     {Object.entries(methodTotals).filter(([k]) => k !== 'TOTAL').map(([method, amount]) => (
                         <div key={method} className="flex justify-between items-center text-sm font-bold opacity-90 border-b border-dashed border-white/10 pb-1">
                             <span>{method}</span>
@@ -137,9 +137,9 @@ export default function PaymentTab() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="grid grid-cols-2 gap-2 mt-2">
                 {funds.map((fund) => (
-                    <div key={fund.id} className="bg-white border-2 border-navy p-3 rounded shadow-sm relative overflow-hidden group">
+                    <div key={fund.id} className="bg-white border-2 border-navy p-2 rounded shadow-sm relative overflow-hidden group">
                         <div className="flex justify-between items-center mb-1">
                             <div className="text-xs text-navy/60 font-bold">{fund.name}</div>
                             <button
@@ -165,10 +165,12 @@ export default function PaymentTab() {
                                 <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-200 rounded p-1"><X size={14} /></button>
                             </div>
                         ) : (
-                            <div className="text-lg font-mono font-bold text-navy">{fund.balance.toLocaleString()} ₩</div>
+                            <div className="flex justify-between items-end">
+                                <div className="text-lg font-mono font-bold text-navy">{fund.balance.toLocaleString()} ₩</div>
+                                <div className="text-[8px] text-navy/40 mb-1">UPDATE: {fund.updated}</div>
+                            </div>
                         )}
 
-                        <div className="text-[10px] text-navy/40 mt-2 text-right">SYNC: {fund.updated}</div>
                         <div className="absolute right-[-10px] top-[-10px] bg-accent-green/10 w-16 h-16 rounded-full blur-xl pointer-events-none z-0"></div>
                     </div>
                 ))}
@@ -214,10 +216,10 @@ export default function PaymentTab() {
                                     <div>
                                         <label className="text-[10px] font-bold text-navy/70 block">Method</label>
                                         <select value={newPaymentForm.method} onChange={e => setNewPaymentForm({ ...newPaymentForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer bg-white">
-                                            <option>성남사랑상품권</option>
+                                            <option>지역사랑상품권</option>
                                             <option>아동수당</option>
                                             <option>신용카드</option>
-                                            <option>성남사랑 + 카드</option>
+                                            <option>지역사랑 + 카드</option>
                                             <option>스쿨뱅킹</option>
                                         </select>
                                     </div>
@@ -278,10 +280,10 @@ export default function PaymentTab() {
                                         <div>
                                             <label className="text-[10px] font-bold text-navy/70 block">Method</label>
                                             <select value={paymentForm.method} onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer">
-                                                <option>성남사랑상품권</option>
+                                                <option>지역사랑상품권</option>
                                                 <option>아동수당</option>
                                                 <option>신용카드</option>
-                                                <option>성남사랑 + 카드</option>
+                                                <option>지역사랑 + 카드</option>
                                                 <option>스쿨뱅킹</option>
                                             </select>
                                         </div>

@@ -380,18 +380,6 @@ export const useStore = create((set, get) => ({
         const completedAt = `${year}.${month}.${day} ${hours}:${minutes}`;
 
         let updatedFunds = state.funds;
-        if (!payment.method.includes('+') && payment.method !== '신용카드' && payment.method !== '스쿨뱅킹') {
-            const fund = state.funds.find(f => f.name === payment.method);
-            if (fund && fund.balance < payment.amount) {
-                alert(`[WARNING: FUNDS INSUFFICIENT]\n요청 자금: ${payment.amount.toLocaleString()}₩\n현재 잔액: ${fund.balance.toLocaleString()}₩\n자금을 충전하십시오.`);
-                return;
-            }
-            if (fund) {
-                const newBalance = fund.balance - payment.amount;
-                await supabase.from('asset').update({ balance: newBalance, last_updated: new Date().toISOString() }).eq('id', fund.id);
-                updatedFunds = state.funds.map(f => f.id === fund.id ? { ...f, balance: newBalance, updated: '방금 전' } : f);
-            }
-        }
 
         await supabase.from('payment').update({ is_completed: true }).eq('id', paymentId);
 
@@ -429,14 +417,6 @@ export const useStore = create((set, get) => ({
         if (!payment || !payment.isCompleted) return;
 
         let updatedFunds = state.funds;
-        if (!payment.method.includes('+') && payment.method !== '신용카드' && payment.method !== '스쿨뱅킹') {
-            const fund = state.funds.find(f => f.name === payment.method);
-            if (fund) {
-                const newBalance = fund.balance + payment.amount;
-                await supabase.from('asset').update({ balance: newBalance, last_updated: new Date().toISOString() }).eq('id', fund.id);
-                updatedFunds = state.funds.map(f => f.id === fund.id ? { ...f, balance: newBalance, updated: '방금 전' } : f);
-            }
-        }
 
         await supabase.from('payment').update({ is_completed: false }).eq('id', paymentId);
         await supabase.from('transactionhistory').delete().eq('payment_id', paymentId);
@@ -451,7 +431,8 @@ export const useStore = create((set, get) => ({
     },
     updateFund: async (fund) => {
         await supabase.from('asset').update({ balance: fund.balance, last_updated: new Date().toISOString() }).eq('id', fund.id);
-        const todayStr = new Date().toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '');
+        const now = new Date();
+        const todayStr = `${now.getFullYear().toString().slice(-2)}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
         set((state) => ({
             funds: state.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f)
         }));
@@ -574,19 +555,30 @@ export const useStore = create((set, get) => ({
                 // Multi-tenant: Initialize default funds for new user
                 const defaultFunds = [
                     { name: '아동수당', balance: 0 },
-                    { name: '성남사랑상품권', balance: 0 }
+                    { name: '지역사랑상품권', balance: 0 }
                 ];
                 const { data: insertedData } = await supabase.from('asset').insert(defaultFunds).select('*').order('last_updated', { ascending: false });
                 if (insertedData) assetsData = insertedData;
             }
 
             if (assetsData) {
-                const formattedFunds = assetsData.map(a => ({
-                    id: a.id,
-                    name: a.name,
-                    balance: a.balance,
-                    updated: new Date(a.last_updated).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '')
-                }));
+                assetsData = assetsData.map(a => {
+                    if (a.name === '성남사랑상품권') {
+                        supabase.from('asset').update({ name: '지역사랑상품권' }).eq('id', a.id).then();
+                        return { ...a, name: '지역사랑상품권' };
+                    }
+                    return a;
+                });
+                const formattedFunds = assetsData.map(a => {
+                    const d = new Date(a.last_updated);
+                    const updatedStr = `${d.getFullYear().toString().slice(-2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+                    return {
+                        id: a.id,
+                        name: a.name,
+                        balance: a.balance,
+                        updated: updatedStr
+                    };
+                });
                 set({ funds: formattedFunds });
             }
 
@@ -603,7 +595,7 @@ export const useStore = create((set, get) => ({
                     date: h.date_formatted,
                     source: h.source,
                     amount: h.amount,
-                    method: h.method
+                    method: h.method.replace('성남', '지역')
                 }));
                 set({ transactionHistory: formattedHistory });
             }
@@ -630,7 +622,7 @@ export const useStore = create((set, get) => ({
                         id: p.id,
                         source: p.source,
                         amount: p.amount,
-                        method: p.method,
+                        method: p.method.replace('성남', '지역'),
                         day: `${p.payment_day}일`,
                         discount: p.discount_info || '',
                         isCompleted: isCompleted,
