@@ -252,10 +252,10 @@ export default function PaymentTab() {
                             <AnimatePresence>
                                 {payment.isCompleted && (
                                     <motion.div
-                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45 } : false}
-                                        animate={{ scale: 1, opacity: 0.8, rotate: -15, y: -10 }}
+                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45, x: "-50%", y: "-50%" } : false}
+                                        animate={{ scale: 1, opacity: 0.8, rotate: -15, x: "-50%", y: "-50%" }}
                                         transition={payment.justCompleted ? { type: "spring", stiffness: 200, damping: 10 } : { duration: 0 }}
-                                        className="absolute top-4 right-4 stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
+                                        className="absolute top-1/2 left-1/2 stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
                                     >
                                         결제 완료
                                     </motion.div>
