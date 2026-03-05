@@ -103,11 +103,11 @@ export default function RouteMapTab() {
                 transition={{ duration: 0.2 }}
                 className="bg-amber-50 border-2 border-navy p-4 rounded shadow-md overflow-hidden mt-2"
             >
-                <h3 className="font-stencil text-navy mb-3 border-b-2 border-navy pb-1">EDIT MISSION DATA</h3>
+                <h3 className="font-stencil text-navy mb-3 border-b-2 border-navy pb-1">일정 정보 수정</h3>
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="text-xs font-bold opacity-70 block">Type</label>
+                            <label className="text-xs font-bold opacity-70 block">종류</label>
                             <select value={manageMissionForm.type} onChange={e => {
                                 const today = new Date();
                                 setManageMissionForm({
@@ -117,18 +117,18 @@ export default function RouteMapTab() {
                                     month: manageMissionForm.month || (today.getMonth() + 1)
                                 });
                             }} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
-                                <option value="fund">결제미션</option>
-                                <option value="event">특수임무</option>
+                                <option value="fund">결제관리</option>
+                                <option value="event">특별할일</option>
                             </select>
                         </div>
                         {manageMissionForm.type === 'fund' ? (
                             <div>
-                                <label className="text-xs font-bold opacity-70 block">Day (1~31)</label>
+                                <label className="text-xs font-bold opacity-70 block">매월 결제일 (1~31)</label>
                                 <input type="number" min="1" max="31" value={manageMissionForm.day || ''} onChange={e => setManageMissionForm({ ...manageMissionForm, day: Number(e.target.value) })} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
                             </div>
                         ) : (
                             <div>
-                                <label className="text-xs font-bold opacity-70 block">Date</label>
+                                <label className="text-xs font-bold opacity-70 block">날짜</label>
                                 <input type="date" value={manageMissionForm.year && manageMissionForm.month ? `${manageMissionForm.year}-${String(manageMissionForm.month).padStart(2, '0')}-${String(manageMissionForm.day).padStart(2, '0')}` : ''} onChange={e => {
                                     if (e.target.value) {
                                         const [y, m, d] = e.target.value.split('-');
@@ -139,15 +139,15 @@ export default function RouteMapTab() {
                         )}
                     </div>
                     <div>
-                        <label className="text-xs font-bold opacity-70 block">Mission Title</label>
-                        <input type="text" value={manageMissionForm.title} onChange={e => setManageMissionForm({ ...manageMissionForm, title: e.target.value })} className="w-full border-2 border-navy rounded p-2 font-bold bg-white outline-none" placeholder="ex. 피아노 학원비 결제" />
+                        <label className="text-xs font-bold opacity-70 block">일정명</label>
+                        <input type="text" value={manageMissionForm.title} onChange={e => setManageMissionForm({ ...manageMissionForm, title: e.target.value })} className="w-full border-2 border-navy rounded p-2 font-bold bg-white outline-none" placeholder="ex. 아파트 관리비 결제" />
                     </div>
                     <div className="flex gap-2 pt-2">
                         <button onClick={saveManageMissionData} className="flex-1 bg-navy text-white font-bold py-2 rounded flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
-                            <Save size={16} /> SAVE
+                            <Save size={16} /> 저장하기
                         </button>
                         <button onClick={() => setEditingMissionId(null)} className="flex-1 bg-gray-200 text-navy font-bold py-2 rounded border-2 border-gray-400 hover:bg-white transition-colors">
-                            CANCEL
+                            취소
                         </button>
                     </div>
                 </div>
@@ -164,7 +164,7 @@ export default function RouteMapTab() {
             {/* Header */}
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <CalendarDays size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">OPS & FUNDS PLANNER</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">주간 일정표</h2>
             </div>
 
             {/* Mini Calendar View */}
@@ -207,15 +207,15 @@ export default function RouteMapTab() {
                 </div>
 
                 <div className="flex gap-4 mt-6 justify-center text-xs font-bold text-navy/70 border-t border-navy/10 pt-3">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제미션</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 특수임무</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제관리</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 특별할일</div>
                 </div>
             </div>
 
             {/* Calendar Data Manager */}
             <div className="bg-navy/5 p-4 rounded border-2 border-navy/20 space-y-4">
                 <h3 className="font-stencil text-navy mb-1 flex items-center gap-2 border-b-2 border-navy/20 pb-2">
-                    <Database size={20} className="text-navy" /> DATA MANAGER
+                    <Database size={20} className="text-navy" /> 데이터 관리
                 </h3>
                 {/* 
                 // [NOTE] 결제미션 및 특수임무 탭과 데이터가 연동되므로 임시 가림 처리
@@ -238,7 +238,7 @@ export default function RouteMapTab() {
                             <div className="flex items-center gap-2">
                                 <h4 className="font-bold text-navy font-mono flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div>
-                                    결제미션 ({fundMissions.length})
+                                    결제관리 ({fundMissions.length})
                                 </h4>
                                 {isFundsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
@@ -300,7 +300,7 @@ export default function RouteMapTab() {
                             <div className="flex items-center gap-2">
                                 <h4 className="font-bold text-navy font-mono flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div>
-                                    특수임무 ({eventMissions.length})
+                                    특별할일 ({eventMissions.length})
                                 </h4>
                                 {isEventsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>

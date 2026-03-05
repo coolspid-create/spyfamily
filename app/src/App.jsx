@@ -78,7 +78,7 @@ function App() {
     return (
       <div className="min-h-screen bg-navy flex items-center justify-center p-4 relative overflow-hidden">
         <div className="animate-pulse flex flex-col items-center">
-          <span className="text-white/50 font-mono text-xl font-bold tracking-widest gap-2 flex items-center"><Star size={16} className="animate-spin" /> ESTABLISHING SECURE LINK...</span>
+          <span className="text-white/50 font-mono text-lg font-bold tracking-widest gap-2 flex items-center"><Star size={16} className="animate-spin" /> 데이터를 불러오는 중입니다...</span>
         </div>
       </div>
     );
@@ -175,13 +175,13 @@ function App() {
 
         {/* Header Title Space */}
         <div className="relative pt-6">
-          <h1 className="font-sans text-3xl font-black tracking-tighter text-center flex items-center justify-center">
-            <span className="tracking-tight">SPY</span>
+          <h1 className="font-sans text-2xl font-black tracking-tighter text-center flex items-center justify-center">
+            <span className="tracking-tight">가족</span>
             <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
-            <span className="tracking-tight">FAMILY</span>
+            <span className="tracking-tight">일정보드</span>
           </h1>
-          <p className="text-center text-[9px] uppercase tracking-widest font-bold pt-1 text-background/70">
-            Top Secret <span className="text-accent-red font-black text-[11px] opacity-100">S</span>chedule & <span className="text-accent-red font-black text-[11px] opacity-100">P</span>ayment & <span className="text-accent-red font-black text-[11px] opacity-100">Y</span>outh
+          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
+            우리 가족의 소중한 일정과 자금 관리
           </p>
         </div>
       </header>
@@ -201,28 +201,28 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Home size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">작전본부</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">가족보드</span>
         </button>
         <button
           onClick={() => setActiveTab('map')}
           className={`flex flex-col items-center pt-1 ${activeTab === 'map' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <CalendarDays size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">작전계획</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">주간일정</span>
         </button>
         <button
           onClick={() => setActiveTab('payment')}
           className={`flex flex-col items-center pt-1 ${activeTab === 'payment' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <CreditCard size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">결제미션</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">결제관리</span>
         </button>
         <button
           onClick={() => setActiveTab('ops')}
           className={`flex flex-col items-center pt-1 ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Star size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">특수임무</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">특별할일</span>
         </button>
       </nav>
       {/* PWA Mobile Install Prompt */}

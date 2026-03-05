@@ -25,7 +25,7 @@ export default function SpecialOpsTab() {
     };
 
     const handleDeleteOp = (opsId) => {
-        if (window.confirm('이 작전을 완전히 파기(삭제)하시겠습니까?')) {
+        if (window.confirm('이 할 일을 완전히 삭제하시겠습니까?')) {
             removeOp(opsId);
             if (expandedOpId === opsId) setExpandedOpId(null);
         }
@@ -98,7 +98,7 @@ export default function SpecialOpsTab() {
         <div className="space-y-6">
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <Target size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">SPECIAL OPERATIONS</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">특별 할 일</h2>
             </div>
 
             {/* Mission Critical Briefing */}
@@ -108,11 +108,11 @@ export default function SpecialOpsTab() {
                 </div>
                 <h3 className="font-bold border-b border-white/20 pb-2 mb-3 flex items-center gap-2 relative z-10">
                     <AlertCircle size={16} className="text-accent-red" />
-                    REQUIRE IMMEDIATE COORDINATION
+                    중요 일정 및 할 일
                 </h3>
                 <p className="text-xs opacity-80 leading-relaxed font-bold relative z-10">
-                    연차 조율, 병원 예약 등 정규 스케줄 외 '특수 부부 작전'을 통제합니다.
-                    참여 요원 버튼을 토글하여 역할을 분담하십시오.
+                    연차 조율, 병원 예약 등 정규 스케줄 외 '특별 할 일'을 관리합니다.
+                    담당자 버튼을 토글하여 역할을 분담하십시오.
                 </p>
             </div>
 
@@ -129,7 +129,7 @@ export default function SpecialOpsTab() {
                                 className="absolute top-[-10px] left-4 bg-navy text-white text-[10px] font-bold px-2 py-0.5 rounded-t tracking-widest cursor-pointer hover:bg-navy/80 hover:h-[22px] transition-all flex items-center gap-1"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
                             >
-                                OP CODE: OPS-{String(index + 1).padStart(2, '0')}
+                                OP CODE: TASK-{String(index + 1).padStart(2, '0')}
                             </div>
 
                             <div
@@ -141,9 +141,9 @@ export default function SpecialOpsTab() {
                                         {isExpanded ? <ChevronUp size={20} className="text-navy/50 shrink-0" /> : <ChevronDown size={20} className="text-navy/50 shrink-0" />}
                                         <h4 className="font-bold text-lg text-navy group-hover:text-accent-red transition-colors flex flex-wrap items-center gap-2 leading-tight">
                                             <span>{op.title}</span>
-                                            {op.priority === 'HIGH' && <span className="text-[10px] bg-accent-red text-white px-1.5 py-0.5 rounded font-bold inline-block tracking-widest shrink-0">HIGH TARGET</span>}
+                                            {op.priority === 'HIGH' && <span className="text-[10px] bg-accent-red text-white px-1.5 py-0.5 rounded font-bold inline-block tracking-widest shrink-0">중요</span>}
                                             <span className={`font-stencil text-[10px] px-1.5 py-0.5 rounded border inline-block shrink-0 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                                {progress === 100 ? 'CLEARED' : `PROG: ${progress}%`}
+                                                {progress === 100 ? '완료' : `진행률: ${progress}%`}
                                             </span>
                                         </h4>
                                     </div>
@@ -156,14 +156,14 @@ export default function SpecialOpsTab() {
                                         <button
                                             onClick={() => handleEditOp(op)}
                                             className={`p-1.5 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-navy border border-navy/20 group-hover:border-navy/40`}
-                                            title="작전 수정"
+                                            title="할 일 수정"
                                         >
                                             <Edit2 size={12} />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteOp(op.id)}
                                             className={`p-1.5 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40'}`}
-                                            title="작전 파기"
+                                            title="할 일 삭제"
                                         >
                                             <Trash2 size={12} />
                                         </button>
@@ -189,20 +189,20 @@ export default function SpecialOpsTab() {
                                             {/* Resource Allocation */}
                                             <div className="mb-4 bg-navy/5 p-3 rounded border border-navy/10">
                                                 <h5 className="font-bold text-xs text-navy mb-2 flex items-center gap-2">
-                                                    <Users size={14} /> FIELD AGENT ASSIGNMENT
+                                                    <Users size={14} /> 담당자 배정
                                                 </h5>
                                                 <div className="flex gap-2">
                                                     <button
                                                         onClick={() => toggleParticipant(op.id, 'mom')}
                                                         className={`flex-1 py-1.5 text-xs font-bold rounded border-2 transition-colors ${op.participants.mom ? 'bg-navy text-white border-navy shadow-sm' : 'bg-transparent text-navy/50 border-navy/30 hover:bg-navy/5'}`}
                                                     >
-                                                        [엄마] 대기
+                                                        [엄마] 담당
                                                     </button>
                                                     <button
                                                         onClick={() => toggleParticipant(op.id, 'dad')}
                                                         className={`flex-1 py-1.5 text-xs font-bold rounded border-2 transition-colors ${op.participants.dad ? 'bg-navy text-white border-navy shadow-sm' : 'bg-transparent text-navy/50 border-navy/30 hover:bg-navy/5'}`}
                                                     >
-                                                        [아빠] 대기
+                                                        [아빠] 담당
                                                     </button>
                                                 </div>
                                             </div>
@@ -210,8 +210,8 @@ export default function SpecialOpsTab() {
                                             {/* Checklist */}
                                             <div>
                                                 <h5 className="font-bold text-xs text-navy mb-2 border-b-2 border-navy/20 pb-1 flex justify-between items-end">
-                                                    <span className="flex items-center gap-1">OPERATIONAL CHECKLIST</span>
-                                                    <span className="text-[10px] opacity-50 font-mono tracking-tighter">CONFIRM TASKS</span>
+                                                    <span className="flex items-center gap-1">세부 체크리스트</span>
+                                                    <span className="text-[10px] opacity-50 font-mono tracking-tighter">할 일 확인</span>
                                                 </h5>
                                                 <ul className="space-y-1">
                                                     {op.checklist.map((item) => (
@@ -259,13 +259,13 @@ export default function SpecialOpsTab() {
                         className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden"
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
-                            <span>{newOp.id ? 'EDIT OPERATION' : 'DRAFT NEW OPERATION'}</span>
+                            <span>{newOp.id ? '특별 할 일 수정' : '새 특별 할 일 작성'}</span>
                             <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><X size={18} /></button>
                         </h3>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="text-xs font-bold opacity-70 block mb-1">작전명 (Title)</label>
+                                <label className="text-xs font-bold opacity-70 block mb-1">할 일 제목</label>
                                 <input
                                     type="text"
                                     value={newOp.title}
@@ -276,7 +276,7 @@ export default function SpecialOpsTab() {
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-xs font-bold opacity-70 block mb-1">실행일 (Date)</label>
+                                    <label className="text-xs font-bold opacity-70 block mb-1">기한/실행일</label>
                                     <input
                                         type="date"
                                         value={newOp.date}
@@ -285,32 +285,32 @@ export default function SpecialOpsTab() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold opacity-70 block mb-1">중요도 (Priority)</label>
+                                    <label className="text-xs font-bold opacity-70 block mb-1">중요도</label>
                                     <select
                                         value={newOp.priority}
                                         onChange={(e) => setNewOp({ ...newOp, priority: e.target.value })}
                                         className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none cursor-pointer bg-white"
                                     >
-                                        <option value="NORMAL">NORMAL</option>
-                                        <option value="MEDIUM">MEDIUM</option>
-                                        <option value="HIGH">HIGH TARGET</option>
+                                        <option value="NORMAL">보통</option>
+                                        <option value="MEDIUM">중간</option>
+                                        <option value="HIGH">중요</option>
                                     </select>
                                 </div>
                             </div>
                             <div>
-                                <label className="text-xs font-bold opacity-70 block mb-1">상세 내용 (Description)</label>
+                                <label className="text-xs font-bold opacity-70 block mb-1">상세 내용</label>
                                 <textarea
                                     value={newOp.description}
                                     onChange={(e) => setNewOp({ ...newOp, description: e.target.value })}
                                     className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none resize-none h-20 bg-white"
-                                    placeholder="작전 세부 지시사항..."
+                                    placeholder="할 일 상세 내용..."
                                 ></textarea>
                             </div>
                             <button
                                 onClick={handleAddOp}
                                 className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2 mt-2"
                             >
-                                <Save size={18} /> CONFIRM & INITIATE
+                                <Save size={18} /> 작성 완료
                             </button>
                         </div>
                     </motion.div>
@@ -319,7 +319,7 @@ export default function SpecialOpsTab() {
                         onClick={() => setShowForm(true)}
                         className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2"
                     >
-                        <FileSignature size={18} /> INITIATE NEW OPERATION
+                        <FileSignature size={18} /> 새 특별 할 일 추가
                     </button>
                 )}
             </AnimatePresence>

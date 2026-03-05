@@ -113,7 +113,7 @@ export default function PaymentTab() {
             {/* Estimated Funds Summary */}
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <CreditCard size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">ESTIMATED FUNDS SUMMARY</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">결제 예상 금액 요약</h2>
             </div>
 
             <div className="bg-navy text-white rounded shadow-sm p-3 border-2 border-navy relative overflow-hidden">
@@ -180,7 +180,7 @@ export default function PaymentTab() {
             <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
                 <div className="flex items-center gap-3">
                     <CheckCircle2 size={24} className="text-navy" />
-                    <h2 className="font-stencil text-xl flex-1 text-navy">REQUIRED TRANSACTIONS</h2>
+                    <h2 className="font-stencil text-xl flex-1 text-navy">결제 예정 내역</h2>
                 </div>
                 <button
                     onClick={() => setShowAddForm(true)}
@@ -201,20 +201,20 @@ export default function PaymentTab() {
                         >
                             <div className="space-y-3 relative z-10 py-1">
                                 <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
-                                    <span className="text-xs font-bold font-stencil text-navy">NEW TRANSACTION</span>
+                                    <span className="text-xs font-bold font-stencil text-navy">새 결제 내역 추가</span>
                                     <button onClick={() => setShowAddForm(false)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                        <label className="text-[10px] font-bold text-navy/70 block">Source</label>
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제처/내용</label>
                                         <input type="text" value={newPaymentForm.source} onChange={e => setNewPaymentForm({ ...newPaymentForm, source: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" placeholder="ex. 태권도 학원" />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-navy/70 block">Amount (₩)</label>
+                                        <label className="text-[10px] font-bold text-navy/70 block">금액 (₩)</label>
                                         <input type="number" value={newPaymentForm.amount || ''} onChange={e => setNewPaymentForm({ ...newPaymentForm, amount: Number(e.target.value) })} className="w-full text-sm font-bold font-mono border border-navy/30 rounded p-1 outline-none bg-white" />
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-navy/70 block">Method</label>
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제수단</label>
                                         <select value={newPaymentForm.method} onChange={e => setNewPaymentForm({ ...newPaymentForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer bg-white">
                                             <option>지역사랑상품권</option>
                                             <option>아동수당</option>
@@ -224,16 +224,16 @@ export default function PaymentTab() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-navy/70 block">Day / Period</label>
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제일 / 주기</label>
                                         <input type="text" value={newPaymentForm.day} onChange={e => setNewPaymentForm({ ...newPaymentForm, day: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" placeholder="ex. 5일" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-navy/70 block">Discount / Memo</label>
+                                    <label className="text-[10px] font-bold text-navy/70 block">할인/메모</label>
                                     <input type="text" value={newPaymentForm.discount} onChange={e => setNewPaymentForm({ ...newPaymentForm, discount: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" />
                                 </div>
                                 <button onClick={handleAddPayment} className="w-full bg-navy text-white text-xs font-bold py-2 rounded mt-2 flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
-                                    <Save size={14} /> CONFIRM NEW PAYMENT
+                                    <Save size={14} /> 결제 내역 저장
                                 </button>
                             </div>
                         </motion.div>
@@ -257,7 +257,7 @@ export default function PaymentTab() {
                                         transition={payment.justCompleted ? { type: "spring", stiffness: 200, damping: 10 } : { duration: 0 }}
                                         className="absolute top-4 right-4 stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
                                     >
-                                        MISSION CLEARED
+                                        결제 완료
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -265,20 +265,20 @@ export default function PaymentTab() {
                             {editingPaymentId === payment.id ? (
                                 <div className="space-y-3 relative z-10 bg-white/50 py-1">
                                     <div className="flex justify-between items-center border-b border-navy/20 pb-1">
-                                        <span className="text-xs font-bold font-stencil text-navy">EDIT TRANSACTION</span>
+                                        <span className="text-xs font-bold font-stencil text-navy">결제 내역 수정</span>
                                         <button onClick={() => setEditingPaymentId(null)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="text-[10px] font-bold text-navy/70 block">Source</label>
+                                            <label className="text-[10px] font-bold text-navy/70 block">결제처/내용</label>
                                             <input type="text" value={paymentForm.source} onChange={e => setPaymentForm({ ...paymentForm, source: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none" />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-bold text-navy/70 block">Amount (₩)</label>
+                                            <label className="text-[10px] font-bold text-navy/70 block">금액 (₩)</label>
                                             <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: Number(e.target.value) })} className="w-full text-sm font-bold font-mono border border-navy/30 rounded p-1 outline-none" />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-bold text-navy/70 block">Method</label>
+                                            <label className="text-[10px] font-bold text-navy/70 block">결제수단</label>
                                             <select value={paymentForm.method} onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer">
                                                 <option>지역사랑상품권</option>
                                                 <option>아동수당</option>
@@ -288,16 +288,16 @@ export default function PaymentTab() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-bold text-navy/70 block">Day / Period</label>
+                                            <label className="text-[10px] font-bold text-navy/70 block">결제일 / 주기</label>
                                             <input type="text" value={paymentForm.day} onChange={e => setPaymentForm({ ...paymentForm, day: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none" placeholder="ex. 5일" />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] font-bold text-navy/70 block">Discount / Memo</label>
+                                        <label className="text-[10px] font-bold text-navy/70 block">할인/메모</label>
                                         <input type="text" value={paymentForm.discount} onChange={e => setPaymentForm({ ...paymentForm, discount: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none" />
                                     </div>
                                     <button onClick={handleSavePayment} className="w-full bg-navy text-white text-xs font-bold py-2 rounded mt-2 flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
-                                        <Save size={14} /> SAVE CHANGES
+                                        <Save size={14} /> 변경사항 저장
                                     </button>
                                 </div>
                             ) : (
@@ -349,16 +349,16 @@ export default function PaymentTab() {
                                                 onClick={() => processPayment(payment.id)}
                                                 className="bg-navy text-white text-xs font-bold px-3 py-2 rounded border-2 border-navy hover:bg-white hover:text-navy transition-colors cursor-pointer"
                                             >
-                                                EXECUTE TRANSFER
+                                                결제 처리하기
                                             </motion.button>
                                         ) : (
                                             <div className="flex flex-col items-end gap-1">
                                                 <div className="text-accent-green flex items-center gap-1 text-sm font-bold">
-                                                    <CheckCircle2 size={16} /> DONE
+                                                    <CheckCircle2 size={16} /> 완료
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{payment.completedAt}</div>
                                                 <button onClick={() => undoPayment(payment.id)} className="text-[10px] text-navy/50 hover:text-navy underline flex items-center gap-1 mt-0.5">
-                                                    <RotateCcw size={10} /> UNDO
+                                                    <RotateCcw size={10} /> 취소
                                                 </button>
                                             </div>
                                         )}
@@ -373,7 +373,7 @@ export default function PaymentTab() {
             {/* Archive and History */}
             <div className="flex items-center gap-3 mt-8 border-b-2 border-navy pb-2">
                 <History size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">PAYMENT ARCHIVE</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">지난 결제 내역</h2>
             </div>
 
             <div className="space-y-4 pb-20">

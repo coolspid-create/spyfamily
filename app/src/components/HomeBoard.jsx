@@ -114,7 +114,7 @@ export default function HomeBoard() {
             {/* Top Fixed Notice Checklist */}
             <div className="bg-white border-2 border-navy p-3 rounded-md shadow-sm">
                 <h3 className="font-stencil text-lg border-b-2 border-navy mb-2 flex items-center gap-2">
-                    <CheckSquare size={18} /> TOP SECRET NOTICES
+                    <CheckSquare size={18} /> 가족 알림장
                 </h3>
                 <ul className="space-y-2 text-sm font-bold opacity-80 mb-3">
                     <AnimatePresence>
@@ -148,7 +148,7 @@ export default function HomeBoard() {
                         value={newNotice}
                         onChange={(e) => setNewNotice(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleAddNotice()}
-                        placeholder="신규 지시사항 입력..."
+                        placeholder="새로운 알림이나 메모 남기기..."
                         className="flex-1 border-b-2 border-navy/30 bg-transparent px-1 text-sm outline-none focus:border-navy"
                     />
                     <button onClick={handleAddNotice} className="text-navy hover:text-accent-red transition-colors">
@@ -161,7 +161,7 @@ export default function HomeBoard() {
             <div className="space-y-4">
                 <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                     <Clock size={24} className="text-navy" />
-                    <h2 className="font-stencil text-xl flex-1 text-navy">TODAY'S ITINERARY</h2>
+                    <h2 className="font-stencil text-xl flex-1 text-navy">오늘의 일정표</h2>
                 </div>
                 <div className="flex justify-between items-center bg-navy p-1 rounded-md shadow-sm">
                     {['월', '화', '수', '목', '금', '토'].map(d => (
@@ -188,7 +188,7 @@ export default function HomeBoard() {
                             className="w-full bg-navy/5 text-navy/70 font-bold text-xs py-2 rounded-md border border-navy/20 flex items-center justify-center gap-2 hover:bg-navy/10 transition-colors"
                         >
                             <Clock size={14} />
-                            {showPast ? '완료된 작전 숨기기' : `완료된 작전 (${pastSchedule.length}개) 보기`}
+                            {showPast ? '완료된 일정 숨기기' : `완료된 일정 (${pastSchedule.length}개) 보기`}
                         </button>
                     </div>
                 )}
@@ -230,10 +230,10 @@ export default function HomeBoard() {
 
                                     {/* Curved Text MISSION */}
                                     <text fontFamily="Georgia, 'Times New Roman', serif" fontSize="26" fontWeight="900" fill="#c21a1a" letterSpacing="4">
-                                        <textPath href="#curveTop" startOffset="50%" textAnchor="middle">MISSION</textPath>
+                                        <textPath href="#curveTop" startOffset="50%" textAnchor="middle">SCHEDULE</textPath>
                                     </text>
                                     <text fontFamily="Georgia, 'Times New Roman', serif" fontSize="26" fontWeight="900" fill="#c21a1a" letterSpacing="8">
-                                        <textPath href="#curveBottom" startOffset="50%" textAnchor="middle">MISSION</textPath>
+                                        <textPath href="#curveBottom" startOffset="50%" textAnchor="middle">SCHEDULE</textPath>
                                     </text>
 
                                     {/* Center Stars (Top & Bottom) inside the text */}
@@ -482,7 +482,7 @@ export default function HomeBoard() {
                             className="relative pl-6 overflow-hidden mt-4"
                         >
                             <div className="bg-white border-2 border-dashed border-navy/50 p-3 rounded shadow-sm relative">
-                                <h3 className="font-bold text-navy mb-3 flex items-center gap-1"><Plus size={16} /> 신규 투입 일정 작성</h3>
+                                <h3 className="font-bold text-navy mb-3 flex items-center gap-1"><Plus size={16} /> 새 일정 추가</h3>
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
                                         <span className="text-xs font-bold w-12 text-navy/70 shrink-0">일정명</span>
