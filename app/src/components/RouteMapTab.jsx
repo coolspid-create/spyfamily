@@ -118,7 +118,7 @@ export default function RouteMapTab() {
                                 });
                             }} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
                                 <option value="fund">결제관리</option>
-                                <option value="event">특별할일</option>
+                                <option value="event">가족행사</option>
                             </select>
                         </div>
                         {manageMissionForm.type === 'fund' ? (
@@ -208,7 +208,7 @@ export default function RouteMapTab() {
 
                 <div className="flex gap-4 mt-6 justify-center text-xs font-bold text-navy/70 border-t border-navy/10 pt-3">
                     <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제관리</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 특별할일</div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 가족행사</div>
                 </div>
             </div>
 
@@ -300,7 +300,7 @@ export default function RouteMapTab() {
                             <div className="flex items-center gap-2">
                                 <h4 className="font-bold text-navy font-mono flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div>
-                                    특별할일 ({eventMissions.length})
+                                    가족행사 ({eventMissions.length})
                                 </h4>
                                 {isEventsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
