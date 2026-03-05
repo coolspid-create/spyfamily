@@ -1,7 +1,7 @@
 {
-    "name": "SPY × FAMILY Mission Control",
-    "short_name": "SPYxFAMILY",
-    "description": "Top Secret Family Management App",
+    "name": "가족 일정 관리 보드",
+    "short_name": "가족보드",
+    "description": "우리 가족의 소중한 일정과 자금 관리 앱",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#f3f4f6",

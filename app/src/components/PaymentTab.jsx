@@ -244,7 +244,7 @@ export default function PaymentTab() {
                             layout
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className={`p-4 rounded shadow-sm border-2 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-100 border-gray-300' :
+                            className={`p-3 rounded shadow-sm border-2 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-100 border-gray-300' :
                                 payment.discount ? 'bg-amber-50 border-amber-500' : 'bg-white border-navy'
                                 }`}
                         >
@@ -252,10 +252,10 @@ export default function PaymentTab() {
                             <AnimatePresence>
                                 {payment.isCompleted && (
                                     <motion.div
-                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45, x: "-50%", y: "-50%" } : false}
-                                        animate={{ scale: 1, opacity: 0.8, rotate: -15, x: "-50%", y: "-50%" }}
+                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45, x: 0, y: "-50%" } : false}
+                                        animate={{ scale: 1, opacity: 0.8, rotate: -15, x: 0, y: "-50%" }}
                                         transition={payment.justCompleted ? { type: "spring", stiffness: 200, damping: 10 } : { duration: 0 }}
-                                        className="absolute top-1/2 left-1/2 stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
+                                        className="absolute top-1/2 right-[30%] stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
                                     >
                                         결제 완료
                                     </motion.div>
@@ -320,7 +320,7 @@ export default function PaymentTab() {
                                         </button>
                                     </div>
 
-                                    <div className="flex justify-between items-start mb-2 relative z-10 pl-12 pr-4">
+                                    <div className="flex justify-between items-start relative z-10 pl-10 pr-1">
                                         <div>
                                             <h3 className={`font-bold text-lg ${payment.isCompleted ? 'text-gray-500 line-through' : 'text-navy'}`}>
                                                 {payment.source}
@@ -339,7 +339,7 @@ export default function PaymentTab() {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-between items-end mt-4 relative z-10 pl-12">
+                                    <div className="flex justify-between items-end mt-1 relative z-10 pl-10">
                                         <div className="text-xs font-bold text-navy/70 flex items-center gap-1">
                                             <AlertCircle size={14} /> {payment.method}
                                         </div>
@@ -347,14 +347,14 @@ export default function PaymentTab() {
                                             <motion.button
                                                 whileTap={{ scale: 0.95 }}
                                                 onClick={() => processPayment(payment.id)}
-                                                className="bg-navy text-white text-xs font-bold px-3 py-2 rounded border-2 border-navy hover:bg-white hover:text-navy transition-colors cursor-pointer"
+                                                className="bg-navy text-white text-[11px] font-bold px-3 py-1.5 rounded border-2 border-navy hover:bg-white hover:text-navy transition-colors cursor-pointer"
                                             >
                                                 결제 처리하기
                                             </motion.button>
                                         ) : (
                                             <div className="flex flex-col items-end gap-1">
-                                                <div className="text-accent-green flex items-center gap-1 text-sm font-bold">
-                                                    <CheckCircle2 size={16} /> 완료
+                                                <div className="text-accent-green flex items-center gap-1 text-[11px] font-bold">
+                                                    <CheckCircle2 size={13} /> 완료
                                                 </div>
                                                 <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{payment.completedAt}</div>
                                                 <button onClick={() => undoPayment(payment.id)} className="text-[10px] text-navy/50 hover:text-navy underline flex items-center gap-1 mt-0.5">

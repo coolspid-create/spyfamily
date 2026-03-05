@@ -222,7 +222,7 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Star size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">특별할일</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">가족행사</span>
         </button>
       </nav>
       {/* PWA Mobile Install Prompt */}
