@@ -84,12 +84,29 @@ export default function RouteMapTab() {
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
     const scrollToDay = (day) => {
-        const element = document.getElementById(`mission-day-${day}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Add a brief highlight effect
-            element.classList.add('ring-4', 'ring-navy/20');
-            setTimeout(() => element.classList.remove('ring-4', 'ring-navy/20'), 1000);
+        const wasCollapsed = !isFundsExpanded || !isEventsExpanded;
+        setIsFundsExpanded(true);
+        setIsEventsExpanded(true);
+
+        const doScroll = () => {
+            // select elements using data-day instead of id to avoid html validation/query issues with duplicates
+            const elements = document.querySelectorAll(`[data-day="${day}"]`);
+            if (elements.length > 0) {
+                elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                elements.forEach(element => {
+                    const card = element.querySelector('.bg-white') || element;
+                    card.classList.add('ring-4', 'ring-accent-red', 'transition-all');
+                    setTimeout(() => card.classList.remove('ring-4', 'ring-accent-red'), 2000);
+                });
+            }
+        };
+
+        // If menus were folded, wait for framer-motion animation to complete (approx 300-400ms)
+        if (wasCollapsed) {
+            setTimeout(doScroll, 500);
+        } else {
+            // Wait slightly for any React re-renders to settle just in case
+            setTimeout(doScroll, 50);
         }
     };
 
@@ -164,7 +181,7 @@ export default function RouteMapTab() {
             {/* Header */}
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <CalendarDays size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">주간 일정표</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">월간 일정표</h2>
             </div>
 
             {/* Mini Calendar View */}
@@ -256,7 +273,7 @@ export default function RouteMapTab() {
                                             <motion.div
                                                 layout
                                                 key={item.id}
-                                                id={`mission-day-${item.day}`}
+                                                data-day={item.day}
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: 20 }}
@@ -318,7 +335,7 @@ export default function RouteMapTab() {
                                             <motion.div
                                                 layout
                                                 key={item.id}
-                                                id={`mission-day-${item.day}`}
+                                                data-day={item.day}
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: 20 }}
