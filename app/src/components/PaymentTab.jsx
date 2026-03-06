@@ -165,9 +165,13 @@ export default function PaymentTab() {
                                 <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-200 rounded p-1"><X size={14} /></button>
                             </div>
                         ) : (
-                            <div className="flex justify-between items-end">
-                                <div className="text-lg font-mono font-bold text-navy">{fund.balance.toLocaleString()} ₩</div>
-                                <div className="text-[8px] text-navy/40 mb-1">UPDATE: {fund.updated}</div>
+                            <div className="flex flex-col mt-2 gap-1">
+                                <div className="text-[17px] font-mono font-bold text-navy truncate leading-none">
+                                    {fund.balance.toLocaleString()} <span className="text-[13px]">₩</span>
+                                </div>
+                                <div className="text-[9px] text-navy/40 truncate text-right">
+                                    UPDATE {fund.updated}
+                                </div>
                             </div>
                         )}
 

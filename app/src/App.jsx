@@ -208,7 +208,7 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'map' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <CalendarDays size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">주간일정</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">월간일정</span>
         </button>
         <button
           onClick={() => setActiveTab('payment')}
