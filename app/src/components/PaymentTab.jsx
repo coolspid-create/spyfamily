@@ -165,12 +165,15 @@ export default function PaymentTab() {
                                 <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-200 rounded p-1"><X size={14} /></button>
                             </div>
                         ) : (
-                            <div className="flex flex-col mt-2 gap-1">
-                                <div className="text-[17px] font-mono font-bold text-navy truncate leading-none">
-                                    {fund.balance.toLocaleString()} <span className="text-[13px]">₩</span>
+                            <div className="mt-1 flex flex-col items-end">
+                                <div className="w-full flex items-baseline gap-1 overflow-hidden">
+                                    <span className="text-lg font-mono font-bold text-navy tracking-tight truncate">
+                                        {fund.balance.toLocaleString()}
+                                    </span>
+                                    <span className="text-xs font-bold text-navy shrink-0">₩</span>
                                 </div>
-                                <div className="text-[9px] text-navy/40 truncate text-right">
-                                    UPDATE {fund.updated}
+                                <div className="text-[9px] text-navy/40 whitespace-nowrap mt-1">
+                                    UPDATE: {fund.updated}
                                 </div>
                             </div>
                         )}
@@ -181,7 +184,7 @@ export default function PaymentTab() {
             </div>
 
             {/* Required Transactions */}
-            <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
+            < div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2" >
                 <div className="flex items-center gap-3">
                     <CheckCircle2 size={24} className="text-navy" />
                     <h2 className="font-stencil text-xl flex-1 text-navy">결제 예정 내역</h2>
