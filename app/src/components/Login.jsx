@@ -11,6 +11,7 @@ export default function Login() {
 
     const signIn = useStore(state => state.signIn);
     const signUp = useStore(state => state.signUp);
+    const setGuestMode = useStore(state => state.setGuestMode);
     const isLoading = useStore(state => state.isLoading);
 
     const handleAuth = async (e) => {
@@ -114,6 +115,19 @@ export default function Login() {
                         {isSignUp ? '이미 계정이 있으신가요? (로그인)' : '새로운 가족 계정을 만드시겠습니까? (회원가입)'}
                     </button>
                 </div>
+
+                {/* Guest Mode Button */}
+                <div className="mt-6 border-t-2 border-navy/10 pt-6 text-center">
+                    <p className="text-xs text-navy font-bold mb-3 bg-accent-yellow/30 inline-block px-2 py-1 rounded">계정 없이 먼저 체험해보고 싶으신가요?</p>
+                    <button
+                        type="button"
+                        onClick={() => setGuestMode(true)}
+                        className="w-full bg-white text-navy font-bold tracking-widest py-3 rounded border-2 border-navy hover:bg-navy/5 active:bg-navy/10 transition-colors flex justify-center items-center gap-2 shadow-sm"
+                    >
+                        가족 스케줄러 시작하기 (체험)
+                    </button>
+                </div>
+
 
                 <div className="text-center mt-6">
                     <p className="text-[9px] text-navy/40 font-bold uppercase">Family members only.</p>

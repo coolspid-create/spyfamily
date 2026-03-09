@@ -61,6 +61,8 @@ function App() {
   };
 
   const isAuthChecking = useStore(state => state.isAuthChecking);
+  const isGuestMode = useStore(state => state.isGuestMode);
+  const setGuestMode = useStore(state => state.setGuestMode);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -70,10 +72,21 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session && event === 'SIGNED_IN') {
-        fetchDataFromDB();
+        const { currentChild, syncGuestDataToCloud } = useStore.getState();
+        const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
+        if (guestDataStr) {
+          if (window.confirm("체험 모드에서 작성된 데이터를 가족 계정으로 동기화하시겠습니까? (취소 시 기존 체험 데이터는 삭제됩니다)")) {
+            await syncGuestDataToCloud();
+          } else {
+            localStorage.removeItem(`spy_guestData_${currentChild}`);
+            fetchDataFromDB();
+          }
+        } else {
+          fetchDataFromDB();
+        }
       }
     });
 
@@ -90,12 +103,28 @@ function App() {
     );
   }
 
-  if (!session) {
+  if (!session && !isGuestMode) {
     return <Login />;
   }
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
+      {!session && isGuestMode && (
+        <div className="bg-accent-yellow text-navy px-4 py-3 text-[11px] font-bold flex justify-between items-center z-[100] relative border-b-2 border-navy">
+          <div className="flex-1 leading-tight">
+            <span className="animate-pulse mr-1">⚠️</span>
+            현재 체험 모드입니다. 데이터 보존을 위해<br />
+            가족과 연동하고 계정을 생성하세요.
+          </div>
+          <button
+            onClick={() => setGuestMode(false)}
+            className="bg-navy text-white px-3 py-1.5 rounded shadow-sm text-[10px] whitespace-nowrap ml-2 hover:bg-navy/90 active:scale-95 transition-transform"
+          >
+            가입하기
+          </button>
+        </div>
+      )}
+
       {/* Header / Dossier Tab */}
       <header className="relative z-50 shrink-0 mb-2 pt-4 pb-4 px-4 text-background">
         {/* Background with clip-path */}

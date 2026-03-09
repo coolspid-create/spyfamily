@@ -379,15 +379,14 @@ export default function HomeBoard() {
 
                                 {/* Time */}
                                 <div className="font-mono text-sm font-bold flex items-center gap-2 mb-1">
-                                    <span className={item.isEarly ? "text-accent-red" : "text-navy"}>
+                                    <span className="text-navy">
                                         {item.time}
                                     </span>
-                                    {item.isEarly && <span className="bg-accent-red text-white text-[10px] px-1 rounded">EARLY (4교시)</span>}
                                     {isCurrentActive && <span className="bg-accent-green text-white text-[10px] px-1 rounded animate-pulse">CURRENT</span>}
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative overflow-hidden group ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : item.isEarly ? 'border-accent-red shadow-red-200' : 'border-navy'}`}>
+                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative overflow-hidden group ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : 'border-navy'}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -455,7 +454,7 @@ export default function HomeBoard() {
                                                 </button>
                                             </div>
                                             <div className="flex justify-between items-start mb-2 pr-8">
-                                                <h3 className={`font-bold text-lg ${item.isEarly ? 'text-accent-red' : ''}`}>{item.title}</h3>
+                                                <h3 className="font-bold text-lg">{item.title}</h3>
                                                 <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 shrink-0">
                                                     {getAgentIcon(item.agent)}
                                                     <span className="text-xs font-bold">{item.agent}</span>
