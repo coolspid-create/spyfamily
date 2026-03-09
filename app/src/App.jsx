@@ -178,7 +178,7 @@ function App() {
           <h1 className="font-sans text-2xl font-black tracking-tighter text-center flex items-center justify-center">
             <span className="tracking-tight">가족</span>
             <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
-            <span className="tracking-tight">일정보드</span>
+            <span className="tracking-tight">스케줄러</span>
           </h1>
           <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
             우리 가족의 소중한 일정과 자금 관리
@@ -201,7 +201,7 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Home size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">가족보드</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">가족일정</span>
         </button>
         <button
           onClick={() => setActiveTab('map')}

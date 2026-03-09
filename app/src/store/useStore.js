@@ -333,8 +333,7 @@ export const useStore = create((set, get) => ({
 
         set((state) => ({
             payments: state.payments.filter(p => p.id !== paymentId),
-            missionsData: state.missionsData.filter(m => m.id !== paymentId),
-            transactionHistory: state.transactionHistory.filter(h => h.paymentId !== paymentId)
+            missionsData: state.missionsData.filter(m => m.id !== paymentId)
         }));
     },
     updatePayment: async (payment) => {
@@ -418,15 +417,20 @@ export const useStore = create((set, get) => ({
 
         let updatedFunds = state.funds;
 
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const currentMonth = `${year}-${month}`;
+
         await supabase.from('payment').update({ is_completed: false }).eq('id', paymentId);
-        await supabase.from('transactionhistory').delete().eq('payment_id', paymentId);
+        await supabase.from('transactionhistory').delete().eq('payment_id', paymentId).eq('month', currentMonth);
 
         set((state) => ({
             funds: updatedFunds,
             payments: state.payments.map(p =>
                 p.id === paymentId ? { ...p, isCompleted: false, completedAt: null } : p
             ),
-            transactionHistory: state.transactionHistory.filter(h => h.paymentId !== paymentId)
+            transactionHistory: state.transactionHistory.filter(h => !(h.paymentId === paymentId && h.month === currentMonth))
         }));
     },
     updateFund: async (fund) => {
