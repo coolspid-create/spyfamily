@@ -2,20 +2,20 @@
 -- 1. 테이블에 개인별 식별자(user_id) 컬럼 추가
 -- ==========================================
 -- 기존에 데이터가 있을 수 있으므로 최초에는 NULL 허용으로 컬럼을 생성합니다.
-ALTER TABLE Schedule ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE Payment ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE Asset ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE Ops ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE OpsChecklist ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE OpsParticipant ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
-ALTER TABLE TransactionHistory ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
+ALTER TABLE Schedule ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE Payment ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE Asset ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE Ops ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE OpsChecklist ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE OpsParticipant ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
+ALTER TABLE TransactionHistory ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
 
 -- notice 테이블의 경우 존재 여부 확인 후 별도 스키마에 따라 적용하세요. 
 -- 에러가 나더라도 무시되도록 별도로 분리합니다.
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'notice') THEN
-    ALTER TABLE Notice ADD COLUMN user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid();
+    ALTER TABLE Notice ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid();
   END IF;
 END
 $$;

@@ -10,7 +10,7 @@ CREATE TABLE DailyTasks (
     is_completed BOOLEAN DEFAULT false,
     assigned_date DATE NOT NULL,
     child_id TEXT NOT NULL,
-    user_id UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE DEFAULT auth.uid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
