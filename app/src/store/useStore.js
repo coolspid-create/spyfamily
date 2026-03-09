@@ -38,6 +38,7 @@ export const useStore = create((set, get) => ({
     opsData: INITIAL_OPS,
     transactionHistory: INITIAL_HISTORY,
     notices: [],
+    dailyTasks: [],
     isLoading: false,
     // Multi-Child Profile State
     childCount: savedChildCount, // Number of children currently managed (max 3)
@@ -549,6 +550,94 @@ export const useStore = create((set, get) => ({
         }));
     },
 
+    // 5. Daily Tasks Actions
+    addDailyTask: async (taskName) => {
+        const currentChild = get().currentChild;
+        const now = new Date();
+        // Today's Date YYYY-MM-DD
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const { data, error } = await supabase.from('dailytasks').insert([{
+            task_name: taskName,
+            is_completed: false,
+            assigned_date: todayStr,
+            child_id: currentChild
+        }]).select();
+
+        if (error) { alert('오늘할일 추가 실패: ' + error.message); return; }
+
+        if (data && data.length > 0) {
+            set((state) => ({
+                dailyTasks: [...state.dailyTasks, data[0]]
+            }));
+        }
+    },
+    toggleDailyTask: async (id) => {
+        const state = get();
+        const task = state.dailyTasks.find(t => t.id === id);
+        if (task) {
+            await supabase.from('dailytasks').update({ is_completed: !task.is_completed }).eq('id', id);
+            set((state) => ({
+                dailyTasks: state.dailyTasks.map(t => t.id === id ? { ...t, is_completed: !t.is_completed } : t)
+            }));
+        }
+    },
+    removeDailyTask: async (id) => {
+        const { error } = await supabase.from('dailytasks').delete().eq('id', id);
+        if (error) { alert('삭제 실패: ' + error.message); return; }
+
+        set((state) => ({
+            dailyTasks: state.dailyTasks.filter(t => t.id !== id)
+        }));
+    },
+
+    // 6. Transaction History Actions
+    addTransactionHistory: async (record) => {
+        const currentChild = get().currentChild;
+        const { month, date_formatted, source, amount, method } = record;
+
+        const { data, error } = await supabase.from('transactionhistory').insert([{
+            month,
+            date_formatted,
+            source,
+            amount,
+            method,
+            child_id: currentChild
+        }]).select();
+
+        if (error) { alert('결제 기록 추가 실패: ' + error.message); return; }
+
+        if (data && data.length > 0) {
+            set((state) => ({
+                transactionHistory: [...state.transactionHistory, data[0]]
+            }));
+        }
+    },
+    updateTransactionHistory: async (record) => {
+        const { id, month, date_formatted, source, amount, method } = record;
+        const { error } = await supabase.from('transactionhistory').update({
+            month,
+            date_formatted,
+            source,
+            amount,
+            method
+        }).eq('id', id);
+
+        if (error) { alert('과거 기록 수정 실패: ' + error.message); return; }
+
+        set(state => ({
+            transactionHistory: state.transactionHistory.map(th => th.id === id ? { ...th, month, date_formatted, source, amount, method } : th)
+        }));
+    },
+    removeTransactionHistory: async (id) => {
+        const { error } = await supabase.from('transactionhistory').delete().eq('id', id);
+        if (error) { alert('과거 기록 삭제 실패: ' + error.message); return; }
+
+        set(state => ({
+            transactionHistory: state.transactionHistory.filter(th => th.id !== id)
+        }));
+    },
+
     // ---- Async Actions (Supabase) ----
     fetchDataFromDB: async () => {
         set({ isLoading: true });
@@ -714,6 +803,22 @@ export const useStore = create((set, get) => ({
                         checked: n.is_checked
                     }))
                 });
+            }
+
+            // Fetch Daily Tasks logic
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const { data: dailyData, error: dailyError } = await supabase.from('dailytasks')
+                .select('*')
+                .eq('child_id', currentChild)
+                .eq('assigned_date', todayStr)
+                .order('created_at', { ascending: true });
+
+            if (dailyError) {
+                // If the table doesn't exist yet, simply ignore to prevent app crashing before migration runs
+                console.log('DailyTasks fetch warning:', dailyError.message);
+            } else if (dailyData) {
+                set({ dailyTasks: dailyData });
             }
 
         } catch (err) {

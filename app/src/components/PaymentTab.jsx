@@ -14,6 +14,9 @@ export default function PaymentTab() {
     const updatePayment = useStore(state => state.updatePayment);
     const addPayment = useStore(state => state.addPayment);
     const removePayment = useStore(state => state.removePayment);
+    const addTransactionHistory = useStore(state => state.addTransactionHistory);
+    const updateTransactionHistory = useStore(state => state.updateTransactionHistory);
+    const removeTransactionHistory = useStore(state => state.removeTransactionHistory);
 
     // Editing States
     const [editingFundId, setEditingFundId] = useState(null);
@@ -26,6 +29,10 @@ export default function PaymentTab() {
     const [newPaymentForm, setNewPaymentForm] = useState({ source: '', amount: 0, method: '신용카드', day: '1일', discount: '' });
 
     const [expandedArchiveMonth, setExpandedArchiveMonth] = useState(null);
+    const [showAddHistoryForm, setShowAddHistoryForm] = useState(false);
+    const [newHistoryForm, setNewHistoryForm] = useState({ fullDate: '', source: '', amount: 0, method: '신용카드' });
+    const [editingHistoryId, setEditingHistoryId] = useState(null);
+    const [historyForm, setHistoryForm] = useState({ fullDate: '', month: '', date_formatted: '', source: '', amount: 0, method: '신용카드' });
 
     const handleSaveFund = (fund) => {
         const numBalance = Number(fundBalance.replace(/[^0-9]/g, ''));
@@ -60,6 +67,37 @@ export default function PaymentTab() {
         });
         setShowAddForm(false);
         setNewPaymentForm({ source: '', amount: 0, method: '신용카드', day: '1일', discount: '' });
+    };
+
+    const handleAddHistory = () => {
+        if (!newHistoryForm.source || newHistoryForm.amount <= 0 || !newHistoryForm.fullDate) return;
+        const [yyyy, mm, dd] = newHistoryForm.fullDate.split('-');
+        addTransactionHistory({
+            month: `${yyyy}-${mm}`,
+            date_formatted: `${mm}.${dd}`,
+            source: newHistoryForm.source,
+            amount: newHistoryForm.amount,
+            method: newHistoryForm.method
+        });
+        setShowAddHistoryForm(false);
+        setNewHistoryForm({ fullDate: '', source: '', amount: 0, method: '신용카드' });
+    };
+
+    const handleSaveHistory = () => {
+        if (!historyForm.fullDate) return;
+        const [yyyy, mm, dd] = historyForm.fullDate.split('-');
+        updateTransactionHistory({
+            ...historyForm,
+            month: `${yyyy}-${mm}`,
+            date_formatted: `${mm}.${dd}`
+        });
+        setEditingHistoryId(null);
+    };
+
+    const handleDeleteHistory = (id) => {
+        if (window.confirm('이 결제 기록을 삭제하시겠습니까?')) {
+            removeTransactionHistory(id);
+        }
     };
 
     const methodTotals = payments.reduce((acc, p) => {
@@ -378,12 +416,65 @@ export default function PaymentTab() {
             </div>
 
             {/* Archive and History */}
-            <div className="flex items-center gap-3 mt-8 border-b-2 border-navy pb-2">
-                <History size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">지난 결제 내역</h2>
+            <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
+                <div className="flex items-center gap-3">
+                    <History size={24} className="text-navy" />
+                    <h2 className="font-stencil text-xl flex-1 text-navy">지난 결제 내역</h2>
+                </div>
+                <button
+                    onClick={() => setShowAddHistoryForm(true)}
+                    className="bg-navy text-white p-1 rounded hover:bg-navy/80 transition-colors"
+                >
+                    <Plus size={16} />
+                </button>
             </div>
 
             <div className="space-y-4 pb-20">
+                <AnimatePresence>
+                    {showAddHistoryForm && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-amber-50 p-4 rounded shadow-sm border-2 border-navy relative overflow-hidden mb-4"
+                        >
+                            <div className="space-y-3 relative z-10 py-1">
+                                <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
+                                    <span className="text-xs font-bold font-stencil text-navy">과거 결제 내역 직접 추가</span>
+                                    <button onClick={() => setShowAddHistoryForm(false)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제 날짜</label>
+                                        <input type="date" value={newHistoryForm.fullDate} onChange={e => setNewHistoryForm({ ...newHistoryForm, fullDate: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none font-mono bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제처/내용</label>
+                                        <input type="text" value={newHistoryForm.source} onChange={e => setNewHistoryForm({ ...newHistoryForm, source: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-navy/70 block">금액 (₩)</label>
+                                        <input type="number" value={newHistoryForm.amount || ''} onChange={e => setNewHistoryForm({ ...newHistoryForm, amount: Number(e.target.value) })} className="w-full text-sm font-bold font-mono border border-navy/30 rounded p-1 outline-none bg-white" />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] font-bold text-navy/70 block">결제수단</label>
+                                        <select value={newHistoryForm.method} onChange={e => setNewHistoryForm({ ...newHistoryForm, method: e.target.value })} className="w-full text-sm font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer bg-white">
+                                            <option>지역사랑상품권</option>
+                                            <option>아동수당</option>
+                                            <option>신용카드</option>
+                                            <option>지역사랑 + 카드</option>
+                                            <option>스쿨뱅킹</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button onClick={handleAddHistory} className="w-full bg-navy text-white text-xs font-bold py-2 rounded mt-2 flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
+                                    <Save size={14} /> 과거 내역 추가
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {sortedMonths.map((month, index) => {
                     const records = historyByMonth[month];
                     const monthlyTotal = records.reduce((acc, curr) => acc + curr.amount, 0);
@@ -416,17 +507,60 @@ export default function PaymentTab() {
                                     >
                                         <div className="divide-y divide-navy/10 px-3 py-1">
                                             {records.map(record => (
-                                                <div key={record.id} className="py-2 flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-bold text-sm text-navy">{record.source}</div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] text-gray-500 font-mono">{record.date}</span>
-                                                            <span className="text-[10px] bg-navy/10 text-navy px-1 rounded">{record.method}</span>
+                                                <div key={record.id} className="py-2 relative group">
+                                                    {editingHistoryId === record.id ? (
+                                                        <div className="space-y-2 bg-navy/5 p-2 rounded border border-navy/20">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="text-[11px] font-bold text-navy">과거 내역 수정</span>
+                                                                <button onClick={() => setEditingHistoryId(null)} className="text-navy/50 hover:text-accent-red"><X size={14} /></button>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                                <div className="col-span-2">
+                                                                    <label className="text-[10px] font-bold text-navy/70 block">결제 날짜</label>
+                                                                    <input type="date" value={historyForm.fullDate} onChange={e => setHistoryForm({ ...historyForm, fullDate: e.target.value })} className="w-full text-xs font-bold border border-navy/30 rounded p-1 outline-none font-mono bg-white" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-navy/70 block">결제처</label>
+                                                                    <input type="text" value={historyForm.source} onChange={e => setHistoryForm({ ...historyForm, source: e.target.value })} className="w-full text-xs font-bold border border-navy/30 rounded p-1 outline-none bg-white" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-navy/70 block">금액</label>
+                                                                    <input type="number" value={historyForm.amount} onChange={e => setHistoryForm({ ...historyForm, amount: Number(e.target.value) })} className="w-full text-xs font-bold border border-navy/30 rounded p-1 outline-none bg-white" />
+                                                                </div>
+                                                                <div className="col-span-2">
+                                                                    <label className="text-[10px] font-bold text-navy/70 block">결제수단</label>
+                                                                    <select value={historyForm.method} onChange={e => setHistoryForm({ ...historyForm, method: e.target.value })} className="w-full text-xs font-bold border border-navy/30 rounded p-1 outline-none cursor-pointer bg-white">
+                                                                        <option>지역사랑상품권</option>
+                                                                        <option>아동수당</option>
+                                                                        <option>신용카드</option>
+                                                                        <option>지역사랑 + 카드</option>
+                                                                        <option>스쿨뱅킹</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex justify-between items-center mt-2 pt-2 border-t border-navy/20">
+                                                                <button onClick={() => handleDeleteHistory(record.id)} className="text-accent-red font-bold text-xs flex items-center gap-1 hover:underline">
+                                                                    <Trash2 size={12} /> 삭제
+                                                                </button>
+                                                                <button onClick={handleSaveHistory} className="bg-navy text-white text-xs font-bold py-1 px-3 rounded hover:bg-navy/80 flex items-center gap-1">
+                                                                    <Save size={12} /> 저장
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="font-mono font-bold text-sm">
-                                                        {record.amount.toLocaleString()} ₩
-                                                    </div>
+                                                    ) : (
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="flex-1 cursor-pointer" onClick={() => { setEditingHistoryId(record.id); setHistoryForm({ ...record, fullDate: `${record.month}-${record.date_formatted.split('.')[1]}` }); }}>
+                                                                <div className="font-bold text-sm text-navy">{record.source}</div>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <span className="text-[10px] text-gray-500 font-mono">{record.date_formatted}</span>
+                                                                    <span className="text-[10px] bg-navy/10 text-navy px-1 rounded">{record.method}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="font-mono font-bold text-sm cursor-pointer" onClick={() => { setEditingHistoryId(record.id); setHistoryForm({ ...record, fullDate: `${record.month}-${record.date_formatted.split('.')[1]}` }); }}>
+                                                                {record.amount.toLocaleString()} ₩
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

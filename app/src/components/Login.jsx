@@ -35,7 +35,7 @@ export default function Login() {
             <div className="absolute inset-0 opacity-10 pointer-events-none"
                 style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
             <div className="absolute top-10 left-10 text-white/5 font-mono text-9xl font-black">FAMILY</div>
-            <div className="absolute bottom-10 right-10 text-white/5 font-mono text-9xl font-black">BOARD</div>
+            <div className="absolute bottom-10 right-10 text-white/5 font-mono text-9xl font-black">SCHEDULER</div>
 
             <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -45,7 +45,7 @@ export default function Login() {
             >
                 {/* Top-secret stamp */}
                 <div className="absolute -top-6 -right-6 border-4 border-accent-red text-accent-red font-stencil text-xl p-2 rotate-12 bg-white ring-4 ring-white shadow-lg pointer-events-none stamp">
-                    FAMILY BOARD
+                    FAMILY SCHEDULER
                 </div>
 
                 <div className="flex flex-col items-center mb-8 pt-4">
@@ -55,10 +55,10 @@ export default function Login() {
                     <h1 className="font-sans text-3xl font-black tracking-tighter text-navy text-center flex items-center justify-center">
                         <span className="tracking-tight">가족</span>
                         <span className="text-accent-red text-xl mx-2 font-bold rotate-12 cursor-default">×</span>
-                        <span className="tracking-tight">일정보드</span>
+                        <span className="tracking-tight">스케줄러</span>
                     </h1>
                     <p className="text-[10px] font-bold tracking-widest text-navy/60 mt-2 uppercase text-center w-full border-b pb-2">
-                        우리 가족 일정 / 자금 관리 보드
+                        우리 가족 일정 / 자금 관리 스케줄러
                     </p>
                 </div>
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import HomeBoard from './components/HomeBoard';
+import DailyTasksTab from './components/DailyTasksTab';
 import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
 import InstallPrompt from './components/InstallPrompt';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download, CheckSquare } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
 
@@ -24,6 +25,11 @@ function App() {
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const dailyTasks = useStore(state => state.dailyTasks);
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const incompleteTasksCount = dailyTasks.filter(task => task.assigned_date === todayStr && !task.is_completed).length;
 
   const handleRemoveChild = (e, childId) => {
     e.stopPropagation();
@@ -189,19 +195,34 @@ function App() {
       {/* Main Content Area */}
       <main className="p-4 flex-1 pb-16">
         {activeTab === 'home' && <HomeBoard />}
+        {activeTab === 'daily' && <DailyTasksTab />}
         {activeTab === 'map' && <RouteMapTab />}
         {activeTab === 'payment' && <PaymentTab />}
         {activeTab === 'ops' && <SpecialOpsTab />}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="sticky bottom-0 w-full bg-navy text-background grid grid-cols-4 py-3 pb-safe border-t-4 border-accent-red shadow-[0_-10px_20px_rgba(0,0,0,0.15)] z-50 mt-auto">
+      <nav className="sticky bottom-0 w-full bg-navy text-background grid grid-cols-5 py-3 pb-safe border-t-4 border-accent-red shadow-[0_-10px_20px_rgba(0,0,0,0.15)] z-50 mt-auto">
         <button
           onClick={() => setActiveTab('home')}
           className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Home size={22} />
           <span className="text-[10px] mt-1 font-bold tracking-tight">가족일정</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('daily')}
+          className={`relative flex flex-col items-center pt-1 ${activeTab === 'daily' ? 'text-accent-red' : 'text-background/70'}`}
+        >
+          <div className="relative">
+            <CheckSquare size={22} />
+            {incompleteTasksCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 bg-accent-red text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border-2 border-navy">
+                {incompleteTasksCount > 9 ? '9+' : incompleteTasksCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">오늘할일</span>
         </button>
         <button
           onClick={() => setActiveTab('map')}
