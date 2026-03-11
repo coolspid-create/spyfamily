@@ -95,7 +95,11 @@ export default function SpecialOpsTab() {
     };
 
     return (
-        <div className="space-y-6">
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-6"
+        >
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <Target size={24} className="text-navy" />
                 <h2 className="font-stencil text-xl flex-1 text-navy">가족행사</h2>
@@ -323,6 +327,6 @@ export default function SpecialOpsTab() {
                     </button>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     );
 }

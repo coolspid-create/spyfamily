@@ -23,15 +23,15 @@ const INITIAL_PAYMENTS = [
     { id: 'p3', source: '아동수당 (생활비)', amount: 200000, method: '자동이체', day: '25일', discount: '', isCompleted: true, completedAt: '2026-03-25' }
 ];
 const INITIAL_HISTORY = [
-    { id: 'h1', month: '2026-02', date: '2026-02-10', source: '아동수당', amount: 150000, method: '계좌이체' }
+    { id: 'h1', month: '2026-02', date_formatted: '02.10', source: '아동수당', amount: 150000, method: '계좌이체' }
 ];
 const INITIAL_OPS = [
     { id: 'o1', title: '어린이날 놀이공원', date: '2026.05.05', description: '에버랜드 자유이용권 예매 및 렌터카 예약', priority: '상', status: 'ONGOING', participants: { mom: true, dad: true }, checklist: [{ id: 'c1', task: '티켓 예매', checked: true }, { id: 'c2', task: '렌터카 예약', checked: false }] }
 ];
 const INITIAL_DAILY = [
-    { id: 'd1', task_name: '방 정리하기', is_completed: true, assigned_date: `${new Date().getFullYear()} -${String(new Date().getMonth() + 1).padStart(2, '0')} -${String(new Date().getDate()).padStart(2, '0')} ` },
-    { id: 'd2', task_name: '수학 숙제 2장', is_completed: false, assigned_date: `${new Date().getFullYear()} -${String(new Date().getMonth() + 1).padStart(2, '0')} -${String(new Date().getDate()).padStart(2, '0')} ` },
-    { id: 'd3', task_name: '저녁식사 후 양치질', is_completed: false, assigned_date: `${new Date().getFullYear()} -${String(new Date().getMonth() + 1).padStart(2, '0')} -${String(new Date().getDate()).padStart(2, '0')} ` }
+    { id: 'd1', task_name: '방 정리하기', is_completed: true, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
+    { id: 'd2', task_name: '수학 숙제 2장', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
+    { id: 'd3', task_name: '저녁식사 후 양치질', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
 ];
 
 const savedProfiles = (() => {
@@ -70,7 +70,7 @@ const persistGuestData = (config) => (set, get, api) => config((args) => {
             notices: state.notices,
             dailyTasks: state.dailyTasks
         };
-        localStorage.setItem(`spy_guestData_${state.currentChild} `, JSON.stringify(dataToSave));
+        localStorage.setItem(`spy_guestData_${state.currentChild}`, JSON.stringify(dataToSave));
     }
 }, get, api);
 
@@ -114,7 +114,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         if (counts < 3) {
             const nextIdx = counts + 1;
             localStorage.setItem('spy_childCount', nextIdx.toString());
-            set({ childCount: nextIdx, currentChild: `child${nextIdx} ` });
+            set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
             await get().syncProfilesToCloud();
             get().fetchDataFromDB();
         }
@@ -125,8 +125,8 @@ export const useStore = create(persistGuestData((set, get) => ({
             const nextIdx = counts - 1;
             localStorage.setItem('spy_childCount', nextIdx.toString());
             const current = get().currentChild;
-            if (current === `child${counts} `) {
-                set({ childCount: nextIdx, currentChild: `child${nextIdx} ` });
+            if (current === `child${counts}`) {
+                set({ childCount: nextIdx, currentChild: `child${nextIdx}` });
             } else {
                 set({ childCount: nextIdx });
             }
@@ -303,7 +303,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             } else {
                 const year = mission.year || new Date().getFullYear();
                 const month = mission.month || new Date().getMonth() + 1;
-                const newOp = { id, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')} `, description: '', priority: 'LOW', status: 'PENDING', participants: { mom: false, dad: false }, checklist: [] };
+                const newOp = { id, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')}`, description: '', priority: 'LOW', status: 'PENDING', participants: { mom: false, dad: false }, checklist: [] };
                 const newEventMission = { id, type: 'event', year, month, day: mission.day, title: mission.title };
                 set(s => ({ opsData: [...s.opsData, newOp], missionsData: [...s.missionsData, newEventMission] }));
             }
@@ -327,7 +327,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const day = String(mission.day).padStart(2, '0');
             const { error } = await supabase.from('ops').insert([{
                 title: mission.title,
-                execution_date: `${year} -${month} -${day} `,
+                execution_date: `${year}-${month}-${day}`,
                 status: 'PENDING',
                 priority: 'LOW',
                 child_id: currentChild
@@ -351,7 +351,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 const year = mission.year || new Date().getFullYear();
                 const month = mission.month || new Date().getMonth() + 1;
                 set(s => ({
-                    opsData: s.opsData.map(o => o.id === mission.id ? { ...o, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')} ` } : o),
+                    opsData: s.opsData.map(o => o.id === mission.id ? { ...o, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')}` } : o),
                     missionsData: s.missionsData.map(m => m.id === mission.id ? { ...m, title: mission.title, year, month, day: mission.day } : m)
                 }));
             }
@@ -371,7 +371,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const day = String(mission.day).padStart(2, '0');
             const { error } = await supabase.from('ops').update({
                 title: mission.title,
-                execution_date: `${year} -${month} -${day} `
+                execution_date: `${year}-${month}-${day}`
             }).eq('id', mission.id);
             if (error) alert('일정 수정 실패: ' + error.message);
         }
@@ -584,8 +584,8 @@ export const useStore = create(persistGuestData((set, get) => ({
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
 
-        const currentMonth = `${year} -${month} `;
-        const completedAt = `${year}.${month}.${day} ${hours}:${minutes} `;
+        const currentMonth = `${year}-${month}`;
+        const completedAt = `${year}.${month}.${day} ${hours}:${minutes}`;
 
         let updatedFunds = state.funds;
 
@@ -594,7 +594,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 id: 'g_' + Date.now(),
                 paymentId,
                 month: currentMonth,
-                date: completedAt,
+                date_formatted: completedAt,
                 source: payment.source,
                 amount: payment.amount,
                 method: payment.method
@@ -622,7 +622,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             id: histData[0].id,
             paymentId,
             month: currentMonth,
-            date: completedAt,
+            date_formatted: completedAt,
             source: payment.source,
             amount: payment.amount,
             method: payment.method
@@ -646,7 +646,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        const currentMonth = `${year} -${month} `;
+        const currentMonth = `${year}-${month}`;
 
         if (!state.session && state.isGuestMode) {
             set((s) => ({
@@ -672,7 +672,7 @@ export const useStore = create(persistGuestData((set, get) => ({
     updateFund: async (fund) => {
         const { session, isGuestMode } = get();
         const now = new Date();
-        const todayStr = `${now.getFullYear().toString().slice(-2)}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')} `;
+        const todayStr = `${now.getFullYear().toString().slice(-2)}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
 
         if (!session && isGuestMode) {
             set(s => ({ funds: s.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f) }));
@@ -848,7 +848,7 @@ export const useStore = create(persistGuestData((set, get) => ({
     addDailyTask: async (taskName) => {
         const { currentChild, session, isGuestMode } = get();
         const now = new Date();
-        const todayStr = `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} -${String(now.getDate()).padStart(2, '0')} `;
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
         if (!session && isGuestMode) {
             set((s) => ({
@@ -973,7 +973,7 @@ export const useStore = create(persistGuestData((set, get) => ({
     syncGuestDataToCloud: async () => {
         set({ isLoading: true });
         const { currentChild } = get();
-        const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild} `);
+        const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
         if (!guestDataStr) {
             set({ isLoading: false });
             return;
@@ -1005,7 +1005,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const notices = guestData.notices.map(n => ({ text: n.text, is_checked: n.checked }));
             if (notices.length > 0) await supabase.from('notice').insert(notices);
 
-            localStorage.removeItem(`spy_guestData_${currentChild} `);
+            localStorage.removeItem(`spy_guestData_${currentChild}`);
             set({ isGuestMode: false });
             await get().fetchDataFromDB();
         } catch (e) {
@@ -1019,7 +1019,7 @@ export const useStore = create(persistGuestData((set, get) => ({
     fetchDataFromDB: async () => {
         const { session, currentChild, isGuestMode } = get();
         if (!session && isGuestMode) {
-            const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild} `);
+            const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
             if (guestDataStr) {
                 try {
                     const parsed = JSON.parse(guestDataStr);
@@ -1067,7 +1067,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 });
                 const formattedFunds = assetsData.map(a => {
                     const d = new Date(a.last_updated);
-                    const updatedStr = `${d.getFullYear().toString().slice(-2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} `;
+                    const updatedStr = `${d.getFullYear().toString().slice(-2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
                     return {
                         id: a.id,
                         name: a.name,
@@ -1088,7 +1088,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     id: h.id,
                     paymentId: h.payment_id,
                     month: h.month,
-                    date: h.date_formatted,
+                    date_formatted: h.date_formatted,
                     source: h.source,
                     amount: h.amount,
                     method: h.method.replace('성남', '지역')
@@ -1100,7 +1100,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const { data: paymentsData } = await supabase.from('payment').select('*').eq('child_id', currentChild).order('payment_day', { ascending: true });
             if (paymentsData) {
                 const now = new Date();
-                const currentMonthStr = `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} `;
+                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
                 const formattedPayments = [];
                 for (const p of paymentsData) {
@@ -1210,7 +1210,7 @@ export const useStore = create(persistGuestData((set, get) => ({
 
             // Fetch Daily Tasks logic
             const now = new Date();
-            const todayStr = `${now.getFullYear()} -${String(now.getMonth() + 1).padStart(2, '0')} -${String(now.getDate()).padStart(2, '0')} `;
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const { data: dailyData, error: dailyError } = await supabase.from('dailytasks')
                 .select('*')
                 .eq('child_id', currentChild)

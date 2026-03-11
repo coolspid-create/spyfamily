@@ -88,6 +88,7 @@ export default function PaymentTab() {
         const [yyyy, mm, dd] = historyForm.fullDate.split('-');
         updateTransactionHistory({
             ...historyForm,
+            id: editingHistoryId,
             month: `${yyyy}-${mm}`,
             date_formatted: `${mm}.${dd}`
         });
