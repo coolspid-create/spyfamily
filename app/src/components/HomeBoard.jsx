@@ -284,7 +284,7 @@ export default function HomeBoard() {
                                 </div>
 
                                 {/* Card */}
-                                <div className="bg-gray-100 border-2 p-2 rounded shadow-sm border-gray-300 relative group">
+                                <div className={`bg-gray-100 border-2 p-2 rounded shadow-sm border-gray-300 relative group ${item.contactPhone ? 'min-h-[100px]' : ''}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -352,7 +352,7 @@ export default function HomeBoard() {
                                     ) : (
                                         <>
                                             <div className="absolute top-0 right-0 flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <div className={`flex flex-col bg-white/80 border-l border-gray-200 overflow-hidden ${item.contactPhone ? '' : 'border-b rounded-bl-md'}`}>
+                                                <div className={`flex flex-col bg-white/80 border-l border-gray-200 overflow-hidden rounded-tr ${item.contactPhone ? '' : 'border-b rounded-bl-md'}`}>
                                                     <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center border-b border-gray-200 bg-white">
                                                         <Edit2 size={14} />
                                                     </button>
@@ -420,7 +420,7 @@ export default function HomeBoard() {
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative group ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : 'border-navy'}`}>
+                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative group ${item.contactPhone ? 'min-h-[100px]' : ''} ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : 'border-navy'}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -488,7 +488,7 @@ export default function HomeBoard() {
                                     ) : (
                                         <>
                                             <div className="absolute top-0 right-0 flex flex-col items-end z-10">
-                                                <div className={`flex flex-col bg-white border-l border-navy/20 overflow-hidden ${item.contactPhone ? '' : 'border-b rounded-bl-md'}`}>
+                                                <div className={`flex flex-col bg-white border-l border-navy/20 overflow-hidden rounded-tr ${item.contactPhone ? '' : 'border-b rounded-bl'}`}>
                                                     <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-8 h-8 flex items-center justify-center border-b border-navy/10 bg-white">
                                                         <Edit2 size={14} />
                                                     </button>
