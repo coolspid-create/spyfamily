@@ -352,14 +352,12 @@ export default function HomeBoard() {
                                     ) : (
                                         <>
                                             <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-gray-300 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <div className="flex">
-                                                    <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 flex-1 flex justify-center border-r border-gray-300">
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 flex-1 flex justify-center">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 w-full flex justify-center border-b border-gray-300">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 w-full flex justify-center">
+                                                    <Trash2 size={14} />
+                                                </button>
                                                 {item.contactPhone && (
                                                     <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors py-1.5 px-2 w-full flex items-center justify-center gap-1 border-t border-gray-300 bg-gray-50 hover:bg-white text-[10px] font-bold">
                                                         <Phone size={12} /> 연락처
@@ -368,7 +366,9 @@ export default function HomeBoard() {
                                             </div>
                                             <AnimatePresence>
                                                     {activeContactPopup === item.id && item.contactPhone && (
-                                                        <motion.div 
+                                                        <>
+                                                            <div className="fixed inset-0 z-40" onClick={() => setActiveContactPopup(null)} />
+                                                            <motion.div 
                                                             initial={{ opacity: 0, scale: 0.9, x: 20 }}
                                                             animate={{ opacity: 1, scale: 1, x: 0 }}
                                                             exit={{ opacity: 0, scale: 0.9, x: 20 }}
@@ -378,7 +378,8 @@ export default function HomeBoard() {
                                                             <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
                                                                 <Phone size={12} /> {item.contactPhone}
                                                             </a>
-                                                        </motion.div>
+                                                            </motion.div>
+                                                        </>
                                                     )}
                                             </AnimatePresence>
                                             <div className="flex justify-between items-center pr-8">
@@ -485,14 +486,12 @@ export default function HomeBoard() {
                                     ) : (
                                         <>
                                             <div className="absolute top-0 right-0 flex flex-col bg-white/90 rounded-bl-md border-b border-l border-navy/20 overflow-hidden z-10">
-                                                <div className="flex">
-                                                    <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-2 flex-1 flex justify-center border-r border-navy/10">
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-2 flex-1 flex justify-center">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-1.5 w-full flex justify-center border-b border-navy/10">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-1.5 w-full flex justify-center">
+                                                    <Trash2 size={14} />
+                                                </button>
                                                 {item.contactPhone && (
                                                     <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors py-1.5 px-3 w-full flex items-center justify-center gap-1 border-t border-navy/10 bg-blue-50/50 hover:bg-blue-50 flex-nowrap">
                                                         <Phone size={12} /> <span className="text-xs font-bold whitespace-nowrap">연락처</span>
@@ -501,7 +500,9 @@ export default function HomeBoard() {
                                             </div>
                                             <AnimatePresence>
                                                     {activeContactPopup === item.id && item.contactPhone && (
-                                                        <motion.div 
+                                                        <>
+                                                            <div className="fixed inset-0 z-40" onClick={() => setActiveContactPopup(null)} />
+                                                            <motion.div 
                                                             initial={{ opacity: 0, scale: 0.9, x: 20 }}
                                                             animate={{ opacity: 1, scale: 1, x: 0 }}
                                                             exit={{ opacity: 0, scale: 0.9, x: 20 }}
@@ -511,7 +512,8 @@ export default function HomeBoard() {
                                                             <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
                                                                 <Phone size={12} /> {item.contactPhone}
                                                             </a>
-                                                        </motion.div>
+                                                            </motion.div>
+                                                        </>
                                                     )}
                                             </AnimatePresence>
                                             <div className="flex justify-between items-start mb-2 pr-8">
