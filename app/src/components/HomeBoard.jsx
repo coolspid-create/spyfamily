@@ -93,10 +93,7 @@ export default function HomeBoard() {
     let isAllCompleted = false;
 
     if (schedule.length > 0) {
-        if (isPastDay) {
-            activeIndex = schedule.length;
-            isAllCompleted = true;
-        } else if (isCurrentDay) {
+        if (isCurrentDay) {
             const lastItem = schedule[schedule.length - 1];
             const [lastHour, lastMin] = lastItem.time.split(':').map(Number);
             const lastTimeValue = lastHour * 60 + lastMin;

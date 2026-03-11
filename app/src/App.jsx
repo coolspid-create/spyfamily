@@ -126,7 +126,7 @@ function App() {
       )}
 
       {/* Header / Dossier Tab */}
-      <header className="relative z-50 shrink-0 mb-2 pt-4 pb-4 px-4 text-background">
+      <header className="relative z-50 shrink-0 mb-1 pt-2 pb-2 px-4 text-background">
         {/* Background with clip-path */}
         <div className="absolute inset-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
 
@@ -209,8 +209,8 @@ function App() {
         </div>
 
         {/* Header Title Space */}
-        <div className="relative pt-6">
-          <h1 className="font-sans text-2xl font-black tracking-tighter text-center flex items-center justify-center">
+        <div className="relative pt-2">
+          <h1 className="font-sans text-[22px] font-black tracking-tighter text-center flex items-center justify-center">
             <span className="tracking-tight">가족</span>
             <span className="text-accent-red text-xl mx-2 font-bold">×</span>
             <span className="tracking-tight">스케줄러</span>
