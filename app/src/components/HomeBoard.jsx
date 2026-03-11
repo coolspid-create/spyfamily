@@ -351,16 +351,16 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-0 right-0 flex flex-col bg-transparent rounded-tr-sm border-b border-l border-gray-200 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center border-b border-gray-200 bg-transparent">
-                                                    <Edit2 size={14} />
+                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10 border border-gray-200">
+                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 flex items-center justify-center border-r border-gray-200 bg-transparent">
+                                                    <Edit2 size={13} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className={`text-gray-400 hover:text-red-500 transition-colors w-8 h-8 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-b border-gray-200' : ''}`}>
-                                                    <Trash2 size={14} />
+                                                <button onClick={() => handleDelete(item.id)} className={`text-gray-400 hover:text-red-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-gray-200' : ''}`}>
+                                                    <Trash2 size={13} />
                                                 </button>
                                                 {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors w-8 h-8 flex items-center justify-center bg-transparent">
-                                                        <Phone size={14} />
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent">
+                                                        <Phone size={13} />
                                                     </button>
                                                 )}
                                             </div>
@@ -485,16 +485,16 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-0 right-0 flex flex-col bg-transparent rounded-tr-sm border-b border-l border-navy/20 overflow-hidden z-10">
-                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-8 h-8 flex items-center justify-center border-b border-navy/10 bg-transparent">
-                                                    <Edit2 size={14} />
+                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded overflow-hidden z-10 border border-navy/20">
+                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-7 h-7 flex items-center justify-center border-r border-navy/10 bg-transparent">
+                                                    <Edit2 size={13} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className={`text-navy/40 hover:text-accent-red transition-colors w-8 h-8 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-b border-navy/10' : ''}`}>
-                                                    <Trash2 size={14} />
+                                                <button onClick={() => handleDelete(item.id)} className={`text-navy/40 hover:text-accent-red transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-navy/10' : ''}`}>
+                                                    <Trash2 size={13} />
                                                 </button>
                                                 {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors w-8 h-8 flex items-center justify-center bg-transparent flex-nowrap">
-                                                        <Phone size={14} />
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors w-7 h-7 flex items-center justify-center bg-transparent flex-nowrap">
+                                                        <Phone size={13} />
                                                     </button>
                                                 )}
                                             </div>
