@@ -79,25 +79,40 @@ export default function HomeBoard() {
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const isCurrentDay = selectedDay === todayStr;
 
+    const dOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
+    let isPastDay = false;
+
+    if (dOrder[selectedDay] < dOrder[todayStr]) {
+        isPastDay = true;
+    } else if (todayStr === '일' && selectedDay !== '일') {
+        // 일요일에 다른 요일(월~토)을 보면 지난 주이므로 과거
+        isPastDay = true;
+    }
+
     let activeIndex = 0;
     let isAllCompleted = false;
 
-    if (isCurrentDay && schedule.length > 0) {
-        const lastItem = schedule[schedule.length - 1];
-        const [lastHour, lastMin] = lastItem.time.split(':').map(Number);
-        const lastTimeValue = lastHour * 60 + lastMin;
-        const [currHour, currMin] = currentTimeStr.split(':').map(Number);
-        const currTimeValue = currHour * 60 + currMin;
-
-        // 마감 판정: 마지막 일정 시간으로부터 1시간(60분)이 지나면 당일 모든 일정 완료로 간주
-        if (currTimeValue >= lastTimeValue + 60) {
+    if (schedule.length > 0) {
+        if (isPastDay) {
             activeIndex = schedule.length;
             isAllCompleted = true;
-        } else {
-            for (let i = schedule.length - 1; i >= 0; i--) {
-                if (schedule[i].time <= currentTimeStr) {
-                    activeIndex = i;
-                    break;
+        } else if (isCurrentDay) {
+            const lastItem = schedule[schedule.length - 1];
+            const [lastHour, lastMin] = lastItem.time.split(':').map(Number);
+            const lastTimeValue = lastHour * 60 + lastMin;
+            const [currHour, currMin] = currentTimeStr.split(':').map(Number);
+            const currTimeValue = currHour * 60 + currMin;
+
+            // 마감 판정: 마지막 일정 시간으로부터 30분이 지나면 당일 모든 일정 완료로 간주
+            if (currTimeValue >= lastTimeValue + 30) {
+                activeIndex = schedule.length;
+                isAllCompleted = true;
+            } else {
+                for (let i = schedule.length - 1; i >= 0; i--) {
+                    if (schedule[i].time <= currentTimeStr) {
+                        activeIndex = i;
+                        break;
+                    }
                 }
             }
         }
@@ -105,6 +120,15 @@ export default function HomeBoard() {
 
     const pastSchedule = schedule.slice(0, activeIndex);
     const activeAndFutureSchedule = schedule.slice(activeIndex);
+
+    // 도장 애니메이션은 하루에 날짜별로 한 번만 작동하도록
+    const animationCacheKey = `stampAnimatedDate_${now.getFullYear()}_${now.getMonth()}_${now.getDate()}_${selectedDay}`;
+    const hasAnimated = localStorage.getItem(animationCacheKey) === 'true';
+    const onStampAnimationComplete = () => {
+        if (!hasAnimated) {
+            localStorage.setItem(animationCacheKey, 'true');
+        }
+    };
 
     return (
         <motion.div
@@ -197,9 +221,10 @@ export default function HomeBoard() {
                 <AnimatePresence>
                     {isAllCompleted && !showPast && (
                         <motion.div
-                            initial={{ scale: 3, opacity: 0 }}
+                            initial={hasAnimated ? { scale: 1, opacity: 0.95 } : { scale: 3, opacity: 0 }}
                             animate={{ scale: 1, opacity: 0.95 }}
                             transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.1 }}
+                            onAnimationComplete={onStampAnimationComplete}
                             className="absolute inset-x-0 top-16 -ml-4 flex justify-center items-center z-30 pointer-events-none mix-blend-multiply"
                         >
                             <svg width="250" height="250" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
@@ -346,7 +371,7 @@ export default function HomeBoard() {
                                                 </div>
                                             </div>
                                             <button onClick={saveEdit} className="bg-gray-500 text-white font-bold text-xs px-3 py-2 mt-2 rounded w-full flex items-center justify-center gap-1 hover:bg-gray-600 transition-colors">
-                                                <Save size={14} /> SAVE & SORT
+                                                <Save size={14} /> SAVE
                                             </button>
                                         </motion.div>
                                     ) : (
@@ -426,7 +451,7 @@ export default function HomeBoard() {
                                     <span className="text-navy">
                                         {item.time}
                                     </span>
-                                    {isCurrentActive && <span className="bg-accent-green text-white text-[10px] px-1 rounded animate-pulse">현재일정</span>}
+                                    {isCurrentActive && <span className="bg-accent-green text-white text-[10px] px-1 rounded animate-pulse">CURRENT</span>}
                                 </div>
 
                                 {/* Card */}
@@ -492,7 +517,7 @@ export default function HomeBoard() {
                                                 </div>
                                             </div>
                                             <button onClick={saveEdit} className="bg-navy text-white font-bold text-xs px-3 py-2 mt-2 rounded w-full flex items-center justify-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
-                                                <Save size={14} /> SAVE & SORT
+                                                <Save size={14} /> SAVE
                                             </button>
                                         </motion.div>
                                     ) : (
