@@ -126,7 +126,7 @@ function App() {
       )}
 
       {/* Header / Dossier Tab */}
-      <header className="relative z-50 shrink-0 mb-1 pt-2 pb-2 px-4 text-background">
+      <header className="relative z-50 shrink-0 mb-2 pt-2 pb-4 px-4 text-background">
         {/* Background with clip-path */}
         <div className="absolute inset-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
 
