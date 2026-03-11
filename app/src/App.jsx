@@ -237,7 +237,7 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Home size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">가족일정</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">주간일정</span>
         </button>
         <button
           onClick={() => setActiveTab('daily')}
@@ -272,7 +272,7 @@ function App() {
           className={`flex flex-col items-center pt-1 ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
         >
           <Star size={22} />
-          <span className="text-[10px] mt-1 font-bold tracking-tight">가족행사</span>
+          <span className="text-[10px] mt-1 font-bold tracking-tight">가족일정</span>
         </button>
       </nav>
       {/* PWA Mobile Install Prompt */}

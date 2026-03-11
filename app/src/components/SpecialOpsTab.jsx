@@ -102,7 +102,7 @@ export default function SpecialOpsTab() {
         >
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <Target size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">가족행사</h2>
+                <h2 className="font-stencil text-xl flex-1 text-navy">가족일정</h2>
             </div>
 
             {/* Mission Critical Briefing */}
@@ -251,7 +251,7 @@ export default function SpecialOpsTab() {
                         className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden"
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
-                            <span>{newOp.id ? '가족행사 수정' : '새 가족행사 작성'}</span>
+                            <span>{newOp.id ? '가족일정 수정' : '새 가족일정 작성'}</span>
                             <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
                         </h3>
 
@@ -311,7 +311,7 @@ export default function SpecialOpsTab() {
                         onClick={() => setShowForm(true)}
                         className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2"
                     >
-                        <FileSignature size={18} /> 새 가족행사 추가
+                        <FileSignature size={18} /> 새 가족일정 추가
                     </button>
                 )}
             </AnimatePresence>
