@@ -219,7 +219,7 @@ export default function HomeBoard() {
                 )}
 
                 <AnimatePresence>
-                    {isAllCompleted && !showPast && (
+                    {isAllCompleted && isCurrentDay && !showPast && (
                         <motion.div
                             initial={hasAnimated ? { scale: 1, opacity: 0.95 } : { scale: 3, opacity: 0 }}
                             animate={{ scale: 1, opacity: 0.95 }}
