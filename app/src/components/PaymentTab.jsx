@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, Settings, X, RotateCcw, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, Settings, RotateCcw, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -201,7 +201,7 @@ export default function PaymentTab() {
                                     className="w-full border border-navy/30 rounded px-1 py-1 font-mono text-sm font-bold bg-white text-navy focus:outline-none"
                                 />
                                 <button onClick={() => handleSaveFund(fund)} className="text-white bg-navy rounded p-1"><Save size={14} /></button>
-                                <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-200 rounded p-1"><X size={14} /></button>
+                                <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-200 rounded p-1"><Plus size={14} /></button>
                             </div>
                         ) : (
                             <div className="mt-1 flex flex-col items-end">
@@ -248,7 +248,7 @@ export default function PaymentTab() {
                             <div className="space-y-3 relative z-10 py-1">
                                 <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
                                     <span className="text-xs font-bold font-stencil text-navy">새 결제 내역 추가</span>
-                                    <button onClick={() => setShowAddForm(false)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
+                                    <button onClick={() => setShowAddForm(false)} className="text-navy/50 hover:text-accent-red"><Plus size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
@@ -312,7 +312,7 @@ export default function PaymentTab() {
                                 <div className="space-y-3 relative z-10 bg-white/50 py-1">
                                     <div className="flex justify-between items-center border-b border-navy/20 pb-1">
                                         <span className="text-xs font-bold font-stencil text-navy">결제 내역 수정</span>
-                                        <button onClick={() => setEditingPaymentId(null)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
+                                        <button onClick={() => setEditingPaymentId(null)} className="text-navy/50 hover:text-accent-red"><Plus size={16} /></button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
@@ -442,7 +442,7 @@ export default function PaymentTab() {
                             <div className="space-y-3 relative z-10 py-1">
                                 <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
                                     <span className="text-xs font-bold font-stencil text-navy">과거 결제 내역 직접 추가</span>
-                                    <button onClick={() => setShowAddHistoryForm(false)} className="text-navy/50 hover:text-accent-red"><X size={16} /></button>
+                                    <button onClick={() => setShowAddHistoryForm(false)} className="text-navy/50 hover:text-accent-red"><Plus size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="col-span-2">
@@ -513,7 +513,7 @@ export default function PaymentTab() {
                                                         <div className="space-y-2 bg-navy/5 p-2 rounded border border-navy/20">
                                                             <div className="flex justify-between items-center mb-1">
                                                                 <span className="text-[11px] font-bold text-navy">과거 내역 수정</span>
-                                                                <button onClick={() => setEditingHistoryId(null)} className="text-navy/50 hover:text-accent-red"><X size={14} /></button>
+                                                                <button onClick={() => setEditingHistoryId(null)} className="text-navy/50 hover:text-accent-red"><Plus size={14} /></button>
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-2">
                                                                 <div className="col-span-2">

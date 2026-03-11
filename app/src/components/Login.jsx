@@ -55,7 +55,7 @@ export default function Login() {
                     </div>
                     <h1 className="font-sans text-3xl font-black tracking-tighter text-navy text-center flex items-center justify-center">
                         <span className="tracking-tight">가족</span>
-                        <span className="text-accent-red text-xl mx-2 font-bold rotate-12 cursor-default">×</span>
+                        <span className="text-accent-red text-xl mx-2 font-bold rotate-12 cursor-default">+</span>
                         <span className="tracking-tight">스케줄러</span>
                     </h1>
                     <p className="text-[10px] font-bold tracking-widest text-navy/60 mt-2 uppercase text-center w-full border-b pb-2">

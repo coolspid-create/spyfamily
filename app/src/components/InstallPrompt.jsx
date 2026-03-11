@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function InstallPrompt() {
@@ -101,7 +101,7 @@ export default function InstallPrompt() {
                         className="text-white/40 hover:text-white p-1 transition-colors"
                         title="닫기"
                     >
-                        <X size={16} />
+                        <Plus size={16} />
                     </button>
                 </div>
             </motion.div>

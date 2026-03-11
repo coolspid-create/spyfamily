@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, X, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -264,7 +264,7 @@ export default function SpecialOpsTab() {
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
                             <span>{newOp.id ? '가족행사 수정' : '새 가족행사 작성'}</span>
-                            <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><X size={18} /></button>
+                            <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
                         </h3>
 
                         <div className="space-y-4">

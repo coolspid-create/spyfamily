@@ -212,7 +212,7 @@ function App() {
         <div className="relative pt-6">
           <h1 className="font-sans text-2xl font-black tracking-tighter text-center flex items-center justify-center">
             <span className="tracking-tight">가족</span>
-            <span className="text-accent-red text-xl mx-2 font-bold rotate-12">×</span>
+            <span className="text-accent-red text-xl mx-2 font-bold rotate-12">+</span>
             <span className="tracking-tight">스케줄러</span>
           </h1>
           <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
