@@ -351,18 +351,16 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-0 right-0 flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <div className={`flex flex-col bg-white/80 border-l border-gray-200 overflow-hidden rounded-tr ${item.contactPhone ? '' : 'border-b rounded-bl-md'}`}>
-                                                    <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center border-b border-gray-200 bg-white">
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors w-8 h-8 flex items-center justify-center bg-white">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                            <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-gray-200 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center border-b border-gray-200">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className={`text-gray-400 hover:text-red-500 transition-colors w-8 h-8 flex items-center justify-center ${item.contactPhone ? 'border-b border-gray-200' : ''}`}>
+                                                    <Trash2 size={14} />
+                                                </button>
                                                 {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors h-8 px-3 flex items-center justify-center gap-1 border-t border-b border-l border-gray-200 bg-blue-50/10 hover:bg-white text-[10px] font-bold rounded-bl-md mt-[-1px]">
-                                                        <Phone size={12} /> 연락처
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors w-8 h-8 flex items-center justify-center bg-gray-50/50 hover:bg-white text-[10px] font-bold">
+                                                        <Phone size={14} />
                                                     </button>
                                                 )}
                                             </div>
@@ -487,18 +485,16 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-0 right-0 flex flex-col items-end z-10">
-                                                <div className={`flex flex-col bg-white border-l border-navy/20 overflow-hidden rounded-tr ${item.contactPhone ? '' : 'border-b rounded-bl'}`}>
-                                                    <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-8 h-8 flex items-center justify-center border-b border-navy/10 bg-white">
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors w-8 h-8 flex items-center justify-center bg-white">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
+                                            <div className="absolute top-0 right-0 flex flex-col bg-white rounded-bl-md border-b border-l border-navy/20 overflow-hidden z-10">
+                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-8 h-8 flex items-center justify-center border-b border-navy/10">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button onClick={() => handleDelete(item.id)} className={`text-navy/40 hover:text-accent-red transition-colors w-8 h-8 flex items-center justify-center ${item.contactPhone ? 'border-b border-navy/10' : ''}`}>
+                                                    <Trash2 size={14} />
+                                                </button>
                                                 {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors h-8 px-3 flex items-center justify-center gap-1 border-t border-b border-l border-navy/20 bg-blue-50/50 hover:bg-blue-50 flex-nowrap rounded-bl-md mt-[-1px]">
-                                                        <Phone size={12} /> <span className="text-xs font-bold whitespace-nowrap">연락처</span>
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors w-8 h-8 flex items-center justify-center bg-blue-50/30 hover:bg-blue-50 flex-nowrap">
+                                                        <Phone size={14} />
                                                     </button>
                                                 )}
                                             </div>
