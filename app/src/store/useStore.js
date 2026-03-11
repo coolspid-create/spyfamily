@@ -1024,7 +1024,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 try {
                     const parsed = JSON.parse(guestDataStr);
                     set({ ...parsed, isLoading: false, isDataLoaded: true });
-                } catch (e) { }
+                } catch { }
             } else {
                 set({
                     weeklyData: INITIAL_WEEKLY,
