@@ -365,7 +365,7 @@ export default function HomeBoard() {
                                                         {getAgentIcon(item.agent)}
                                                         <span className="text-xs font-bold text-gray-500 whitespace-nowrap">{item.agent}</span>
                                                     </div>
-                                                    <div className="flex bg-white rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity border border-gray-200 shadow-sm">
+                                                    <div className="flex bg-white rounded overflow-hidden border border-gray-200 shadow-sm">
                                                         <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 flex items-center justify-center border-r border-gray-200 bg-transparent">
                                                             <Edit2 size={13} />
                                                         </button>
@@ -426,7 +426,7 @@ export default function HomeBoard() {
                                     <span className="text-navy">
                                         {item.time}
                                     </span>
-                                    {isCurrentActive && <span className="bg-accent-green text-white text-[10px] px-1 rounded animate-pulse">CURRENT</span>}
+                                    {isCurrentActive && <span className="bg-accent-green text-white text-[10px] px-1 rounded animate-pulse">현재일정</span>}
                                 </div>
 
                                 {/* Card */}
@@ -511,7 +511,7 @@ export default function HomeBoard() {
                                                         {getAgentIcon(item.agent)}
                                                         <span className="text-xs font-bold whitespace-nowrap">{item.agent}</span>
                                                     </div>
-                                                    <div className="flex bg-white rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity border border-navy/20 shadow-sm">
+                                                    <div className="flex bg-white rounded overflow-hidden border border-navy/20 shadow-sm">
                                                         <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-7 h-7 flex items-center justify-center border-r border-navy/10 bg-transparent">
                                                             <Edit2 size={13} />
                                                         </button>
