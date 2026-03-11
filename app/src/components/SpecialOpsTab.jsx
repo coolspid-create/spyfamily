@@ -106,38 +106,29 @@ export default function SpecialOpsTab() {
             </div>
 
             {/* Mission Critical Briefing */}
-            <div className="bg-navy text-white rounded p-4 shadow-sm relative overflow-hidden">
+            <div className="bg-navy text-white rounded p-3 shadow-sm relative overflow-hidden">
                 <div className="absolute top-[-20px] right-[-20px] opacity-10 rotate-12">
                     <Star size={120} />
                 </div>
-                <h3 className="font-bold border-b border-white/20 pb-2 mb-3 flex items-center gap-2 relative z-10">
+                <h3 className="font-bold border-b border-white/20 pb-2 mb-2 flex items-center gap-2 relative z-10">
                     <AlertCircle size={16} className="text-accent-red" />
                     중요 일정 및 할 일
                 </h3>
-                <p className="text-xs opacity-80 leading-relaxed font-bold relative z-10">
-                    연차 조율, 병원 예약 등 정규 스케줄 외 '가족행사'를 관리합니다.
-                    담당자 버튼을 토글하여 역할을 분담하십시오.
+                <p className="text-[11px] opacity-80 leading-relaxed font-bold relative z-10">
+                    담당자 버튼을 토글하여 역할을 분담하세요.
                 </p>
             </div>
 
             {/* Ops List */}
-            <div className="space-y-4">
-                {ops.map((op, index) => {
+            <div className="space-y-3">
+                {[...ops].sort((a, b) => new Date(b.date.replace(/\./g, '/')) - new Date(a.date.replace(/\./g, '/'))).map((op) => {
                     const progress = op.checklist.length === 0 ? 0 : Math.round((op.checklist.filter(c => c.checked).length / op.checklist.length) * 100);
                     const isExpanded = expandedOpId === op.id;
 
                     return (
-                        <div key={op.id} className="bg-white border-2 border-navy rounded p-4 relative shadow-sm">
-                            {/* File Tab Style Header */}
+                        <div key={op.id} className="bg-white border-2 border-navy rounded p-3 relative shadow-sm">
                             <div
-                                className="absolute top-[-10px] left-4 bg-navy text-white text-[10px] font-bold px-2 py-0.5 rounded-t tracking-widest cursor-pointer hover:bg-navy/80 hover:h-[22px] transition-all flex items-center gap-1"
-                                onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
-                            >
-                                OP CODE: TASK-{String(index + 1).padStart(2, '0')}
-                            </div>
-
-                            <div
-                                className="mt-2 flex justify-between items-start mb-2 cursor-pointer group"
+                                className="flex justify-between items-start mb-2 cursor-pointer group"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
                             >
                                 <div className="flex-1 pr-2 flex items-center">
@@ -146,13 +137,10 @@ export default function SpecialOpsTab() {
                                         <h4 className="font-bold text-lg text-navy group-hover:text-accent-red transition-colors flex flex-wrap items-center gap-2 leading-tight">
                                             <span>{op.title}</span>
                                             {op.priority === 'HIGH' && <span className="text-[10px] bg-accent-red text-white px-1.5 py-0.5 rounded font-bold inline-block tracking-widest shrink-0">중요</span>}
-                                            <span className={`font-stencil text-[10px] px-1.5 py-0.5 rounded border inline-block shrink-0 ${progress === 100 ? 'border-accent-green text-accent-green bg-green-50' : 'border-amber-500 text-amber-600 bg-amber-50'}`}>
-                                                {progress === 100 ? '완료' : `진행률: ${progress}%`}
-                                            </span>
                                         </h4>
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-end shrink-0 gap-1.5 pt-0.5" onClick={e => e.stopPropagation()}>
+                                <div className="flex flex-col items-end shrink-0 gap-1.5" onClick={e => e.stopPropagation()}>
                                     <span className="text-xs font-mono text-navy/70 font-bold tracking-tight">
                                         {op.date}
                                     </span>
