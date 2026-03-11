@@ -216,6 +216,8 @@ export const useStore = create(persistGuestData((set, get) => ({
                 title: item.title,
                 agent: item.agent,
                 location: item.location || '',
+                contactName: item.contactName || '',
+                contactPhone: item.contactPhone || '',
                 isEarly: item.isUrgent || false,
                 isUrgent: item.isEarly || false
             };
@@ -234,6 +236,8 @@ export const useStore = create(persistGuestData((set, get) => ({
             pickup_agent: item.agent,
             drop_agent: item.agent,
             location: item.location || '',
+            contact_name: item.contactName || '',
+            contact_phone: item.contactPhone || '',
             is_urgent: item.isUrgent || false,
             is_early: item.isEarly || false,
             child_id: currentChild
@@ -249,7 +253,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 for (const day in newWeekly) {
                     newWeekly[day] = newWeekly[day].map(x =>
                         x.id === item.id
-                            ? { ...x, ...item, time: item.time, title: item.title, agent: item.agent, location: item.location }
+                            ? { ...x, ...item, time: item.time, title: item.title, agent: item.agent, location: item.location, contactName: item.contactName, contactPhone: item.contactPhone }
                             : x
                     ).sort((a, b) => a.time.localeCompare(b.time));
                 }
@@ -263,7 +267,9 @@ export const useStore = create(persistGuestData((set, get) => ({
             start_time: item.time + (item.time.length === 5 ? ':00' : ''),
             pickup_agent: item.agent,
             drop_agent: item.agent,
-            location: item.location || ''
+            location: item.location || '',
+            contact_name: item.contactName || '',
+            contact_phone: item.contactPhone || ''
         }).eq('id', item.id);
         if (error) { alert('수정 실패: ' + error.message); return; }
         await get().fetchDataFromDB();
@@ -985,7 +991,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const schedules = [];
             for (const day in guestData.weeklyData) {
                 guestData.weeklyData[day].forEach(item => {
-                    schedules.push({ title: item.title, day_of_week: day, start_time: item.time + ':00', pickup_agent: item.agent, drop_agent: item.agent, location: item.location || '', is_urgent: item.isUrgent || false, is_early: item.isEarly || false, child_id: currentChild });
+                    schedules.push({ title: item.title, day_of_week: day, start_time: item.time + ':00', pickup_agent: item.agent, drop_agent: item.agent, location: item.location || '', contact_name: item.contactName || '', contact_phone: item.contactPhone || '', is_urgent: item.isUrgent || false, is_early: item.isEarly || false, child_id: currentChild });
                 });
             }
             if (schedules.length > 0) await supabase.from('schedule').insert(schedules);
@@ -1188,6 +1194,8 @@ export const useStore = create(persistGuestData((set, get) => ({
                             title: s.title,
                             agent: s.pickup_agent || s.drop_agent || '자율',
                             location: s.location || '',
+                            contactName: s.contact_name || '',
+                            contactPhone: s.contact_phone || '',
                             isEarly: s.is_early,
                             isUrgent: s.is_urgent
                         });

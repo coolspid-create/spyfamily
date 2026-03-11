@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Baby, Car, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket } from 'lucide-react';
+import { User, Baby, Car, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -31,9 +31,10 @@ export default function HomeBoard() {
     const [newNotice, setNewNotice] = useState('');
     const [showPast, setShowPast] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
-    const [newSchedule, setNewSchedule] = useState({ title: '', time: '09:00', agent: '자율', location: '' });
+    const [newSchedule, setNewSchedule] = useState({ title: '', time: '09:00', agent: '자율', location: '', contactName: '', contactPhone: '' });
     const [isCustomAgentAdd, setIsCustomAgentAdd] = useState(false);
     const [isCustomAgentEdit, setIsCustomAgentEdit] = useState(false);
+    const [activeContactPopup, setActiveContactPopup] = useState(null);
 
     const presetAgents = ['엄마', '아빠', '태권도', '학교', '자율'];
 
@@ -62,7 +63,7 @@ export default function HomeBoard() {
         const finalSchedule = { ...newSchedule, agent: newSchedule.agent.trim() || '자율' };
         await addSchedule(selectedDay, finalSchedule);
         setShowAddForm(false);
-        setNewSchedule({ title: '', time: '09:00', agent: '자율', location: '' });
+        setNewSchedule({ title: '', time: '09:00', agent: '자율', location: '', contactName: '', contactPhone: '' });
         setIsCustomAgentAdd(false);
     };
 
@@ -335,6 +336,14 @@ export default function HomeBoard() {
                                                     <span className="text-xs font-bold w-12 text-gray-500 shrink-0">장소</span>
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="장소" />
                                                 </div>
+                                                <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">상호/이름</span>
+                                                    <input type="text" value={editForm.contactName || ''} onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="예) 학원 선생님" />
+                                                </div>
+                                                <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">전화번호</span>
+                                                    <input type="text" value={editForm.contactPhone || ''} onChange={(e) => setEditForm({ ...editForm, contactPhone: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="010-0000-0000" />
+                                                </div>
                                             </div>
                                             <button onClick={saveEdit} className="bg-gray-500 text-white font-bold text-xs px-3 py-2 mt-2 rounded w-full flex items-center justify-center gap-1 hover:bg-gray-600 transition-colors">
                                                 <Save size={14} /> SAVE & SORT
@@ -346,10 +355,32 @@ export default function HomeBoard() {
                                                 <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 border-b border-gray-300">
                                                     <Edit2 size={14} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5">
+                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 border-b border-gray-300">
                                                     <Trash2 size={14} />
                                                 </button>
+                                                {item.contactPhone && (
+                                                    <div className="relative">
+                                                        <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-400 hover:text-blue-500 transition-colors p-1.5 w-full flex justify-center">
+                                                            <Phone size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
+                                            <AnimatePresence>
+                                                    {activeContactPopup === item.id && item.contactPhone && (
+                                                        <motion.div 
+                                                            initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                                                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                                                            className="absolute top-10 right-10 bg-white border-2 border-gray-300 rounded p-2 shadow-xl z-50 min-w-[140px]"
+                                                        >
+                                                            <div className="text-xs font-bold text-gray-600 border-b border-gray-200 pb-1 mb-1">{item.contactName || '연락처'}</div>
+                                                            <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                                                <Phone size={12} /> {item.contactPhone}
+                                                            </a>
+                                                        </motion.div>
+                                                    )}
+                                            </AnimatePresence>
                                             <div className="flex justify-between items-center pr-8">
                                                 <h3 className="font-bold text-gray-600 line-through">{item.title}</h3>
                                                 <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-1 rounded">{item.agent}</span>
@@ -438,6 +469,14 @@ export default function HomeBoard() {
                                                     <span className="text-xs font-bold w-12 text-navy/70 shrink-0">장소</span>
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="장소" />
                                                 </div>
+                                                <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-navy/70 shrink-0">상호/이름</span>
+                                                    <input type="text" value={editForm.contactName || ''} onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="예) 학원 선생님" />
+                                                </div>
+                                                <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                                    <span className="text-xs font-bold w-12 text-navy/70 shrink-0">전화번호</span>
+                                                    <input type="text" value={editForm.contactPhone || ''} onChange={(e) => setEditForm({ ...editForm, contactPhone: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="010-0000-0000" />
+                                                </div>
                                             </div>
                                             <button onClick={saveEdit} className="bg-navy text-white font-bold text-xs px-3 py-2 mt-2 rounded w-full flex items-center justify-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
                                                 <Save size={14} /> SAVE & SORT
@@ -449,10 +488,32 @@ export default function HomeBoard() {
                                                 <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-1.5 border-b border-navy/10">
                                                     <Edit2 size={14} />
                                                 </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-1.5">
+                                                <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-1.5 border-b border-navy/10">
                                                     <Trash2 size={14} />
                                                 </button>
+                                                {item.contactPhone && (
+                                                    <div className="relative">
+                                                        <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/40 hover:text-blue-500 transition-colors p-1.5 w-full flex justify-center">
+                                                            <Phone size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
+                                            <AnimatePresence>
+                                                    {activeContactPopup === item.id && item.contactPhone && (
+                                                        <motion.div 
+                                                            initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                                                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.9, x: 20 }}
+                                                            className="absolute top-10 right-10 bg-white border-2 border-navy rounded p-2 shadow-xl z-50 min-w-[140px]"
+                                                        >
+                                                            <div className="text-xs font-bold text-navy border-b border-navy/20 pb-1 mb-1">{item.contactName || '연락처'}</div>
+                                                            <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                                                <Phone size={12} /> {item.contactPhone}
+                                                            </a>
+                                                        </motion.div>
+                                                    )}
+                                            </AnimatePresence>
                                             <div className="flex justify-between items-start mb-2 pr-8">
                                                 <h3 className="font-bold text-lg">{item.title}</h3>
                                                 <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 shrink-0">
@@ -527,6 +588,14 @@ export default function HomeBoard() {
                                     <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
                                         <span className="text-xs font-bold w-12 text-navy/70 shrink-0">장소</span>
                                         <input type="text" value={newSchedule.location} onChange={(e) => setNewSchedule({ ...newSchedule, location: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="장소 입력 (선택)" />
+                                    </div>
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">상호/이름</span>
+                                        <input type="text" value={newSchedule.contactName || ''} onChange={(e) => setNewSchedule({ ...newSchedule, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="예) 학원 원장님 (선택)" />
+                                    </div>
+                                    <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">전화번호</span>
+                                        <input type="text" value={newSchedule.contactPhone || ''} onChange={(e) => setNewSchedule({ ...newSchedule, contactPhone: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="010-0000-0000 (선택)" />
                                     </div>
                                 </div>
                                 <div className="flex gap-2 mt-4">
