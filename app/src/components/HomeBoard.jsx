@@ -351,18 +351,34 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10 border border-gray-200">
-                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 flex items-center justify-center border-r border-gray-200 bg-transparent">
-                                                    <Edit2 size={13} />
-                                                </button>
-                                                <button onClick={() => handleDelete(item.id)} className={`text-gray-400 hover:text-red-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-gray-200' : ''}`}>
-                                                    <Trash2 size={13} />
-                                                </button>
-                                                {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent">
-                                                        <Phone size={13} />
-                                                    </button>
-                                                )}
+                                            <div className="flex justify-between items-start w-full gap-2">
+                                                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                                                    <h3 className="font-bold text-gray-600 line-through truncate">{item.title}</h3>
+                                                    {item.location && (
+                                                        <p className="text-sm text-gray-400 flex items-center gap-1 truncate w-full">
+                                                            <MapPin size={14} className="shrink-0" /> <span className="truncate">{item.location}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2 shrink-0 relative z-10">
+                                                    <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-sm border border-gray-200 w-fit shrink-0">
+                                                        {getAgentIcon(item.agent)}
+                                                        <span className="text-xs font-bold text-gray-500 whitespace-nowrap">{item.agent}</span>
+                                                    </div>
+                                                    <div className="flex bg-white rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity border border-gray-200 shadow-sm">
+                                                        <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 flex items-center justify-center border-r border-gray-200 bg-transparent">
+                                                            <Edit2 size={13} />
+                                                        </button>
+                                                        <button onClick={() => handleDelete(item.id)} className={`text-gray-400 hover:text-red-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-gray-200' : ''}`}>
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                        {item.contactPhone && (
+                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors w-7 h-7 flex items-center justify-center bg-transparent">
+                                                                <Phone size={13} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <AnimatePresence>
                                                     {activeContactPopup === item.id && item.contactPhone && (
@@ -382,10 +398,6 @@ export default function HomeBoard() {
                                                         </>
                                                     )}
                                             </AnimatePresence>
-                                            <div className="flex justify-between items-center pr-8">
-                                                <h3 className="font-bold text-gray-600 line-through">{item.title}</h3>
-                                                <span className="text-[10px] font-bold text-gray-400 bg-gray-200 px-1 rounded">{item.agent}</span>
-                                            </div>
                                         </>
                                     )}
                                 </div>
@@ -485,18 +497,34 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-2 right-2 flex bg-white/50 rounded overflow-hidden z-10 border border-navy/20">
-                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-7 h-7 flex items-center justify-center border-r border-navy/10 bg-transparent">
-                                                    <Edit2 size={13} />
-                                                </button>
-                                                <button onClick={() => handleDelete(item.id)} className={`text-navy/40 hover:text-accent-red transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-navy/10' : ''}`}>
-                                                    <Trash2 size={13} />
-                                                </button>
-                                                {item.contactPhone && (
-                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors w-7 h-7 flex items-center justify-center bg-transparent flex-nowrap">
-                                                        <Phone size={13} />
-                                                    </button>
-                                                )}
+                                            <div className="flex justify-between items-start w-full gap-2">
+                                                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                                                    <h3 className="font-bold text-lg truncate">{item.title}</h3>
+                                                    {item.location && (
+                                                        <p className="text-sm text-gray-600 flex items-center gap-1 truncate w-full">
+                                                            <MapPin size={14} className="shrink-0" /> <span className="truncate">{item.location}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2 shrink-0 relative z-10">
+                                                    <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 w-fit shrink-0">
+                                                        {getAgentIcon(item.agent)}
+                                                        <span className="text-xs font-bold whitespace-nowrap">{item.agent}</span>
+                                                    </div>
+                                                    <div className="flex bg-white rounded overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity border border-navy/20 shadow-sm">
+                                                        <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors w-7 h-7 flex items-center justify-center border-r border-navy/10 bg-transparent">
+                                                            <Edit2 size={13} />
+                                                        </button>
+                                                        <button onClick={() => handleDelete(item.id)} className={`text-navy/40 hover:text-accent-red transition-colors w-7 h-7 flex items-center justify-center bg-transparent ${item.contactPhone ? 'border-r border-navy/10' : ''}`}>
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                        {item.contactPhone && (
+                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors w-7 h-7 flex items-center justify-center bg-transparent flex-nowrap">
+                                                                <Phone size={13} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <AnimatePresence>
                                                     {activeContactPopup === item.id && item.contactPhone && (
@@ -516,16 +544,6 @@ export default function HomeBoard() {
                                                         </>
                                                     )}
                                             </AnimatePresence>
-                                            <div className="flex justify-between items-start mb-2 pr-8">
-                                                <h3 className="font-bold text-lg">{item.title}</h3>
-                                                <div className="flex items-center gap-1 bg-background px-2 py-1 rounded-sm border border-navy/20 shrink-0">
-                                                    {getAgentIcon(item.agent)}
-                                                    <span className="text-xs font-bold">{item.agent}</span>
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-gray-600 flex items-center gap-1">
-                                                <MapPin size={14} /> {item.location}
-                                            </p>
                                         </>
                                     )}
                                 </div>
