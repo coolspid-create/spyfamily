@@ -352,18 +352,18 @@ export default function HomeBoard() {
                                     ) : (
                                         <>
                                             <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-gray-300 overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 border-b border-gray-300">
-                                                    <Edit2 size={14} />
-                                                </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 border-b border-gray-300">
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                <div className="flex">
+                                                    <button onClick={() => startEdit(item)} className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 flex-1 flex justify-center border-r border-gray-300">
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(item.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 flex-1 flex justify-center">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                                 {item.contactPhone && (
-                                                    <div className="relative">
-                                                        <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-400 hover:text-blue-500 transition-colors p-1.5 w-full flex justify-center">
-                                                            <Phone size={14} />
-                                                        </button>
-                                                    </div>
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-gray-500 hover:text-blue-500 transition-colors py-1.5 px-2 w-full flex items-center justify-center gap-1 border-t border-gray-300 bg-gray-50 hover:bg-white text-[10px] font-bold">
+                                                        <Phone size={12} /> 연락처
+                                                    </button>
                                                 )}
                                             </div>
                                             <AnimatePresence>
@@ -372,7 +372,7 @@ export default function HomeBoard() {
                                                             initial={{ opacity: 0, scale: 0.9, x: 20 }}
                                                             animate={{ opacity: 1, scale: 1, x: 0 }}
                                                             exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                                                            className="absolute top-10 right-10 bg-white border-2 border-gray-300 rounded p-2 shadow-xl z-50 min-w-[140px]"
+                                                            className="absolute top-12 right-2 bg-white border-2 border-gray-300 rounded p-2 shadow-xl z-50 min-w-[140px]"
                                                         >
                                                             <div className="text-xs font-bold text-gray-600 border-b border-gray-200 pb-1 mb-1">{item.contactName || '연락처'}</div>
                                                             <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
@@ -417,7 +417,7 @@ export default function HomeBoard() {
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative overflow-hidden group ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : 'border-navy'}`}>
+                                <div className={`bg-white border-2 p-3 rounded shadow-sm relative group ${isCurrentActive ? 'border-accent-green shadow-green-100 ring-4 ring-accent-green/20' : 'border-navy'}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -484,19 +484,19 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="absolute top-0 right-0 flex flex-col bg-white/80 rounded-bl-md border-b border-l border-navy/10 overflow-hidden z-10">
-                                                <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-1.5 border-b border-navy/10">
-                                                    <Edit2 size={14} />
-                                                </button>
-                                                <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-1.5 border-b border-navy/10">
-                                                    <Trash2 size={14} />
-                                                </button>
+                                            <div className="absolute top-0 right-0 flex flex-col bg-white/90 rounded-bl-md border-b border-l border-navy/20 overflow-hidden z-10">
+                                                <div className="flex">
+                                                    <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy transition-colors p-2 flex-1 flex justify-center border-r border-navy/10">
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-accent-red transition-colors p-2 flex-1 flex justify-center">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                                 {item.contactPhone && (
-                                                    <div className="relative">
-                                                        <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/40 hover:text-blue-500 transition-colors p-1.5 w-full flex justify-center">
-                                                            <Phone size={14} />
-                                                        </button>
-                                                    </div>
+                                                    <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/70 hover:text-blue-600 transition-colors py-1.5 px-3 w-full flex items-center justify-center gap-1 border-t border-navy/10 bg-blue-50/50 hover:bg-blue-50 flex-nowrap">
+                                                        <Phone size={12} /> <span className="text-xs font-bold whitespace-nowrap">연락처</span>
+                                                    </button>
                                                 )}
                                             </div>
                                             <AnimatePresence>
@@ -505,7 +505,7 @@ export default function HomeBoard() {
                                                             initial={{ opacity: 0, scale: 0.9, x: 20 }}
                                                             animate={{ opacity: 1, scale: 1, x: 0 }}
                                                             exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                                                            className="absolute top-10 right-10 bg-white border-2 border-navy rounded p-2 shadow-xl z-50 min-w-[140px]"
+                                                            className="absolute top-12 right-2 bg-white border-2 border-navy rounded p-2 shadow-xl z-50 min-w-[140px]"
                                                         >
                                                             <div className="text-xs font-bold text-navy border-b border-navy/20 pb-1 mb-1">{item.contactName || '연락처'}</div>
                                                             <a href={`tel:${item.contactPhone}`} className="text-sm font-bold text-blue-600 hover:underline flex items-center gap-1">
