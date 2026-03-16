@@ -232,7 +232,7 @@ function App() {
         <div className="absolute top-3 right-3 z-10 flex flex-row gap-2 items-center">
           <button
             onClick={() => setIsSupportModalOpen(true)}
-            className="text-white/50 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
+            className="text-amber-200/70 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
             title="후원하기"
           >
             <Coffee size={13} />
