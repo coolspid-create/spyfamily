@@ -6,9 +6,11 @@ import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
 import InstallPrompt from './components/InstallPrompt';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download, CheckSquare } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download, CheckSquare, Coffee } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
+import { useRegisterSW } from 'virtual:pwa-register/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -25,6 +27,19 @@ function App() {
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log('SW Registered: ', r);
+    },
+    onRegisterError(error) {
+      console.log('SW registration error', error);
+    },
+  });
 
   const dailyTasks = useStore(state => state.dailyTasks);
   const today = new Date();
@@ -109,6 +124,37 @@ function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
+      {/* PWA Update Notification */}
+      <AnimatePresence>
+        {needRefresh && (
+          <motion.div
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className="fixed top-4 left-4 right-4 bg-navy text-white p-4 rounded-xl shadow-2xl z-[101] border-2 border-accent-red flex flex-col gap-3"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-accent-red rounded-full animate-pulse" />
+              <p className="text-sm font-bold">새로운 버전이 준비되었습니다!</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateServiceWorker(true)}
+                className="flex-1 bg-accent-red text-white py-2 rounded-lg font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all"
+              >
+                지금 업데이트 적용
+              </button>
+              <button
+                onClick={() => setNeedRefresh(false)}
+                className="px-4 py-2 bg-white/10 text-white/70 rounded-lg font-bold text-xs hover:bg-white/20 transition-all"
+              >
+                나중에
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!session && isGuestMode && (
         <div className="bg-accent-yellow text-navy px-4 py-3 text-[11px] font-bold flex justify-between items-center z-[100] relative border-b-2 border-navy">
           <div className="flex-1 leading-tight">
@@ -136,7 +182,7 @@ function App() {
           <div className="relative">
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1 px-3 border border-white/20 shadow-sm"
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1.5 px-3 border border-white/20 shadow-sm"
             >
               <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
                 {childProfiles[currentChild]}
@@ -152,7 +198,7 @@ function App() {
                     <div
                       key={cId}
                       className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
-                      onClick={() => selectChild(cId)}
+                      onClick={() => { selectChild(cId); setIsDropdownOpen(false); }}
                     >
                       <span className="truncate flex-1 text-navy">{childProfiles[cId]}</span>
                       <div className="flex items-center shrink-0">
@@ -163,15 +209,6 @@ function App() {
                         >
                           <Edit2 size={12} />
                         </button>
-                        {idx === childCount - 1 && childCount > 1 && (
-                          <button
-                            onClick={(e) => handleRemoveChild(e, cId)}
-                            className="p-1 hover:bg-accent-red/10 rounded text-accent-red/60 hover:text-accent-red transition-colors ml-1"
-                            title="프로필 삭제"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
                       </div>
                     </div>
                   );
@@ -187,36 +224,44 @@ function App() {
               </div>
             )}
           </div>
-
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
+        <div className="absolute top-3 right-3 z-[100] flex gap-2 items-center">
+          {/* Support (Donation) Button */}
           <button
-            onClick={signOut}
-            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
-            title="로그아웃"
+            onClick={() => window.open('https://toss.me/coolspid', '_blank')}
+            className="w-9 h-9 bg-amber-400 text-navy rounded-full flex items-center justify-center border-2 border-white shadow-md hover:scale-110 active:scale-90 transition-all cursor-pointer relative group"
+            title="커피 한 잔 후원하기"
           >
-            <LogOut size={13} className="ml-0.5" />
+            <Coffee size={18} />
+            <span className="absolute -top-1 -right-1 bg-accent-red text-white text-[8px] px-1.5 rounded-full animate-bounce shadow-sm font-black">♥</span>
           </button>
           <button
-            onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
-            className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
-            title="바탕화면에 앱 설치하기"
+            onClick={() => setShowInstallPrompt(true)}
+            className="w-9 h-9 bg-accent-green text-navy rounded-full flex items-center justify-center border-2 border-white shadow-md hover:scale-110 active:scale-90 transition-all cursor-pointer"
+            title="앱 설치"
           >
-            <Download size={13} />
+            <Download size={18} />
+          </button>
+          <button
+            onClick={signOut}
+            className="w-9 h-9 bg-white/10 text-white rounded-full flex items-center justify-center border-2 border-white/20 shadow-md hover:bg-white/20 active:scale-90 transition-all cursor-pointer"
+            title="로그아웃"
+          >
+            <LogOut size={16} />
           </button>
         </div>
 
         {/* Header Title Space */}
         <div className="relative pt-2">
-          <h1 className="font-sans text-[22px] font-black tracking-tighter text-center flex items-center justify-center">
-            <span className="tracking-tight">가족</span>
-            <span className="text-accent-red text-xl mx-2 font-bold">×</span>
-            <span className="tracking-tight">스케줄러</span>
+          <h1 className="font-stencil text-[22px] font-black tracking-tighter text-center flex items-center justify-center italic">
+            <span className="tracking-tight">OUR</span>
+            <span className="text-accent-red text-xl mx-2 font-bold font-sans">×</span>
+            <span className="tracking-tight">FAMILY</span>
           </h1>
-          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
-            우리 가족의 소중한 일정과 자금 관리
+          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90 tracking-widest">
+            Connected Family System
           </p>
         </div>
       </header>
@@ -275,8 +320,11 @@ function App() {
           <span className="text-[11px] mt-1 font-bold tracking-tight">가족일정</span>
         </button>
       </nav>
+
       {/* PWA Mobile Install Prompt */}
-      <InstallPrompt />
+      {showInstallPrompt && (
+        <InstallPrompt onClose={() => setShowInstallPrompt(false)} />
+      )}
     </div>
   );
 }
