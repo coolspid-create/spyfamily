@@ -1,37 +1,37 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 const INITIAL_WEEKLY = {
-    '월': [{ title: '피아노 학원', time: '14:00', agent: 'mom', isUrgent: false, isEarly: false, location: '상가 2층' }, { title: '수학 숙제', time: '16:00', agent: 'dad', isUrgent: true, isEarly: false, location: '집' }],
-    '화': [{ title: '태권도', time: '15:30', agent: 'dad', isUrgent: false, isEarly: false, location: '동네 태권도장' }],
-    '수': [{ title: '영어 과외', time: '17:00', agent: 'mom', isUrgent: false, isEarly: false, location: '집' }],
-    '목': [{ title: '미술 학원', time: '14:00', agent: 'dad', isUrgent: false, isEarly: false, location: '상가 1층' }],
-    '금': [{ title: '수영 강습', time: '16:00', agent: 'mom', isUrgent: true, isEarly: false, location: '스포츠센터' }],
-    '토': [{ title: '가족 나들이 (공원)', time: '10:00', agent: 'dad', isUrgent: false, isEarly: false, location: '올림픽공원' }],
-    '일': [{ title: '체스 연습', time: '13:00', agent: 'mom', isUrgent: false, isEarly: false, location: '집' }]
+    '월': [{ title: '로봇 만들기 교실', time: '14:00', agent: '엄마', isUrgent: false, isEarly: false, location: '로봇 센터' }, { title: '가상현실 코딩', time: '16:00', agent: '아빠', isUrgent: true, isEarly: false, location: '미래 학습소' }],
+    '화': [{ title: '우주 과학 탐험', time: '15:30', agent: '아빠', isUrgent: false, isEarly: false, location: '과학관' }],
+    '수': [{ title: '마법 마술 배우기', time: '17:00', agent: '엄마', isUrgent: false, isEarly: false, location: '집' }],
+    '목': [{ title: '창의 미술 시간', time: '14:00', agent: '아빠', isUrgent: false, isEarly: false, location: '상가 체험장' }],
+    '금': [{ title: '디지털 수영 강습', time: '16:00', agent: '엄마', isUrgent: true, isEarly: false, location: '스포츠센터' }],
+    '토': [{ title: '가족 화성 여행 캠프', time: '10:00', agent: '아빠', isUrgent: false, isEarly: false, location: '중앙 공원' }],
+    '일': [{ title: '인공지능 체스 게임', time: '13:00', agent: '엄마', isUrgent: false, isEarly: false, location: '집' }]
 };
 const INITIAL_MISSIONS = [
-    { id: 'm1', type: 'fund', title: '아동수당', day: 25 },
-    { id: 'm2', type: 'event', year: 2026, month: 5, day: 5, title: '어린이날 놀이공원' }
+    { id: 'm1', type: 'fund', title: '샘플 활동비', day: 25 },
+    { id: 'm2', type: 'event', year: 2026, month: 5, day: 5, title: '가족 로봇 경진대회' }
 ];
 const INITIAL_FUNDS = [
-    { id: 'f1', name: '아동수당 (생활비)', balance: 450000, updated: '26.03.01' },
-    { id: 'f2', name: '특별 용돈', balance: 50000, updated: '26.03.05' }
+    { id: 'f1', name: '샘플 수당 (테스트)', balance: 500000, updated: '26.03.01' },
+    { id: 'f2', name: '가상 포인트', balance: 100000, updated: '26.03.05' }
 ];
 const INITIAL_PAYMENTS = [
-    { id: 'p1', source: '아동수당 (생활비)', amount: 150000, method: '계좌이체', day: '10일', discount: '', isCompleted: false },
-    { id: 'p2', source: '특별 용돈', amount: 30000, method: '카드', day: '15일', discount: '청구할인 5%', isCompleted: false },
-    { id: 'p3', source: '아동수당 (생활비)', amount: 200000, method: '자동이체', day: '25일', discount: '', isCompleted: true, completedAt: '2026-03-25' }
+    { id: 'p1', source: '샘플 수당 (테스트)', amount: 50000, method: '계좌이체', day: '10일', discount: '', isCompleted: false },
+    { id: 'p2', source: '가상 포인트', amount: 20000, method: '카드', day: '15일', discount: '샘플할인 5%', isCompleted: false },
+    { id: 'p3', source: '샘플 수당 (테스트)', amount: 100000, method: '자동이체', day: '25일', discount: '', isCompleted: true, completedAt: '2026-03-25' }
 ];
 const INITIAL_HISTORY = [
-    { id: 'h1', month: '2026-02', date_formatted: '02.10', source: '아동수당', amount: 150000, method: '계좌이체' }
+    { id: 'h1', month: '2026-02', date_formatted: '02.10', source: '샘플 수당', amount: 50000, method: '계좌이체' }
 ];
 const INITIAL_OPS = [
-    { id: 'o1', title: '어린이날 놀이공원', date: '2026.05.05', description: '에버랜드 자유이용권 예매 및 렌터카 예약', priority: '상', status: 'ONGOING', participants: { mom: true, dad: true }, checklist: [{ id: 'c1', task: '티켓 예매', checked: true }, { id: 'c2', task: '렌터카 예약', checked: false }] }
+    { id: 'o1', title: '가족 로봇 경진대회', date: '2026.05.05', description: '로봇 조립 및 프로그램 세팅 점검', priority: '상', status: 'ONGOING', participants: { mom: true, dad: true }, checklist: [{ id: 'c1', task: '배터리 충전', checked: true }, { id: 'c2', task: '프로그램 최적화', checked: false }] }
 ];
 const INITIAL_DAILY = [
-    { id: 'd1', task_name: '방 정리하기', is_completed: true, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
-    { id: 'd2', task_name: '수학 숙제 2장', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
-    { id: 'd3', task_name: '저녁식사 후 양치질', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
+    { id: 'd1', task_name: '미래 도시 건설 레고', is_completed: true, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
+    { id: 'd2', task_name: '수학 매직 연산 1장', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
+    { id: 'd3', task_name: '우주선 조립하기', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
 ];
 
 const savedProfiles = (() => {
