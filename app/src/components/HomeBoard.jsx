@@ -199,7 +199,7 @@ export default function HomeBoard() {
             </div>
 
             {/* Daily Schedule Timeline */}
-            <div className={`relative border-l-2 border-navy/30 ml-4 space-y-6 pb-20 pt-2 ${isAllCompleted ? 'min-h-[250px]' : ''}`}>
+            <div className={`relative border-l-2 border-navy/30 ml-4 space-y-6 pt-2 ${isAllCompleted ? 'min-h-[250px]' : ''}`}>
 
                 {/* Past Missions Toggle */}
                 {pastSchedule.length > 0 && (
@@ -573,8 +573,10 @@ export default function HomeBoard() {
                         )
                     })}
                 </AnimatePresence>
+            </div>
 
-                {/* Add Schedule Form */}
+            {/* Add Schedule Form - outside timeline to avoid extending the left border line */}
+            <div className="ml-4 pb-20">
                 <AnimatePresence>
                     {showAddForm && (
                         <motion.div

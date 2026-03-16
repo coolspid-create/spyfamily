@@ -12,6 +12,7 @@ export default function SpecialOpsTab() {
     // Default expanded tab logic based on incoming data
     const [expandedOpId, setExpandedOpId] = useState(null);
     const [showForm, setShowForm] = useState(false);
+    const [editingOpId, setEditingOpId] = useState(null);
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});
 
@@ -20,8 +21,8 @@ export default function SpecialOpsTab() {
             ...op,
             date: op.date.replace(/\./g, '-')
         });
-        setShowForm(true);
-        window.setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100);
+        setEditingOpId(op.id);
+        setShowForm(false);
     };
 
     const handleDeleteOp = (opsId) => {
@@ -126,7 +127,8 @@ export default function SpecialOpsTab() {
                     const isExpanded = expandedOpId === op.id;
 
                     return (
-                        <div key={op.id} className="bg-white border-2 border-navy rounded p-3 relative shadow-sm">
+                        <React.Fragment key={op.id}>
+                        <div className="bg-white border-2 border-navy rounded p-3 relative shadow-sm">
                             <div
                                 className="flex justify-between items-start mb-2 cursor-pointer group"
                                 onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
@@ -154,7 +156,7 @@ export default function SpecialOpsTab() {
                                         </button>
                                         <button
                                             onClick={() => handleDeleteOp(op.id)}
-                                            className={`p-1.5 rounded-sm shadow-sm transition-colors ${progress === 100 ? 'text-white bg-accent-red hover:bg-red-700 animate-pulse' : 'text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40'}`}
+                                            className="p-1.5 rounded-sm shadow-sm transition-colors text-navy/50 bg-white hover:text-accent-red border border-navy/20 group-hover:border-navy/40"
                                             title="할 일 삭제"
                                         >
                                             <Trash2 size={12} />
@@ -237,6 +239,53 @@ export default function SpecialOpsTab() {
                                 )}
                             </AnimatePresence>
                         </div>
+                        {/* Inline Edit Form */}
+                        <AnimatePresence>
+                            {editingOpId === op.id && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden mt-2"
+                                >
+                                    <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
+                                        <span>가족일정 수정</span>
+                                        <button onClick={() => { setEditingOpId(null); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold opacity-70 block mb-1">할 일 제목</label>
+                                            <input type="text" value={newOp.title} onChange={(e) => setNewOp({ ...newOp, title: e.target.value })} className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none bg-white" placeholder="ex. 가족 여행 준비" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-xs font-bold opacity-70 block mb-1">기한/실행일</label>
+                                                <input type="date" value={newOp.date} onChange={(e) => setNewOp({ ...newOp, date: e.target.value })} className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none font-mono bg-white" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold opacity-70 block mb-1">중요도</label>
+                                                <select value={newOp.priority} onChange={(e) => setNewOp({ ...newOp, priority: e.target.value })} className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none cursor-pointer bg-white">
+                                                    <option value="NORMAL">보통</option>
+                                                    <option value="MEDIUM">중간</option>
+                                                    <option value="HIGH">중요</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold opacity-70 block mb-1">상세 내용</label>
+                                            <textarea value={newOp.description} onChange={(e) => setNewOp({ ...newOp, description: e.target.value })} className="w-full border-2 border-navy rounded p-2 text-sm font-bold outline-none resize-none h-20 bg-white" placeholder="할 일 상세 내용..."></textarea>
+                                        </div>
+                                        <button
+                                            onClick={() => { handleAddOp(); setEditingOpId(null); }}
+                                            className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2 mt-2"
+                                        >
+                                            <Save size={18} /> 작성 완료
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                        </React.Fragment>
                     );
                 })}
             </div>
@@ -251,7 +300,7 @@ export default function SpecialOpsTab() {
                         className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden"
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
-                            <span>{newOp.id ? '가족일정 수정' : '새 가족일정 작성'}</span>
+                            <span>새 가족일정 작성</span>
                             <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
                         </h3>
 
@@ -308,7 +357,7 @@ export default function SpecialOpsTab() {
                     </motion.div>
                 ) : (
                     <button
-                        onClick={() => setShowForm(true)}
+                        onClick={() => { setShowForm(true); setEditingOpId(null); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }}
                         className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2"
                     >
                         <FileSignature size={18} /> 새 가족일정 추가

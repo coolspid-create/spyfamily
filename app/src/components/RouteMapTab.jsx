@@ -83,17 +83,19 @@ export default function RouteMapTab() {
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
-    const scrollToDay = (day) => {
+    const scrollToDay = (day, year, month) => {
         const wasCollapsed = !isFundsExpanded || !isEventsExpanded;
         setIsFundsExpanded(true);
         setIsEventsExpanded(true);
 
         const doScroll = () => {
-            // select elements using data-day instead of id to avoid html validation/query issues with duplicates
-            const elements = document.querySelectorAll(`[data-day="${day}"]`);
-            if (elements.length > 0) {
-                elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                elements.forEach(element => {
+            // Collect matching elements: fund missions match by day, event missions match by full date
+            const fundElements = document.querySelectorAll(`[data-day="${day}"][data-type="fund"]`);
+            const eventElements = document.querySelectorAll(`[data-day="${day}"][data-year="${year}"][data-month="${month}"]`);
+            const allElements = [...fundElements, ...eventElements];
+            if (allElements.length > 0) {
+                allElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                allElements.forEach(element => {
                     const card = element.querySelector('.bg-white') || element;
                     card.classList.add('ring-4', 'ring-accent-red', 'transition-all');
                     setTimeout(() => card.classList.remove('ring-4', 'ring-accent-red'), 2000);
@@ -209,7 +211,7 @@ export default function RouteMapTab() {
                         return (
                             <div
                                 key={`day-${cell.day}`}
-                                onClick={() => cell.missions.length > 0 && scrollToDay(cell.day)}
+                                onClick={() => cell.missions.length > 0 && scrollToDay(cell.day, currentDate.getFullYear(), currentDate.getMonth() + 1)}
                                 className={`relative p-2 border border-navy/10 rounded-sm transition-colors ${isToday ? 'bg-navy/10 border-navy/50 shadow-inner' : ''} ${cell.missions.length > 0 ? 'cursor-pointer hover:bg-navy/10 active:bg-navy/20' : ''}`}
                             >
                                 <span className={`text-sm font-bold ${isToday ? 'text-accent-red font-black underline decoration-2 underline-offset-2' : 'text-navy'}`}>{cell.day}</span>
@@ -274,6 +276,7 @@ export default function RouteMapTab() {
                                                 layout
                                                 key={item.id}
                                                 data-day={item.day}
+                                                data-type="fund"
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: 20 }}
@@ -336,6 +339,8 @@ export default function RouteMapTab() {
                                                 layout
                                                 key={item.id}
                                                 data-day={item.day}
+                                                data-year={item.year}
+                                                data-month={item.month}
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: 20 }}

@@ -96,9 +96,23 @@ export const useStore = create(persistGuestData((set, get) => ({
     isGuestMode: false,
 
     setGuestMode: (val) => {
-        set({ isGuestMode: val, isAuthChecking: false });
         if (val) {
+            set({ isGuestMode: val, isAuthChecking: false });
             get().fetchDataFromDB();
+        } else {
+            // Exiting guest mode: clear all guest data to prevent bleed-through
+            set({
+                isGuestMode: val,
+                isAuthChecking: false,
+                weeklyData: { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] },
+                missionsData: [],
+                funds: [],
+                payments: [],
+                opsData: [],
+                transactionHistory: [],
+                notices: [],
+                dailyTasks: []
+            });
         }
     },
 
@@ -171,7 +185,25 @@ export const useStore = create(persistGuestData((set, get) => ({
                 set({ currentChild: meta.spy_currentChild });
             }
         }
-        set({ session, isAuthChecking: false });
+        // When setting a real session, immediately clear all data to prevent
+        // guest/test data from showing before fetchDataFromDB completes
+        if (session) {
+            set({
+                session,
+                isAuthChecking: false,
+                isGuestMode: false,
+                weeklyData: { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] },
+                missionsData: [],
+                funds: [],
+                payments: [],
+                opsData: [],
+                transactionHistory: [],
+                notices: [],
+                dailyTasks: []
+            });
+        } else {
+            set({ session, isAuthChecking: false });
+        }
     },
 
     signIn: async (email, password) => {
