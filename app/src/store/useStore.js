@@ -36,9 +36,9 @@ const INITIAL_DAILY = [
 
 const savedProfiles = (() => {
     try {
-        return JSON.parse(localStorage.getItem('spy_childProfiles')) || { child1: '대상 1', child2: '대상 2', child3: '대상 3' };
+        return JSON.parse(localStorage.getItem('spy_childProfiles')) || { child1: '아이1', child2: '아이2', child3: '아이3' };
     } catch {
-        return { child1: '대상 1', child2: '대상 2', child3: '대상 3' };
+        return { child1: '아이1', child2: '아이2', child3: '아이3' };
     }
 })();
 const savedChildCount = (() => {
