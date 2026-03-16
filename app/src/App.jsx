@@ -6,6 +6,7 @@ import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import Login from './components/Login';
 import InstallPrompt from './components/InstallPrompt';
+import SupportModal from './components/SupportModal';
 import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download, CheckSquare, Coffee } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { supabase } from './lib/supabase';
@@ -28,6 +29,7 @@ function App() {
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -236,7 +238,7 @@ function App() {
             <LogOut size={13} className="ml-0.5" />
           </button>
           <button
-            onClick={() => window.open('https://toss.me/coolspid', '_blank')}
+            onClick={() => setIsSupportModalOpen(true)}
             className="text-white/50 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
             title="후원하기"
           >
@@ -323,6 +325,7 @@ function App() {
       {showInstallPrompt && (
         <InstallPrompt onClose={() => setShowInstallPrompt(false)} />
       )}
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </div>
   );
 }
