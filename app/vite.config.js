@@ -9,7 +9,6 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      id: "com.coolspid.familyscheduler",
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       manifest: false, // We already use public/manifest.json statically

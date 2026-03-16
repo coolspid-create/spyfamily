@@ -82,43 +82,14 @@ function App() {
   const setGuestMode = useStore(state => state.setGuestMode);
 
   useEffect(() => {
-    let isMounted = true;
-    
-    // Safety timeout: ensure loading screen doesn't get stuck longer than 5 seconds
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted) {
-        const { isAuthChecking, setSession } = useStore.getState();
-        if (isAuthChecking) {
-          console.warn('Auth check timed out, forcing loading screen removal');
-          setSession(null); 
-        }
-      }
-    }, 5000);
-
-    const initAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (isMounted) {
-          setSession(session);
-          if (session) {
-            fetchDataFromDB();
-          }
-        }
-      } catch (err) {
-        console.error('Initial auth error:', err);
-        if (isMounted) setSession(null);
-      }
-    };
-
-    initAuth();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchDataFromDB();
+    });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted) return;
-      
       setSession(session);
       if (session && event === 'SIGNED_IN') {
         const { currentChild, syncGuestDataToCloud } = useStore.getState();
@@ -136,11 +107,7 @@ function App() {
       }
     });
 
-    return () => {
-      isMounted = false;
-      clearTimeout(safetyTimeout);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [setSession, fetchDataFromDB]);
 
   if (isAuthChecking) {
