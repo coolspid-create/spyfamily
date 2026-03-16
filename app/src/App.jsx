@@ -227,41 +227,39 @@ function App() {
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-3 right-3 z-[100] flex gap-2 items-center">
-          {/* Support (Donation) Button */}
-          <button
-            onClick={() => window.open('https://toss.me/coolspid', '_blank')}
-            className="w-9 h-9 bg-amber-400 text-navy rounded-full flex items-center justify-center border-2 border-white shadow-md hover:scale-110 active:scale-90 transition-all cursor-pointer relative group"
-            title="커피 한 잔 후원하기"
-          >
-            <Coffee size={18} />
-            <span className="absolute -top-1 -right-1 bg-accent-red text-white text-[8px] px-1.5 rounded-full animate-bounce shadow-sm font-black">♥</span>
-          </button>
-          <button
-            onClick={() => setShowInstallPrompt(true)}
-            className="w-9 h-9 bg-accent-green text-navy rounded-full flex items-center justify-center border-2 border-white shadow-md hover:scale-110 active:scale-90 transition-all cursor-pointer"
-            title="앱 설치"
-          >
-            <Download size={18} />
-          </button>
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
           <button
             onClick={signOut}
-            className="w-9 h-9 bg-white/10 text-white rounded-full flex items-center justify-center border-2 border-white/20 shadow-md hover:bg-white/20 active:scale-90 transition-all cursor-pointer"
+            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
             title="로그아웃"
           >
-            <LogOut size={16} />
+            <LogOut size={13} className="ml-0.5" />
+          </button>
+          <button
+            onClick={() => window.open('https://toss.me/coolspid', '_blank')}
+            className="text-white/50 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
+            title="후원하기"
+          >
+            <Coffee size={13} />
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
+            className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
+            title="바탕화면에 앱 설치하기"
+          >
+            <Download size={13} />
           </button>
         </div>
 
         {/* Header Title Space */}
         <div className="relative pt-2">
-          <h1 className="font-stencil text-[22px] font-black tracking-tighter text-center flex items-center justify-center italic">
-            <span className="tracking-tight">OUR</span>
-            <span className="text-accent-red text-xl mx-2 font-bold font-sans">×</span>
-            <span className="tracking-tight">FAMILY</span>
+          <h1 className="font-sans text-[22px] font-black tracking-tighter text-center flex items-center justify-center">
+            <span className="tracking-tight">가족</span>
+            <span className="text-accent-red text-xl mx-2 font-bold">×</span>
+            <span className="tracking-tight">스케줄러</span>
           </h1>
-          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90 tracking-widest">
-            Connected Family System
+          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
+            우리 가족의 소중한 일정과 자금 관리
           </p>
         </div>
       </header>
