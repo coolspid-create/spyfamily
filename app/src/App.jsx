@@ -229,14 +229,7 @@ function App() {
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5 items-end">
-          <button
-            onClick={signOut}
-            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
-            title="로그아웃"
-          >
-            <LogOut size={13} className="ml-0.5" />
-          </button>
+        <div className="absolute top-3 right-3 z-10 flex flex-row gap-2 items-center">
           <button
             onClick={() => setIsSupportModalOpen(true)}
             className="text-white/50 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
@@ -250,6 +243,13 @@ function App() {
             title="바탕화면에 앱 설치하기"
           >
             <Download size={13} />
+          </button>
+          <button
+            onClick={signOut}
+            className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10 transition-transform active:scale-95"
+            title="로그아웃"
+          >
+            <LogOut size={13} className="ml-0.5" />
           </button>
         </div>
 
