@@ -7,9 +7,9 @@ const SupportModal = ({ isOpen, onClose }) => {
     
     // 이 부분을 실제 계좌 정보로 수정하시면 됩니다!
     const accountInfo = {
-        bank: '카카오뱅크',
-        number: '3333-12-3456789',
-        name: '홍길동'
+        bank: '토스뱅크',
+        number: '100248421943',
+        name: '신동인'
     };
 
     const handleCopy = () => {
