@@ -1,38 +1,44 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { requireSupabase, supabase } from '../lib/supabase';
 const INITIAL_WEEKLY = {
-    '월': [{ title: '로봇 만들기 교실', time: '14:00', agent: '엄마', isUrgent: false, isEarly: false, location: '로봇 센터' }, { title: '가상현실 코딩', time: '16:00', agent: '아빠', isUrgent: true, isEarly: false, location: '미래 학습소' }],
-    '화': [{ title: '우주 과학 탐험', time: '15:30', agent: '아빠', isUrgent: false, isEarly: false, location: '과학관' }],
-    '수': [{ title: '마법 마술 배우기', time: '17:00', agent: '엄마', isUrgent: false, isEarly: false, location: '집' }],
-    '목': [{ title: '창의 미술 시간', time: '14:00', agent: '아빠', isUrgent: false, isEarly: false, location: '상가 체험장' }],
-    '금': [{ title: '디지털 수영 강습', time: '16:00', agent: '엄마', isUrgent: true, isEarly: false, location: '스포츠센터' }],
-    '토': [{ title: '가족 화성 여행 캠프', time: '10:00', agent: '아빠', isUrgent: false, isEarly: false, location: '중앙 공원' }],
-    '일': [{ title: '인공지능 체스 게임', time: '13:00', agent: '엄마', isUrgent: false, isEarly: false, location: '집' }]
+    '월': [],
+    '화': [],
+    '수': [],
+    '목': [],
+    '금': [],
+    '토': [],
+    '일': []
 };
-const INITIAL_MISSIONS = [
-    { id: 'm1', type: 'fund', title: '샘플 활동비', day: 25 },
-    { id: 'm2', type: 'event', year: 2026, month: 5, day: 5, title: '가족 로봇 경진대회' }
-];
+const INITIAL_MISSIONS = [];
 const INITIAL_FUNDS = [
-    { id: 'f1', name: '샘플 수당 (테스트)', balance: 500000, updated: '26.03.01' },
-    { id: 'f2', name: '가상 포인트', balance: 100000, updated: '26.03.05' }
+    { id: 'f1', name: '아동수당', balance: 0, updated: '미설정' },
+    { id: 'f2', name: '지역사랑상품권', balance: 0, updated: '미설정' }
 ];
-const INITIAL_PAYMENTS = [
-    { id: 'p1', source: '샘플 수당 (테스트)', amount: 50000, method: '계좌이체', day: '10일', discount: '', isCompleted: false },
-    { id: 'p2', source: '가상 포인트', amount: 20000, method: '카드', day: '15일', discount: '샘플할인 5%', isCompleted: false },
-    { id: 'p3', source: '샘플 수당 (테스트)', amount: 100000, method: '자동이체', day: '25일', discount: '', isCompleted: true, completedAt: '2026-03-25' }
-];
-const INITIAL_HISTORY = [
-    { id: 'h1', month: '2026-02', date_formatted: '02.10', source: '샘플 수당', amount: 50000, method: '계좌이체' }
-];
-const INITIAL_OPS = [
-    { id: 'o1', title: '가족 로봇 경진대회', date: '2026.05.05', description: '로봇 조립 및 프로그램 세팅 점검', priority: '상', status: 'ONGOING', participants: { mom: true, dad: true }, checklist: [{ id: 'c1', task: '배터리 충전', checked: true }, { id: 'c2', task: '프로그램 최적화', checked: false }] }
-];
-const INITIAL_DAILY = [
-    { id: 'd1', task_name: '미래 도시 건설 레고', is_completed: true, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
-    { id: 'd2', task_name: '수학 매직 연산 1장', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` },
-    { id: 'd3', task_name: '우주선 조립하기', is_completed: false, assigned_date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}` }
-];
+const INITIAL_PAYMENTS = [];
+const INITIAL_HISTORY = [];
+const INITIAL_OPS = [];
+const INITIAL_DAILY = [];
+
+const createScheduleKey = (item) => [
+    item.time || '',
+    (item.title || '').trim(),
+    item.agent || '',
+    item.location || '',
+    item.contactName || '',
+    item.contactPhone || ''
+].join('|');
+
+const createScheduleCopy = (item, id) => ({
+    id,
+    time: item.time,
+    title: item.title,
+    agent: item.agent,
+    location: item.location || '',
+    contactName: item.contactName || '',
+    contactPhone: item.contactPhone || '',
+    isEarly: !!item.isEarly,
+    isUrgent: !!item.isUrgent
+});
 
 const savedProfiles = (() => {
     try {
@@ -56,21 +62,44 @@ const savedCurrentChild = (() => {
     }
 })();
 
+const GUEST_DATA_KEYS = [
+    'weeklyData',
+    'missionsData',
+    'funds',
+    'payments',
+    'opsData',
+    'transactionHistory',
+    'notices',
+    'dailyTasks'
+];
+
+const createGuestDataSnapshot = (state) => GUEST_DATA_KEYS.reduce((snapshot, key) => {
+    snapshot[key] = state[key];
+    return snapshot;
+}, {});
+
+const hasGuestDataChanged = (prevState, nextState) => (
+    !prevState || GUEST_DATA_KEYS.some((key) => prevState[key] !== nextState[key])
+);
+
+const saveGuestDataToLocalStorage = (state) => {
+    try {
+        localStorage.setItem(
+            `spy_guestData_${state.currentChild}`,
+            JSON.stringify(createGuestDataSnapshot(state))
+        );
+    } catch (error) {
+        console.error('Local save failed:', error);
+    }
+};
+
 const persistGuestData = (config) => (set, get, api) => config((args) => {
+    const prevState = get();
     set(args);
-    const state = get();
-    if (!state.session && state.isGuestMode) {
-        const dataToSave = {
-            weeklyData: state.weeklyData,
-            missionsData: state.missionsData,
-            funds: state.funds,
-            payments: state.payments,
-            opsData: state.opsData,
-            transactionHistory: state.transactionHistory,
-            notices: state.notices,
-            dailyTasks: state.dailyTasks
-        };
-        localStorage.setItem(`spy_guestData_${state.currentChild}`, JSON.stringify(dataToSave));
+    const nextState = get();
+
+    if (!nextState.session && nextState.isGuestMode && hasGuestDataChanged(prevState, nextState)) {
+        saveGuestDataToLocalStorage(nextState);
     }
 }, get, api);
 
@@ -93,26 +122,14 @@ export const useStore = create(persistGuestData((set, get) => ({
     // Auth State
     session: null,
     isAuthChecking: true,
-    isGuestMode: false,
+    isGuestMode: true,
 
     setGuestMode: (val) => {
         if (val) {
             set({ isGuestMode: val, isAuthChecking: false });
             get().fetchDataFromDB();
         } else {
-            // Exiting guest mode: clear all guest data to prevent bleed-through
-            set({
-                isGuestMode: val,
-                isAuthChecking: false,
-                weeklyData: { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] },
-                missionsData: [],
-                funds: [],
-                payments: [],
-                opsData: [],
-                transactionHistory: [],
-                notices: [],
-                dailyTasks: []
-            });
+            set({ isGuestMode: val, isAuthChecking: false });
         }
     },
 
@@ -157,7 +174,7 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
     syncProfilesToCloud: async () => {
         const { childCount, childProfiles, currentChild, session } = get();
-        if (session) {
+        if (session && supabase) {
             await supabase.auth.updateUser({
                 data: {
                     spy_childCount: childCount,
@@ -192,45 +209,56 @@ export const useStore = create(persistGuestData((set, get) => ({
                 session,
                 isAuthChecking: false,
                 isGuestMode: false,
-                weeklyData: { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] },
-                missionsData: [],
-                funds: [],
-                payments: [],
-                opsData: [],
-                transactionHistory: [],
+                weeklyData: INITIAL_WEEKLY,
+                missionsData: INITIAL_MISSIONS,
+                funds: INITIAL_FUNDS,
+                payments: INITIAL_PAYMENTS,
+                opsData: INITIAL_OPS,
+                transactionHistory: INITIAL_HISTORY,
                 notices: [],
-                dailyTasks: []
+                dailyTasks: INITIAL_DAILY
             });
         } else {
-            set({ session, isAuthChecking: false });
+            set({ session, isAuthChecking: false, isGuestMode: true });
         }
     },
 
     signIn: async (email, password) => {
         set({ isLoading: true });
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
-        set({ isLoading: false });
-        if (error) throw error;
-        return data;
+        try {
+            const client = requireSupabase();
+            const { data, error } = await client.auth.signInWithPassword({
+                email,
+                password,
+            });
+            if (error) throw error;
+            return data;
+        } finally {
+            set({ isLoading: false });
+        }
     },
 
     signUp: async (email, password) => {
         set({ isLoading: true });
-        const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-        });
-        set({ isLoading: false });
-        if (error) throw error;
-        return data;
+        try {
+            const client = requireSupabase();
+            const { data, error } = await client.auth.signUp({
+                email,
+                password,
+            });
+            if (error) throw error;
+            return data;
+        } finally {
+            set({ isLoading: false });
+        }
     },
 
     signOut: async () => {
-        await supabase.auth.signOut();
-        set({ session: null });
+        if (supabase) {
+            await supabase.auth.signOut();
+        }
+        set({ session: null, isGuestMode: true });
+        await get().fetchDataFromDB();
     },
 
     // 1. Weekly Data Actions
@@ -238,6 +266,91 @@ export const useStore = create(persistGuestData((set, get) => ({
         set((state) => ({
             weeklyData: { ...state.weeklyData, [day]: newSchedule }
         }));
+    },
+    copyScheduleToDays: async (sourceDay, targetDays) => {
+        const { currentChild, weeklyData, session, isGuestMode } = get();
+        const sourceSchedule = weeklyData[sourceDay] || [];
+        const uniqueTargetDays = [...new Set(targetDays)]
+            .filter(day => day !== sourceDay && Array.isArray(weeklyData[day]));
+
+        if (sourceSchedule.length === 0 || uniqueTargetDays.length === 0) {
+            return { added: 0, skipped: 0 };
+        }
+
+        if (!session && isGuestMode) {
+            let added = 0;
+            let skipped = 0;
+            const nextWeekly = { ...weeklyData };
+            const batchId = Date.now();
+
+            uniqueTargetDays.forEach((day) => {
+                const targetSchedule = [...(nextWeekly[day] || [])];
+                const existingKeys = new Set(targetSchedule.map(createScheduleKey));
+
+                sourceSchedule.forEach((item, index) => {
+                    const key = createScheduleKey(item);
+                    if (existingKeys.has(key)) {
+                        skipped += 1;
+                        return;
+                    }
+
+                    existingKeys.add(key);
+                    targetSchedule.push(createScheduleCopy(item, `g_${batchId}_${day}_${index}_${added}`));
+                    added += 1;
+                });
+
+                nextWeekly[day] = targetSchedule.sort((a, b) => a.time.localeCompare(b.time));
+            });
+
+            if (added > 0) {
+                set({ weeklyData: nextWeekly });
+            }
+
+            return { added, skipped };
+        }
+
+        const inserts = [];
+        let skipped = 0;
+
+        uniqueTargetDays.forEach((day) => {
+            const existingKeys = new Set((weeklyData[day] || []).map(createScheduleKey));
+
+            sourceSchedule.forEach((item) => {
+                const key = createScheduleKey(item);
+                if (existingKeys.has(key)) {
+                    skipped += 1;
+                    return;
+                }
+
+                existingKeys.add(key);
+                inserts.push({
+                    title: item.title,
+                    day_of_week: day,
+                    start_time: item.time + ':00',
+                    pickup_agent: item.agent,
+                    drop_agent: item.agent,
+                    location: item.location || '',
+                    contact_name: item.contactName || '',
+                    contact_phone: item.contactPhone || '',
+                    is_urgent: item.isUrgent || false,
+                    is_early: item.isEarly || false,
+                    child_id: currentChild
+                });
+            });
+        });
+
+        if (inserts.length === 0) {
+            return { added: 0, skipped };
+        }
+
+        const { error } = await supabase.from('schedule').insert(inserts);
+        if (error) {
+            alert('일정 복사 실패: ' + error.message);
+            return { added: 0, skipped };
+        }
+
+        await get().fetchDataFromDB();
+        return { added: inserts.length, skipped };
     },
     addSchedule: async (day, item) => {
         const { currentChild, session, isGuestMode } = get();
@@ -1043,7 +1156,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             const notices = guestData.notices.map(n => ({ text: n.text, is_checked: n.checked }));
             if (notices.length > 0) await supabase.from('notice').insert(notices);
 
-            localStorage.removeItem(`spy_guestData_${currentChild}`);
+            localStorage.setItem(`spy_guestDataLastSynced_${currentChild}`, guestDataStr);
             set({ isGuestMode: false });
             await get().fetchDataFromDB();
         } catch (e) {
@@ -1055,8 +1168,8 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
 
     fetchDataFromDB: async () => {
-        const { session, currentChild, isGuestMode } = get();
-        if (!session && isGuestMode) {
+        const { session, currentChild } = get();
+        if (!session) {
             const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
             if (guestDataStr) {
                 try {
@@ -1217,7 +1330,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             // Fetch Schedule
             const { data: scheduleData } = await supabase.from('schedule').select('*').eq('child_id', currentChild).order('start_time', { ascending: true });
             if (scheduleData) {
-                const newWeekly = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [] };
+                const newWeekly = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': [] };
                 scheduleData.forEach(s => {
                     if (newWeekly[s.day_of_week]) {
                         newWeekly[s.day_of_week].push({
@@ -1259,7 +1372,6 @@ export const useStore = create(persistGuestData((set, get) => ({
 
             if (dailyError) {
                 // If the table doesn't exist yet, simply ignore to prevent app crashing before migration runs
-                console.log('DailyTasks fetch warning:', dailyError.message);
             } else if (dailyData) {
                 set({ dailyTasks: dailyData });
             }

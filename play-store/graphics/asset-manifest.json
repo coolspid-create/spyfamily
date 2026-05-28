@@ -1,0 +1,47 @@
+﻿{
+    "generatedAt":  "2026-05-01T13:40:08.4564517Z",
+    "outputs":  [
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\app-icon-512.png",
+                        "width":  512,
+                        "height":  512,
+                        "bytes":  14499
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\feature-graphic-1024x500.jpg",
+                        "width":  1024,
+                        "height":  500,
+                        "bytes":  117637
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\screenshots\\01-weekly-schedule.jpg",
+                        "width":  1080,
+                        "height":  1920,
+                        "bytes":  228046
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\screenshots\\02-daily-tasks.jpg",
+                        "width":  1080,
+                        "height":  1920,
+                        "bytes":  220492
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\screenshots\\03-monthly-calendar.jpg",
+                        "width":  1080,
+                        "height":  1920,
+                        "bytes":  206434
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\screenshots\\04-payments.jpg",
+                        "width":  1080,
+                        "height":  1920,
+                        "bytes":  258174
+                    },
+                    {
+                        "file":  "C:\\Users\\user\\.antigravity\\FamilyScheduler\\play-store\\graphics\\screenshots\\05-family-events.jpg",
+                        "width":  1080,
+                        "height":  1920,
+                        "bytes":  220516
+                    }
+                ]
+}

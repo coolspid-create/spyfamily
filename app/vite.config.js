@@ -3,9 +3,28 @@ import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const mainOnlyRoutes = () => ({
+  name: 'main-only-routes',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const pathname = req.url?.split(/[?#]/)[0];
+
+      if (pathname === '/memory-mvp.html' || pathname === '/custom-memory') {
+        res.statusCode = 404;
+        res.end('MVP is served separately at http://127.0.0.1:5174/memory-mvp.html');
+        return;
+      }
+
+      next();
+    });
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig({
+  appType: 'mpa',
   plugins: [
+    mainOnlyRoutes(),
     react(),
     tailwindcss(),
     VitePWA({
@@ -21,4 +40,23 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('react') || id.includes('scheduler')) return 'vendor-react'
+          if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) return 'vendor-motion'
+          if (id.includes('@supabase')) return 'vendor-supabase'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          return 'vendor'
+        },
+      },
+    },
+  },
+  server: {
+    host: '127.0.0.1',
+    port: 5175,
+    strictPort: true,
+  },
 })

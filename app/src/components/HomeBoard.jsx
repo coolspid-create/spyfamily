@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, Baby, Car, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket, Phone } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { User, Baby, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket, Phone, Copy, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -12,10 +12,39 @@ const getAgentIcon = (agent) => {
     return <User className="w-4 h-4 text-gray-500 border border-gray-400 rounded-full p-[1px]" />;
 };
 
+const getTimeValue = (time) => {
+    const [hour, minute] = time.split(':').map(Number);
+    return (hour * 60) + minute;
+};
+
+const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+const CALENDAR_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
+const PAST_ITEM_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 0.5, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
+const STAMP_OUTER_POINTS = Array.from({ length: 80 })
+    .map((_, i) => `${130 + (i % 2 === 0 ? 122 : 112) * Math.cos(i * 4.5 * Math.PI / 180)},${130 + (i % 2 === 0 ? 122 : 112) * Math.sin(i * 4.5 * Math.PI / 180)}`)
+    .join(' ');
+
+const getDateStampKey = (prefix, date) => (
+    `${prefix}_${date.getFullYear()}_${date.getMonth()}_${date.getDate()}`
+);
+
 export default function HomeBoard() {
     // Zustand Store
     const weeklyData = useStore(state => state.weeklyData);
     const addSchedule = useStore(state => state.addSchedule);
+    const copyScheduleToDays = useStore(state => state.copyScheduleToDays);
     const updateScheduleItem = useStore(state => state.updateScheduleItem);
     const removeScheduleItem = useStore(state => state.removeScheduleItem);
     const notices = useStore(state => state.notices);
@@ -24,8 +53,8 @@ export default function HomeBoard() {
     const removeNotice = useStore(state => state.removeNotice);
 
     // Local UI State
-    const todayStr = ['일', '월', '화', '수', '목', '금', '토'][new Date().getDay()];
-    const [selectedDay, setSelectedDay] = useState(todayStr === '일' ? '월' : todayStr);
+    const todayStr = useMemo(() => CALENDAR_DAYS[new Date().getDay()], []);
+    const [selectedDay, setSelectedDay] = useState(todayStr);
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState(null);
     const [newNotice, setNewNotice] = useState('');
@@ -35,10 +64,14 @@ export default function HomeBoard() {
     const [isCustomAgentAdd, setIsCustomAgentAdd] = useState(false);
     const [isCustomAgentEdit, setIsCustomAgentEdit] = useState(false);
     const [activeContactPopup, setActiveContactPopup] = useState(null);
+    const [showCopyPanel, setShowCopyPanel] = useState(false);
+    const [copyTargets, setCopyTargets] = useState([]);
+    const [copyMessage, setCopyMessage] = useState('');
 
     const presetAgents = ['엄마', '아빠', '태권도', '학교', '자율'];
 
     const schedule = weeklyData[selectedDay] || [];
+    const copyTargetDays = useMemo(() => WEEK_DAYS.filter(day => day !== selectedDay), [selectedDay]);
 
     const startEdit = (item) => {
         setEditingId(item.id);
@@ -74,52 +107,82 @@ export default function HomeBoard() {
         }
     };
 
-    // Calculate Past vs Active/Future
+    const resetCopyPanel = () => {
+        setShowCopyPanel(false);
+        setCopyTargets([]);
+        setCopyMessage('');
+    };
+
+    const handleSelectDay = (day) => {
+        setSelectedDay(day);
+        setShowPast(false);
+        setShowAddForm(false);
+        setEditingId(null);
+        setActiveContactPopup(null);
+        resetCopyPanel();
+    };
+
+    const toggleCopyTarget = (day) => {
+        setCopyMessage('');
+        setCopyTargets(prev => (
+            prev.includes(day)
+                ? prev.filter(target => target !== day)
+                : [...prev, day]
+        ));
+    };
+
+    const selectWeekdayTargets = () => {
+        setCopyMessage('');
+        setCopyTargets(['월', '화', '수', '목', '금'].filter(day => day !== selectedDay));
+    };
+
+    const handleCopySchedule = async () => {
+        if (copyTargets.length === 0 || schedule.length === 0) return;
+
+        const result = await copyScheduleToDays(selectedDay, copyTargets);
+        if (result.added > 0) {
+            setCopyMessage(`${selectedDay}요일 일정 ${result.added}개를 복사했습니다.`);
+        } else {
+            setCopyMessage('이미 같은 일정이 있어서 추가하지 않았습니다.');
+        }
+        setCopyTargets([]);
+    };
+
+    // Only today's schedule can be treated as completed by the clock.
     const now = new Date();
-    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const currentTimeValue = (now.getHours() * 60) + now.getMinutes();
     const isCurrentDay = selectedDay === todayStr;
-
-    const dOrder = { '월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6 };
-    let isPastDay = false;
-
-    if (dOrder[selectedDay] < dOrder[todayStr]) {
-        isPastDay = true;
-    } else if (todayStr === '일' && selectedDay !== '일') {
-        // 일요일에 다른 요일(월~토)을 보면 지난 주이므로 과거
-        isPastDay = true;
-    }
 
     let activeIndex = 0;
     let isAllCompleted = false;
 
-    if (schedule.length > 0) {
-        if (isCurrentDay) {
-            const lastItem = schedule[schedule.length - 1];
-            const [lastHour, lastMin] = lastItem.time.split(':').map(Number);
-            const lastTimeValue = lastHour * 60 + lastMin;
-            const [currHour, currMin] = currentTimeStr.split(':').map(Number);
-            const currTimeValue = currHour * 60 + currMin;
+    if (schedule.length > 0 && isCurrentDay) {
+        for (let i = 0; i < schedule.length; i++) {
+            const startValue = getTimeValue(schedule[i].time);
+            const nextItem = schedule[i + 1];
+            const endValue = nextItem ? getTimeValue(nextItem.time) : startValue + 10;
 
-            // 마감 판정: 마지막 일정 시간으로부터 30분이 지나면 당일 모든 일정 완료로 간주
-            if (currTimeValue >= lastTimeValue + 30) {
-                activeIndex = schedule.length;
-                isAllCompleted = true;
+            if (currentTimeValue >= endValue) {
+                activeIndex = i + 1;
             } else {
-                for (let i = schedule.length - 1; i >= 0; i--) {
-                    if (schedule[i].time <= currentTimeStr) {
-                        activeIndex = i;
-                        break;
-                    }
-                }
+                break;
             }
         }
+
+        isAllCompleted = activeIndex >= schedule.length;
+    }
+
+    // Past and future weekdays should always show the full list.
+    if (!isCurrentDay) {
+        activeIndex = 0;
+        isAllCompleted = false;
     }
 
     const pastSchedule = schedule.slice(0, activeIndex);
     const activeAndFutureSchedule = schedule.slice(activeIndex);
 
-    // 도장 애니메이션은 하루에 날짜별로 한 번만 작동하도록
-    const animationCacheKey = `stampAnimatedDate_${now.getFullYear()}_${now.getMonth()}_${now.getDate()}_${selectedDay}`;
+    // 도장 애니메이션은 하루에 한 번만 쾅 찍히도록
+    const animationCacheKey = getDateStampKey('scheduleStampAnimatedDate', now);
     const hasAnimated = localStorage.getItem(animationCacheKey) === 'true';
     const onStampAnimationComplete = () => {
         if (!hasAnimated) {
@@ -128,25 +191,19 @@ export default function HomeBoard() {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-        >
+        <div className="space-y-4">
             {/* Top Fixed Notice Checklist */}
-            <div className="bg-white border-2 border-navy p-3 rounded-md shadow-sm">
-                <h3 className="font-stencil text-lg border-b-2 border-navy mb-2 flex items-center gap-2">
-                    <CheckSquare size={18} /> 가족 알림장
+            <div className="bg-white border-2 border-navy p-2.5 rounded-md shadow-sm">
+                <h3 className="font-stencil text-base border-b-2 border-navy mb-1.5 flex items-center gap-2">
+                    <CheckSquare size={17} /> 가족 알림장
                 </h3>
                 <ul className="space-y-2 text-sm font-bold opacity-80 mb-3">
                     <AnimatePresence>
                         {notices.map(notice => (
                             <motion.li
                                 key={notice.id}
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="flex items-center justify-between group overflow-hidden"
+                                {...TAB_LIKE_MOTION}
+                                className="flex items-center justify-between group"
                             >
                                 <label className="flex items-center gap-2 cursor-pointer flex-1 py-1">
                                     <input
@@ -164,42 +221,125 @@ export default function HomeBoard() {
                         ))}
                     </AnimatePresence>
                 </ul>
-                <div className="flex items-center gap-2 border-t border-navy/10 pt-2 mt-1">
+                <div className="flex min-w-0 items-center gap-2 border-t border-navy/10 pt-2 mt-1">
                     <input
                         type="text"
                         value={newNotice}
                         onChange={(e) => setNewNotice(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddNotice()}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddNotice()}
                         placeholder="새로운 알림이나 메모 남기기..."
-                        className="flex-1 border-b-2 border-navy/30 bg-transparent px-1 text-sm outline-none focus:border-navy"
+                        className="min-w-0 flex-1 border-b-2 border-navy/30 bg-transparent px-1 text-sm outline-none focus:border-navy"
                     />
-                    <button onClick={handleAddNotice} className="text-navy hover:text-accent-red transition-colors">
-                        <Plus size={18} />
+                    <button
+                        type="button"
+                        onClick={handleAddNotice}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-navy transition-colors hover:bg-navy/5 hover:text-accent-red"
+                        aria-label="알림 추가"
+                    >
+                        <Plus size={16} />
                     </button>
                 </div>
             </div>
 
             {/* Title & Day Selector */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
-                    <Clock size={24} className="text-navy" />
-                    <h2 className="font-stencil text-xl flex-1 text-navy">오늘의 일정표</h2>
+            <div className="space-y-3">
+                <div className="flex items-center gap-2.5 border-b-2 border-navy pb-1.5">
+                    <Clock size={21} className="text-navy" />
+                    <h2 className="font-stencil text-lg flex-1 text-navy">오늘의 일정표</h2>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowCopyPanel(prev => !prev);
+                            setCopyMessage('');
+                            setCopyTargets([]);
+                        }}
+                        disabled={schedule.length === 0}
+                        className="flex h-7 shrink-0 items-center justify-center gap-1 rounded border border-navy/30 bg-white px-2 text-xs font-bold text-navy transition-colors hover:bg-navy hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-navy"
+                        aria-label={`${selectedDay}요일 일정 복사`}
+                    >
+                        <Copy size={14} />
+                        <span>복사</span>
+                    </button>
                 </div>
-                <div className="flex justify-between items-center bg-navy p-1 rounded-md shadow-sm">
-                    {['월', '화', '수', '목', '금', '토'].map(d => (
+                <div className="flex justify-between items-center bg-navy p-1.5 rounded-md shadow-sm">
+                    {WEEK_DAYS.map(d => (
                         <button
                             key={d}
-                            onClick={() => setSelectedDay(d)}
+                            onClick={() => handleSelectDay(d)}
                             className={`flex-1 py-1 text-center font-bold text-sm rounded transition-colors ${selectedDay === d ? 'bg-background text-navy shadow-sm' : 'text-background hover:bg-white/20'}`}
                         >
                             {d}
                         </button>
                     ))}
                 </div>
+                <AnimatePresence>
+                    {showCopyPanel && (
+                        <motion.div
+                            {...TAB_LIKE_MOTION}
+                            className="overflow-hidden"
+                        >
+                            <div className="rounded-md border-2 border-navy bg-white p-3 shadow-sm">
+                                <div className="mb-3 flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-navy">{selectedDay}요일 일정 복사</p>
+                                        <p className="mt-1 text-xs font-bold leading-relaxed text-navy/60">
+                                            선택한 요일에 추가하고, 같은 일정은 자동으로 건너뜁니다.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={resetCopyPanel}
+                                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-navy/50 hover:bg-navy/5 hover:text-navy"
+                                        aria-label="복사 메뉴 닫기"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {copyTargetDays.map(day => {
+                                        const selected = copyTargets.includes(day);
+                                        return (
+                                            <button
+                                                key={day}
+                                                type="button"
+                                                onClick={() => toggleCopyTarget(day)}
+                                                className={`rounded border px-2 py-2 text-sm font-bold transition-colors ${selected ? 'border-navy bg-navy text-white' : 'border-navy/20 bg-background text-navy hover:border-navy'}`}
+                                            >
+                                                {day}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-3 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={selectWeekdayTargets}
+                                        className="flex-1 rounded border border-navy/20 bg-white px-3 py-2 text-xs font-bold text-navy hover:bg-navy/5"
+                                    >
+                                        평일 선택
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopySchedule}
+                                        disabled={copyTargets.length === 0}
+                                        className="flex-1 rounded bg-navy px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        복사하기
+                                    </button>
+                                </div>
+                                {copyMessage && (
+                                    <p className="mt-3 rounded bg-navy/5 px-3 py-2 text-xs font-bold text-navy">
+                                        {copyMessage}
+                                    </p>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Daily Schedule Timeline */}
-            <div className={`relative border-l-2 border-navy/30 ml-4 space-y-6 pt-2 ${isAllCompleted ? 'min-h-[250px]' : ''}`}>
+            <div className={`relative border-l-2 border-navy/30 ml-4 space-y-4 pt-1.5 ${isAllCompleted ? 'min-h-[196px]' : ''}`}>
 
                 {/* Past Missions Toggle */}
                 {pastSchedule.length > 0 && (
@@ -218,13 +358,20 @@ export default function HomeBoard() {
                 <AnimatePresence>
                     {isAllCompleted && isCurrentDay && !showPast && (
                         <motion.div
-                            initial={hasAnimated ? { scale: 1, opacity: 0.95 } : { scale: 3, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 0.95 }}
-                            transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.1 }}
+                            initial={hasAnimated ? false : { scale: 3.6, opacity: 0, y: -70 }}
+                            animate={hasAnimated
+                                ? { scale: 1, opacity: 0.95, y: 0 }
+                                : { scale: [3.6, 0.82, 1.08, 1], opacity: [0, 1, 1, 0.95], y: [-70, 8, -3, 0] }
+                            }
+                            transition={hasAnimated
+                                ? { duration: 0 }
+                                : { duration: 0.46, times: [0, 0.58, 0.78, 1], ease: 'easeOut', delay: 0.05 }
+                            }
                             onAnimationComplete={onStampAnimationComplete}
-                            className="absolute inset-x-0 top-16 -ml-4 flex justify-center items-center z-30 pointer-events-none mix-blend-multiply"
+                            style={{ transformOrigin: 'center center', willChange: 'transform, opacity' }}
+                            className="absolute inset-x-0 top-12 -ml-4 flex justify-center items-center z-30 pointer-events-none mix-blend-multiply"
                         >
-                            <svg width="250" height="250" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+                            <svg width="165" height="165" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
                                 <defs>
                                     <mask id="scratches">
                                         <rect width="100%" height="100%" fill="white" />
@@ -240,9 +387,9 @@ export default function HomeBoard() {
                                     <path id="curveTop" d="M 63.5,130 A 66.5,66.5 0 0,1 196.5,130" fill="transparent" />
                                     <path id="curveBottom" d="M 43.5,130 A 86.5,86.5 0 0,0 216.5,130" fill="transparent" />
                                 </defs>
-                                <g transform="rotate(-28, 130, 130)" mask="url(#scratches)">
+                                <g mask="url(#scratches)">
                                     {/* Scalloped Red Outer Border */}
-                                    <polygon points={Array.from({ length: 80 }).map((_, i) => `${130 + (i % 2 === 0 ? 122 : 112) * Math.cos(i * 4.5 * Math.PI / 180)},${130 + (i % 2 === 0 ? 122 : 112) * Math.sin(i * 4.5 * Math.PI / 180)}`).join(' ')} fill="#c21a1a" />
+                                    <polygon points={STAMP_OUTER_POINTS} fill="#c21a1a" />
 
                                     {/* Inner White Plate */}
                                     <circle cx="130" cy="130" r="102" fill="white" />
@@ -287,14 +434,12 @@ export default function HomeBoard() {
                     )}
                 </AnimatePresence>
 
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                     {showPast && pastSchedule.map((item) => (
                         <motion.div
                             key={item.id}
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 0.5 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="relative pl-6 grayscale overflow-hidden"
+                            {...PAST_ITEM_MOTION}
+                            className="relative pl-6 grayscale"
                         >
                             <div className="py-2">
                                 {/* Timeline Dot */}
@@ -359,7 +504,7 @@ export default function HomeBoard() {
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="장소" />
                                                 </div>
                                                 <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
-                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">상호/이름</span>
+                                                    <span className="text-xs font-bold w-12 text-gray-500 shrink-0">이름</span>
                                                     <input type="text" value={editForm.contactName || ''} onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent text-gray-800" placeholder="예) 학원 선생님" />
                                                 </div>
                                                 <div className="flex items-center gap-2 border-b border-gray-300 pb-1">
@@ -375,7 +520,7 @@ export default function HomeBoard() {
                                         <>
                                             <div className="flex justify-between items-start w-full gap-2">
                                                 <div className="flex flex-col gap-2 min-w-0 flex-1">
-                                                    <h3 className="font-bold text-gray-600 line-through truncate">{item.title}</h3>
+                                                    <h3 className="font-bold text-gray-600 truncate">{item.title}</h3>
                                                     {item.location && (
                                                         <p className="text-sm text-gray-400 flex items-center gap-1 truncate w-full">
                                                             <MapPin size={14} className="shrink-0" /> <span className="truncate">{item.location}</span>
@@ -428,16 +573,18 @@ export default function HomeBoard() {
                     ))}
                 </AnimatePresence>
 
-                <AnimatePresence>
+                <AnimatePresence initial={false} mode="popLayout">
                     {activeAndFutureSchedule.map((item, index) => {
-                        const isCurrentActive = isCurrentDay && index === 0 && item.time <= currentTimeStr;
+                        const originalIndex = activeIndex + index;
+                        const itemStartValue = getTimeValue(item.time);
+                        const nextItem = schedule[originalIndex + 1];
+                        const itemEndValue = nextItem ? getTimeValue(nextItem.time) : itemStartValue + 10;
+                        const isCurrentActive = isCurrentDay && index === 0 && currentTimeValue >= itemStartValue && currentTimeValue < itemEndValue;
 
                         return (
                             <motion.div
                                 key={item.id}
-                                initial={{ x: -20, opacity: 0 }}
-                                animate={{ x: 0, opacity: 1 }}
-                                transition={{ delay: index * 0.05 }}
+                                {...TAB_LIKE_MOTION}
                                 className="relative pl-6"
                             >
                                 {/* Timeline Dot */}
@@ -505,7 +652,7 @@ export default function HomeBoard() {
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="장소" />
                                                 </div>
                                                 <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
-                                                    <span className="text-xs font-bold w-12 text-navy/70 shrink-0">상호/이름</span>
+                                                    <span className="text-xs font-bold w-12 text-navy/70 shrink-0">이름</span>
                                                     <input type="text" value={editForm.contactName || ''} onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="예) 학원 선생님" />
                                                 </div>
                                                 <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
@@ -580,10 +727,8 @@ export default function HomeBoard() {
                 <AnimatePresence>
                     {showAddForm && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="relative pl-6 overflow-hidden mt-4"
+                            {...TAB_LIKE_MOTION}
+                            className={`relative pl-6 overflow-hidden ${isAllCompleted ? 'mt-0' : 'mt-4'}`}
                         >
                             <div className="bg-white border-2 border-dashed border-navy/50 p-3 rounded shadow-sm relative">
                                 <h3 className="font-bold text-navy mb-3 flex items-center gap-1"><Plus size={16} /> 새 일정 추가</h3>
@@ -634,7 +779,7 @@ export default function HomeBoard() {
                                         <input type="text" value={newSchedule.location} onChange={(e) => setNewSchedule({ ...newSchedule, location: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="장소 입력 (선택)" />
                                     </div>
                                     <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
-                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">상호/이름</span>
+                                        <span className="text-xs font-bold w-12 text-navy/70 shrink-0">이름</span>
                                         <input type="text" value={newSchedule.contactName || ''} onChange={(e) => setNewSchedule({ ...newSchedule, contactName: e.target.value })} className="w-full font-bold outline-none bg-transparent" placeholder="예) 학원 원장님 (선택)" />
                                     </div>
                                     <div className="flex items-center gap-2 border-b border-navy/30 pb-1">
@@ -656,12 +801,14 @@ export default function HomeBoard() {
                 </AnimatePresence>
 
                 {!showAddForm && (
-                    <div className="relative pl-6 mt-4">
+                    <div className={`relative pl-6 ${isAllCompleted ? 'mt-0' : 'mt-3'}`}>
                         <button
                             onClick={() => setShowAddForm(true)}
-                            className="w-full bg-transparent border-2 border-dashed border-navy/30 text-navy/60 font-bold text-sm py-3 rounded-md flex items-center justify-center gap-2 hover:bg-navy hover:text-white hover:border-navy transition-colors"
+                            className="w-full bg-transparent border-2 border-dashed border-navy/30 text-navy/60 font-bold text-sm py-2.5 rounded-md flex items-center justify-center gap-2 hover:bg-navy hover:text-white hover:border-navy transition-colors"
                         >
-                            <Plus size={18} /> 새 일정 추가
+                            <span data-tour="add-schedule" className="inline-flex items-center justify-center gap-2">
+                                <Plus size={16} /> 새 일정 추가
+                            </span>
                         </button>
                     </div>
                 )}
@@ -675,6 +822,6 @@ export default function HomeBoard() {
             >
                 <ShieldAlert size={24} />
             </motion.button>
-        </motion.div>
+        </div>
     );
 }

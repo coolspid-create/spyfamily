@@ -10,11 +10,48 @@
 }
 
 @layer base {
+  html {
+    height: 100%;
+    font-size: 15px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+  }
+
   body {
+    height: 100%;
     background-color: var(--color-background);
     color: var(--color-navy);
     font-family: var(--font-sans);
     background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png');
+    overflow-x: hidden;
+    overflow-y: hidden;
+  }
+
+  #root {
+    height: 100%;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .app-shell {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .app-scroll-area {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .app-shell::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .app-scroll-area::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 }
 
@@ -32,4 +69,58 @@
   display: inline-block;
   opacity: 0.8;
   text-transform: uppercase;
+}
+
+@keyframes tour-pulse {
+  0% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+
+@layer utilities {
+  .tour-pulse-ring {
+    animation: tour-pulse 1.8s ease-out infinite;
+  }
+
+  .tour-pulse-ring-delayed {
+    animation-delay: 0.45s;
+  }
+
+  .pb-safe {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

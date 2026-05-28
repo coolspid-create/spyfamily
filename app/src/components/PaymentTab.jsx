@@ -1,9 +1,38 @@
-import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, Settings, RotateCcw, History, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, Settings, RotateCcw, History, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
+const getDateStampKey = (prefix, date) => (
+    `${prefix}_${date.getFullYear()}_${date.getMonth()}_${date.getDate()}`
+);
+
+const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
+
+const PAYMENT_CARD_TRANSITION = TAB_LIKE_TRANSITION;
+
+const PAYMENT_STAMP_BANG_TRANSITION = {
+    duration: 0.34,
+    times: [0, 0.62, 1],
+    ease: 'easeOut'
+};
+
 export default function PaymentTab() {
+    const paymentStampAnimationKey = getDateStampKey('paymentStampAnimatedDate', new Date());
+    const [paymentStampAnimatedToday, setPaymentStampAnimatedToday] = useState(() => {
+        try {
+            return localStorage.getItem(paymentStampAnimationKey) === 'true';
+        } catch {
+            return false;
+        }
+    });
+
     // Zustand
     const funds = useStore(state => state.funds);
     const payments = useStore(state => state.payments);
@@ -54,6 +83,11 @@ export default function PaymentTab() {
         }
     };
 
+    const toggleAddPaymentForm = () => {
+        setEditingPaymentId(null);
+        setShowAddForm(prev => !prev);
+    };
+
     const handleAddPayment = () => {
         if (!newPaymentForm.source || newPaymentForm.amount <= 0) return;
         addPayment({
@@ -101,24 +135,39 @@ export default function PaymentTab() {
         }
     };
 
-    const methodTotals = payments.reduce((acc, p) => {
+    const toggleAddHistoryForm = () => {
+        setEditingHistoryId(null);
+        setShowAddHistoryForm(prev => !prev);
+    };
+
+    const markPaymentStampAnimated = () => {
+        if (paymentStampAnimatedToday) return;
+        try {
+            localStorage.setItem(paymentStampAnimationKey, 'true');
+        } catch {
+            // Local storage can be unavailable in restricted browser modes.
+        }
+        setPaymentStampAnimatedToday(true);
+    };
+
+    const methodTotals = useMemo(() => payments.reduce((acc, p) => {
         const method = p.method;
         acc[method] = (acc[method] || 0) + p.amount;
         acc.TOTAL = (acc.TOTAL || 0) + p.amount;
         return acc;
-    }, { TOTAL: 0 });
+    }, { TOTAL: 0 }), [payments]);
 
-    const sortedPayments = [...payments].sort((a, b) => {
+    const sortedPayments = useMemo(() => [...payments].sort((a, b) => {
         if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
         return a.day.localeCompare(b.day);
-    });
+    }), [payments]);
 
-    const historyByMonth = transactionHistory.reduce((acc, curr) => {
+    const historyByMonth = useMemo(() => transactionHistory.reduce((acc, curr) => {
         if (!acc[curr.month]) acc[curr.month] = [];
         acc[curr.month].push(curr);
         return acc;
-    }, {});
-    const sortedMonths = Object.keys(historyByMonth).sort((a, b) => b.localeCompare(a));
+    }, {}), [transactionHistory]);
+    const sortedMonths = useMemo(() => Object.keys(historyByMonth).sort((a, b) => b.localeCompare(a)), [historyByMonth]);
 
     const calculateDDay = (targetDayStr) => {
         const targetDay = parseInt(String(targetDayStr).replace(/[^0-9]/g, ''), 10);
@@ -144,11 +193,7 @@ export default function PaymentTab() {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-6"
-        >
+        <div className="space-y-6 overflow-x-hidden">
             {/* Estimated Funds Summary */}
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <CreditCard size={24} className="text-navy" />
@@ -156,7 +201,7 @@ export default function PaymentTab() {
             </div>
 
             <div className="bg-navy text-white rounded shadow-sm p-3 border-2 border-navy relative overflow-hidden">
-                <div className="absolute -right-10 -top-10 opacity-10 pointer-events-none">
+                <div className="absolute right-2 top-2 opacity-10 pointer-events-none">
                     <CheckCircle2 size={120} />
                 </div>
                 <h3 className="font-bold mb-2 border-b border-white/20 pb-1 flex items-center gap-2 relative z-10">
@@ -217,38 +262,37 @@ export default function PaymentTab() {
                             </div>
                         )}
 
-                        <div className="absolute right-[-10px] top-[-10px] bg-accent-green/10 w-16 h-16 rounded-full blur-xl pointer-events-none z-0"></div>
+                        <div className="absolute right-0 top-0 bg-accent-green/10 w-16 h-16 rounded-full blur-xl pointer-events-none z-0"></div>
                     </div>
                 ))}
             </div>
 
             {/* Required Transactions */}
-            < div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2" >
+            <div className="flex justify-between items-end mt-8 border-b-2 border-navy pb-2">
                 <div className="flex items-center gap-3">
                     <CheckCircle2 size={24} className="text-navy" />
                     <h2 className="font-stencil text-xl flex-1 text-navy">결제 예정 내역</h2>
                 </div>
                 <button
-                    onClick={() => setShowAddForm(true)}
-                    className="bg-navy text-white p-1 rounded hover:bg-navy/80 transition-colors"
+                    onClick={toggleAddPaymentForm}
+                    aria-label={showAddForm ? '결제 예정 내역 추가 닫기' : '결제 예정 내역 추가'}
+                    title={showAddForm ? '닫기' : '결제 예정 내역 추가'}
+                    className={`${showAddForm ? 'bg-accent-red' : 'bg-navy'} text-white p-1 rounded transition-colors hover:opacity-85`}
                 >
-                    <Plus size={16} />
+                    {showAddForm ? <X size={16} /> : <Plus size={16} />}
                 </button>
             </div>
 
             <div className="space-y-4 pb-4">
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                     {showAddForm && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                            {...TAB_LIKE_MOTION}
                             className="bg-amber-50 p-4 rounded shadow-sm border-2 border-navy relative overflow-hidden"
                         >
                             <div className="space-y-3 relative z-10 py-1">
-                                <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
+                                <div className="border-b border-navy/20 pb-1 mb-2">
                                     <span className="text-xs font-bold font-stencil text-navy">새 결제 내역 추가</span>
-                                    <button onClick={() => setShowAddForm(false)} className="text-navy/50 hover:text-accent-red"><Plus size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
@@ -284,29 +328,38 @@ export default function PaymentTab() {
                             </div>
                         </motion.div>
                     )}
-                    {sortedPayments.map((payment) => (
-                        <motion.div
-                            key={payment.id}
-                            layout
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`p-3 rounded shadow-sm border-2 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-100 border-gray-300' :
-                                payment.discount ? 'bg-amber-50 border-amber-500' : 'bg-white border-navy'
-                                }`}
-                        >
-                            {/* The dramatically animated Stamp */}
-                            <AnimatePresence>
-                                {payment.isCompleted && (
-                                    <motion.div
-                                        initial={payment.justCompleted ? { scale: 3, opacity: 0, rotate: -45, x: 0, y: "-50%" } : false}
-                                        animate={{ scale: 1, opacity: 0.8, rotate: -15, x: 0, y: "-50%" }}
-                                        transition={payment.justCompleted ? { type: "spring", stiffness: 200, damping: 10 } : { duration: 0 }}
-                                        className="absolute top-1/2 right-[30%] stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
-                                    >
-                                        결제 완료
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                    {sortedPayments.map((payment) => {
+                        const shouldBangStamp = payment.justCompleted && !paymentStampAnimatedToday;
+
+                        return (
+                            <motion.div
+                                key={payment.id}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                transition={PAYMENT_CARD_TRANSITION}
+                                className={`p-3 rounded shadow-sm border-2 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-100 border-gray-300' :
+                                    payment.discount ? 'bg-amber-50 border-amber-500' : 'bg-white border-navy'
+                                    }`}
+                            >
+                                {/* The dramatically animated Stamp */}
+                                <AnimatePresence>
+                                    {payment.isCompleted && (
+                                        <motion.div
+                                            initial={shouldBangStamp ? { scale: 2.35, opacity: 0, rotate: -35, x: 0, y: "-50%" } : false}
+                                            animate={shouldBangStamp
+                                                ? { scale: [2.35, 0.94, 1], opacity: [0, 0.86, 0.8], rotate: [-35, -15, -15], x: 0, y: "-50%" }
+                                                : { scale: 1, opacity: 0.8, rotate: -15, x: 0, y: "-50%" }
+                                            }
+                                            transition={shouldBangStamp ? PAYMENT_STAMP_BANG_TRANSITION : { duration: 0 }}
+                                            onAnimationComplete={shouldBangStamp ? markPaymentStampAnimated : undefined}
+                                            style={{ transformOrigin: 'center center', willChange: 'transform, opacity' }}
+                                            className="absolute top-1/2 right-[30%] stamp text-[14px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
+                                        >
+                                            결제 완료
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
                             {editingPaymentId === payment.id ? (
                                 <div className="space-y-3 relative z-10 bg-white/50 py-1">
@@ -411,8 +464,9 @@ export default function PaymentTab() {
                                     </div>
                                 </>
                             )}
-                        </motion.div>
-                    ))}
+                            </motion.div>
+                        );
+                    })}
                 </AnimatePresence>
             </div>
 
@@ -423,26 +477,25 @@ export default function PaymentTab() {
                     <h2 className="font-stencil text-xl flex-1 text-navy">지난 결제 내역</h2>
                 </div>
                 <button
-                    onClick={() => setShowAddHistoryForm(true)}
-                    className="bg-navy text-white p-1 rounded hover:bg-navy/80 transition-colors"
+                    onClick={toggleAddHistoryForm}
+                    aria-label={showAddHistoryForm ? '과거 결제 내역 추가 닫기' : '과거 결제 내역 직접 추가'}
+                    title={showAddHistoryForm ? '닫기' : '과거 결제 내역 직접 추가'}
+                    className={`${showAddHistoryForm ? 'bg-accent-red' : 'bg-navy'} text-white p-1 rounded transition-colors hover:opacity-85`}
                 >
-                    <Plus size={16} />
+                    {showAddHistoryForm ? <X size={16} /> : <Plus size={16} />}
                 </button>
             </div>
 
             <div className="space-y-4 pb-20">
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                     {showAddHistoryForm && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                            {...TAB_LIKE_MOTION}
                             className="bg-amber-50 p-4 rounded shadow-sm border-2 border-navy relative overflow-hidden mb-4"
                         >
                             <div className="space-y-3 relative z-10 py-1">
-                                <div className="flex justify-between items-center border-b border-navy/20 pb-1 mb-2">
+                                <div className="border-b border-navy/20 pb-1 mb-2">
                                     <span className="text-xs font-bold font-stencil text-navy">과거 결제 내역 직접 추가</span>
-                                    <button onClick={() => setShowAddHistoryForm(false)} className="text-navy/50 hover:text-accent-red"><Plus size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="col-span-2">
@@ -488,22 +541,22 @@ export default function PaymentTab() {
                         <div key={month} className="bg-white border-2 border-navy/20 rounded-md shadow-sm overflow-hidden">
                             <div
                                 onClick={() => setExpandedArchiveMonth(isExpanded ? 'NONE' : month)}
-                                className="bg-navy/5 p-3 flex justify-between items-center border-b-2 border-navy/20 cursor-pointer hover:bg-navy/10 transition-colors"
+                                className="flex items-center justify-between border-b-2 border-navy/20 bg-navy/5 px-2.5 py-3 cursor-pointer transition-colors hover:bg-navy/10"
                             >
-                                <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-navy font-mono">{formattedMonth} 지출 내역</h3>
-                                    {isExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
+                                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                    <h3 className="whitespace-nowrap font-mono text-[15px] font-bold tracking-[-0.04em] text-navy">
+                                        {formattedMonth} 지출 내역
+                                    </h3>
+                                    {isExpanded ? <ChevronUp size={14} className="shrink-0 text-navy/50" /> : <ChevronDown size={14} className="shrink-0 text-navy/50" />}
                                 </div>
-                                <div className="font-mono font-bold text-accent-red">
+                                <div className="ml-2 shrink-0 whitespace-nowrap font-mono text-[15px] font-bold tracking-[-0.04em] text-accent-red">
                                     {monthlyTotal.toLocaleString()} ₩
                                 </div>
                             </div>
-                            <AnimatePresence>
+                            <AnimatePresence initial={false}>
                                 {isExpanded && (
                                     <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
+                                        {...TAB_LIKE_MOTION}
                                         className="overflow-hidden"
                                     >
                                         <div className="divide-y divide-navy/10 px-3 py-1">
@@ -572,6 +625,6 @@ export default function PaymentTab() {
                     );
                 })}
             </div>
-        </motion.div>
+        </div>
     );
 }

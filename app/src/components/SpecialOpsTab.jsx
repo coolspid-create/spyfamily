@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
-import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Star, FileSignature, CheckSquare, Settings, AlertCircle, RefreshCw, Hand, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+
+const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
 
 export default function SpecialOpsTab() {
     const ops = useStore(state => state.opsData);
@@ -15,6 +23,10 @@ export default function SpecialOpsTab() {
     const [editingOpId, setEditingOpId] = useState(null);
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});
+    const sortedOps = useMemo(
+        () => [...ops].sort((a, b) => new Date(b.date.replace(/\./g, '/')) - new Date(a.date.replace(/\./g, '/'))),
+        [ops]
+    );
 
     const handleEditOp = (op) => {
         setNewOp({
@@ -96,11 +108,7 @@ export default function SpecialOpsTab() {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-6"
-        >
+        <div className="space-y-6">
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <Target size={24} className="text-navy" />
                 <h2 className="font-stencil text-xl flex-1 text-navy">가족일정</h2>
@@ -108,7 +116,7 @@ export default function SpecialOpsTab() {
 
             {/* Mission Critical Briefing */}
             <div className="bg-navy text-white rounded p-3 shadow-sm relative overflow-hidden">
-                <div className="absolute top-[-20px] right-[-20px] opacity-10 rotate-12">
+                <div className="absolute top-2 right-2 opacity-10 rotate-12">
                     <Star size={120} />
                 </div>
                 <h3 className="font-bold border-b border-white/20 pb-2 mb-2 flex items-center gap-2 relative z-10">
@@ -122,7 +130,7 @@ export default function SpecialOpsTab() {
 
             {/* Ops List */}
             <div className="space-y-3">
-                {[...ops].sort((a, b) => new Date(b.date.replace(/\./g, '/')) - new Date(a.date.replace(/\./g, '/'))).map((op) => {
+                {sortedOps.map((op) => {
                     const progress = op.checklist.length === 0 ? 0 : Math.round((op.checklist.filter(c => c.checked).length / op.checklist.length) * 100);
                     const isExpanded = expandedOpId === op.id;
 
@@ -165,12 +173,10 @@ export default function SpecialOpsTab() {
                                 </div>
                             </div>
 
-                            <AnimatePresence>
+                            <AnimatePresence initial={false}>
                                 {isExpanded && (
                                     <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
+                                        {...TAB_LIKE_MOTION}
                                         className="overflow-hidden"
                                     >
                                         <div className="pt-3 border-t-2 border-dashed border-navy/10 mt-1">
@@ -220,16 +226,21 @@ export default function SpecialOpsTab() {
                                                     ))}
                                                 </ul>
                                                 {/* Add Task Input */}
-                                                <div className="mt-3 flex gap-2 items-center bg-navy/5 p-1 rounded border border-navy/10">
+                                                <div className="mt-3 flex min-w-0 items-center gap-2 rounded border border-navy/10 bg-navy/5 p-1">
                                                     <input
                                                         type="text"
                                                         placeholder="새로운 체크리스트 추가..."
                                                         value={newTaskInputs[op.id] || ''}
                                                         onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [op.id]: e.target.value })}
-                                                        onKeyPress={(e) => e.key === 'Enter' && handleAddTask(op.id)}
-                                                        className="flex-1 bg-transparent text-sm font-bold outline-none px-2 py-1 placeholder:opacity-50 text-navy"
+                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddTask(op.id)}
+                                                        className="min-w-0 flex-1 bg-transparent px-2 py-1 text-sm font-bold text-navy outline-none placeholder:opacity-50"
                                                     />
-                                                    <button onClick={() => handleAddTask(op.id)} className="text-navy bg-white hover:bg-navy hover:text-white shadow-sm rounded transition-colors p-1.5 border border-navy/20">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAddTask(op.id)}
+                                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-navy/20 bg-white text-navy shadow-sm transition-colors hover:bg-navy hover:text-white"
+                                                        aria-label="체크리스트 추가"
+                                                    >
                                                         <Plus size={16} />
                                                     </button>
                                                 </div>
@@ -240,17 +251,22 @@ export default function SpecialOpsTab() {
                             </AnimatePresence>
                         </div>
                         {/* Inline Edit Form */}
-                        <AnimatePresence>
+                        <AnimatePresence initial={false}>
                             {editingOpId === op.id && (
                                 <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
+                                    {...TAB_LIKE_MOTION}
                                     className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden mt-2"
                                 >
                                     <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
                                         <span>가족일정 수정</span>
-                                        <button onClick={() => { setEditingOpId(null); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
+                                        <button
+                                            onClick={() => { setEditingOpId(null); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }}
+                                            aria-label="가족일정 수정 닫기"
+                                            title="닫기"
+                                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-accent-red text-white transition-opacity hover:opacity-85"
+                                        >
+                                            <X size={16} />
+                                        </button>
                                     </h3>
                                     <div className="space-y-4">
                                         <div>
@@ -291,17 +307,23 @@ export default function SpecialOpsTab() {
             </div>
 
             {/* Add New Operation Form / Button */}
-            <AnimatePresence>
+            <AnimatePresence initial={false} mode="wait">
                 {showForm ? (
                     <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
+                        key="special-ops-form"
+                        {...TAB_LIKE_MOTION}
                         className="bg-amber-50 border-2 border-navy rounded p-4 shadow-md overflow-hidden"
                     >
                         <h3 className="font-stencil text-navy flex items-center justify-between mb-4 border-b-2 border-navy pb-2">
                             <span>새 가족일정 작성</span>
-                            <button onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }} className="text-navy/50 hover:text-accent-red transition-colors"><Plus size={18} /></button>
+                            <button
+                                onClick={() => { setShowForm(false); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }}
+                                aria-label="새 가족일정 작성 닫기"
+                                title="닫기"
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-accent-red text-white transition-opacity hover:opacity-85"
+                            >
+                                <X size={16} />
+                            </button>
                         </h3>
 
                         <div className="space-y-4">
@@ -356,14 +378,16 @@ export default function SpecialOpsTab() {
                         </div>
                     </motion.div>
                 ) : (
-                    <button
+                    <motion.button
+                        key="special-ops-add-button"
+                        {...TAB_LIKE_MOTION}
                         onClick={() => { setShowForm(true); setEditingOpId(null); setNewOp({ title: '', date: '', description: '', priority: 'MEDIUM' }); }}
                         className="w-full bg-navy text-white font-bold py-3 rounded border-2 border-navy shadow-md hover:bg-white hover:text-navy transition-colors flex items-center justify-center gap-2"
                     >
                         <FileSignature size={18} /> 새 가족일정 추가
-                    </button>
+                    </motion.button>
                 )}
             </AnimatePresence>
-        </motion.div>
+        </div>
     );
 }

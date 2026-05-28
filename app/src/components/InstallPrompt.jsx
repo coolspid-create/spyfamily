@@ -85,7 +85,7 @@ export default function InstallPrompt() {
                         <Download size={24} />
                     </div>
                     <div>
-                        <h4 className="font-bold text-sm">기밀 앱 설치 안내</h4>
+                        <h4 className="font-bold text-sm">앱 설치 안내</h4>
                         <p className="text-[10px] text-white/70">스마트폰 바탕화면에 설치하고<br />최적화된 환경으로 접속하시겠습니까?</p>
                     </div>
                 </div>

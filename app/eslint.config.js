@@ -6,7 +6,16 @@ import { defineConfig } from 'eslint/config'
 
 export default defineConfig([
   {
-    ignores: ['dist/**', 'dev-dist/**', 'node_modules/**', '.vite/**', 'public/**']
+    ignores: [
+      'android/**',
+      'dist/**',
+      'dev-dist/**',
+      'node_modules/**',
+      '.vite/**',
+      'public/**',
+      'src/MemoryMvpEntry.jsx',
+      'src/components/CustomMemoryMvp.jsx',
+    ]
   },
   {
     files: ['**/*.{js,jsx}'],

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_navy">#1A237E</color>
+    <color name="app_background">#F5F5DC</color>
+    <color name="colorPrimary">#1A237E</color>
+    <color name="colorPrimaryDark">#1A237E</color>
+    <color name="colorAccent">#D32F2F</color>
+</resources>

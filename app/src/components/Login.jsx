@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Fingerprint, Lock, ShieldAlert, Key } from 'lucide-react';
+import { Fingerprint, Lock, ShieldAlert, Key, X, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from '../lib/policyLinks';
 
-export default function Login() {
+export default function Login({ onClose }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
@@ -11,7 +12,6 @@ export default function Login() {
 
     const signIn = useStore(state => state.signIn);
     const signUp = useStore(state => state.signUp);
-    const setGuestMode = useStore(state => state.setGuestMode);
     const isLoading = useStore(state => state.isLoading);
 
     const handleAuth = async (e) => {
@@ -24,6 +24,7 @@ export default function Login() {
                 setIsSignUp(false);
             } else {
                 await signIn(email, password);
+                onClose?.();
             }
         } catch (error) {
             setErrorMsg(isSignUp ? `가입 실패: ${error.message}` : `로그인 실패: ${error.message}`);
@@ -31,7 +32,12 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen bg-navy flex items-center justify-center p-4 relative overflow-hidden">
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-navy/95 flex items-center justify-center p-4 overflow-hidden z-[120]"
+        >
             {/* Background patterns */}
             <div className="absolute inset-0 opacity-10 pointer-events-none"
                 style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
@@ -44,9 +50,18 @@ export default function Login() {
                 transition={{ duration: 0.5 }}
                 className="w-full max-w-sm bg-background p-6 border-4 border-navy shadow-2xl relative"
             >
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-navy/10 hover:bg-navy/20 text-navy flex items-center justify-center transition-colors"
+                    title="닫기"
+                >
+                    <X size={18} />
+                </button>
+
                 {/* Top-secret stamp */}
                 <div className="absolute -top-6 -right-6 border-4 border-accent-red text-accent-red font-stencil text-xl p-2 rotate-12 bg-white ring-4 ring-white shadow-lg pointer-events-none stamp">
-                    FAMILY SCHEDULER
+                    FAMILY SHARE
                 </div>
 
                 <div className="flex flex-col items-center mb-8 pt-4">
@@ -58,8 +73,8 @@ export default function Login() {
                         <span className="text-accent-red text-xl mx-2 font-bold cursor-default">×</span>
                         <span className="tracking-tight">스케줄러</span>
                     </h1>
-                    <p className="text-[10px] font-bold tracking-widest text-navy/60 mt-2 uppercase text-center w-full border-b pb-2">
-                        우리 가족 일정 / 자금 관리 스케줄러
+                    <p className="text-[10px] font-bold tracking-widest text-navy/60 mt-2 uppercase text-center w-full border-b pb-2 flex items-center justify-center gap-1">
+                        <Users size={12} /> 다른 보호자와 공유하기
                     </p>
                 </div>
 
@@ -116,24 +131,36 @@ export default function Login() {
                     </button>
                 </div>
 
-                {/* Guest Mode Button */}
-                <div className="mt-6 border-t-2 border-navy/10 pt-6 text-center">
-                    <p className="text-xs text-navy font-bold mb-3 bg-accent-yellow/30 inline-block px-2 py-1 rounded">계정 없이 먼저 체험해보고 싶으신가요?</p>
-                    <button
-                        type="button"
-                        onClick={() => setGuestMode(true)}
-                        className="w-full bg-white text-navy font-bold tracking-widest py-3 rounded border-2 border-navy hover:bg-navy/5 active:bg-navy/10 transition-colors flex justify-center items-center gap-2 shadow-sm"
-                    >
-                        가족 스케줄러 시작하기 (체험)
-                    </button>
-                </div>
-
-
-                <div className="text-center mt-6">
+                <div className="mt-6 border-t-2 border-navy/10 pt-4 text-center">
                     <p className="text-[9px] text-navy/40 font-bold uppercase">Family members only.</p>
-                    <p className="text-[9px] text-navy/40 font-bold uppercase mt-1">Keep our family schedules safe.</p>
+                    <div className="mt-4 flex items-center justify-center gap-3 text-[10px] font-bold">
+                        <a
+                            href={PRIVACY_POLICY_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                openExternalPolicyPage(PRIVACY_POLICY_URL);
+                            }}
+                            className="text-navy/50 hover:text-navy underline"
+                        >
+                            개인정보처리방침
+                        </a>
+                        <a
+                            href={DATA_DELETE_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                openExternalPolicyPage(DATA_DELETE_URL);
+                            }}
+                            className="text-navy/50 hover:text-navy underline"
+                        >
+                            계정 삭제 요청
+                        </a>
+                    </div>
                 </div>
             </motion.div>
-        </div>
+        </motion.div>
     );
 }

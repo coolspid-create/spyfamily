@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Circle, Plus, Trash2, CalendarCheck, History, ChevronDown, ChevronUp } from 'lucide-react';
+
+const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
 
 export default function DailyTasksTab() {
     const dailyTasks = useStore(state => state.dailyTasks);
@@ -22,30 +30,55 @@ export default function DailyTasksTab() {
         }
     };
 
-    const today = new Date();
-    const formattedDate = `${today.getMonth() + 1}월 ${today.getDate()}일`;
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const { formattedDate, todayStr } = useMemo(() => {
+        const today = new Date();
+        return {
+            formattedDate: `${today.getMonth() + 1}월 ${today.getDate()}일`,
+            todayStr: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+        };
+    }, []);
 
-    const todayTasks = dailyTasks.filter(t => t.assigned_date === todayStr);
-    const pastTasks = dailyTasks.filter(t => t.assigned_date !== todayStr);
+    const { todayTasks, pastTasks } = useMemo(() => {
+        const todayList = [];
+        const pastList = [];
 
-    const completedCount = todayTasks.filter(t => t.is_completed).length;
+        dailyTasks.forEach(task => {
+            if (task.assigned_date === todayStr) {
+                todayList.push(task);
+            } else {
+                pastList.push(task);
+            }
+        });
+
+        return { todayTasks: todayList, pastTasks: pastList };
+    }, [dailyTasks, todayStr]);
+
+    const completedCount = useMemo(() => todayTasks.filter(t => t.is_completed).length, [todayTasks]);
     const totalCount = todayTasks.length;
     const progressPercent = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
 
-    const groupedPastTasks = pastTasks.reduce((acc, task) => {
+    const groupedPastTasks = useMemo(() => pastTasks.reduce((acc, task) => {
         if (!acc[task.assigned_date]) acc[task.assigned_date] = [];
         acc[task.assigned_date].push(task);
         return acc;
-    }, {});
-    const sortedPastDates = Object.keys(groupedPastTasks).sort((a, b) => new Date(b) - new Date(a));
+    }, {}), [pastTasks]);
+    const sortedPastDates = useMemo(
+        () => Object.keys(groupedPastTasks).sort((a, b) => new Date(b) - new Date(a)),
+        [groupedPastTasks]
+    );
+    const incompletePastTasks = useMemo(() => pastTasks.filter(t => !t.is_completed), [pastTasks]);
+    const groupedIncompletePast = useMemo(() => incompletePastTasks.reduce((acc, task) => {
+        if (!acc[task.assigned_date]) acc[task.assigned_date] = [];
+        acc[task.assigned_date].push(task);
+        return acc;
+    }, {}), [incompletePastTasks]);
+    const sortedIncompleteDates = useMemo(
+        () => Object.keys(groupedIncompletePast).sort((a, b) => new Date(b) - new Date(a)),
+        [groupedIncompletePast]
+    );
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-        >
+        <div className="space-y-6">
             {/* Header and Progress */}
             <div className="bg-navy p-4 rounded-xl shadow-lg border-2 border-accent-red relative overflow-hidden">
                 <div className="relative z-10 flex justify-between items-center mb-4">
@@ -65,15 +98,15 @@ export default function DailyTasksTab() {
                 {/* Progress Bar */}
                 <div className="relative z-10 w-full h-2 bg-black/40 rounded-full overflow-hidden">
                     <motion.div
-                        initial={{ width: 0 }}
+                        initial={false}
                         animate={{ width: `${progressPercent}%` }}
-                        transition={{ type: "spring", stiffness: 50 }}
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
                         className="h-full bg-accent-red"
                     />
                 </div>
 
                 {/* Decorative background */}
-                <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+                <div className="absolute right-2 bottom-2 opacity-10 pointer-events-none">
                     <CheckCircle2 size={120} />
                 </div>
             </div>
@@ -98,11 +131,14 @@ export default function DailyTasksTab() {
 
             {/* Task List */}
             <div className="space-y-2">
-                <AnimatePresence>
+                <AnimatePresence initial={false} mode="popLayout">
                     {todayTasks.length === 0 ? (
                         <motion.div
+                            key="empty-today-tasks"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={TAB_LIKE_TRANSITION}
                             className="text-center py-10 bg-white/50 border-2 border-dashed border-navy/20 rounded-xl"
                         >
                             <p className="text-navy/50 font-bold text-sm">등록된 할 일이 없습니다.</p>
@@ -112,10 +148,10 @@ export default function DailyTasksTab() {
                         todayTasks.map(task => (
                             <motion.div
                                 key={task.id}
-                                layout
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={TAB_LIKE_TRANSITION}
                                 className={`flex items-center justify-between p-4 rounded-xl border-2 transition-colors shadow-sm ${task.is_completed ? 'bg-gray-50 border-gray-200' : 'bg-white border-navy'
                                     }`}
                             >
@@ -143,85 +179,71 @@ export default function DailyTasksTab() {
             </div>
 
             {/* Incomplete Past Tasks Accordion */}
-            {(() => {
-                const incompletePastTasks = pastTasks.filter(t => !t.is_completed);
-                const groupedIncompletePast = incompletePastTasks.reduce((acc, task) => {
-                    if (!acc[task.assigned_date]) acc[task.assigned_date] = [];
-                    acc[task.assigned_date].push(task);
-                    return acc;
-                }, {});
-                const sortedIncompleteDates = Object.keys(groupedIncompletePast).sort((a, b) => new Date(b) - new Date(a));
-
-                if (sortedIncompleteDates.length === 0) return null;
-
-                return (
-                    <div className="mt-6 pb-4">
-                        <div
-                            className="flex items-center justify-between gap-2 mb-3 cursor-pointer group"
-                            onClick={() => setShowIncompletePast(!showIncompletePast)}
-                        >
-                            <div className="flex items-center gap-2">
-                                <History className="text-accent-red" size={20} />
-                                <h3 className="font-bold text-base text-navy">지난할일 <span className="text-accent-red">(미완료 {incompletePastTasks.length}건)</span></h3>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full">체크 필요</span>
-                                {showIncompletePast ? <ChevronUp size={18} className="text-navy/50" /> : <ChevronDown size={18} className="text-navy/50" />}
-                            </div>
+            {sortedIncompleteDates.length > 0 && (
+                <div className="mt-6 pb-4">
+                    <div
+                        className="flex items-center justify-between gap-2 mb-3 cursor-pointer group"
+                        onClick={() => setShowIncompletePast(!showIncompletePast)}
+                    >
+                        <div className="flex items-center gap-2">
+                            <History className="text-accent-red" size={20} />
+                            <h3 className="font-bold text-base text-navy">지난할일 <span className="text-accent-red">(미완료 {incompletePastTasks.length}건)</span></h3>
                         </div>
-
-                        <AnimatePresence>
-                            {showIncompletePast && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="space-y-3">
-                                        {sortedIncompleteDates.map(date => {
-                                            const [yyyy, mm, dd] = date.split('-');
-                                            const tasksForDate = groupedIncompletePast[date];
-
-                                            return (
-                                                <div key={date} className="bg-white border-2 border-amber-200 rounded-xl overflow-hidden shadow-sm">
-                                                    <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
-                                                        <span className="font-bold text-navy font-mono text-xs">{parseInt(mm, 10)}월 {parseInt(dd, 10)}일 · 미완료 {tasksForDate.length}건</span>
-                                                    </div>
-                                                    <div className="p-2 space-y-1.5">
-                                                        {tasksForDate.map(task => (
-                                                            <div key={task.id} className="flex justify-between items-center bg-amber-50/50 p-2.5 border border-amber-100 rounded-lg">
-                                                                <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleDailyTask(task.id)}>
-                                                                    <Circle size={18} className="text-amber-400 shrink-0" />
-                                                                    <span className="text-sm font-bold text-navy">{task.task_name}</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                                    <button
-                                                                        onClick={() => toggleDailyTask(task.id)}
-                                                                        className="text-[10px] font-bold bg-navy text-white px-2 py-1 rounded hover:bg-accent-red transition-colors"
-                                                                    >
-                                                                        완료하기
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => removeDailyTask(task.id)}
-                                                                        className="text-navy/30 hover:text-accent-red p-1 shrink-0 transition-colors"
-                                                                    >
-                                                                        <Trash2 size={14} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full">체크 필요</span>
+                            {showIncompletePast ? <ChevronUp size={18} className="text-navy/50" /> : <ChevronDown size={18} className="text-navy/50" />}
+                        </div>
                     </div>
-                );
-            })()}
+
+                    <AnimatePresence>
+                        {showIncompletePast && (
+                            <motion.div
+                                {...TAB_LIKE_MOTION}
+                                className="overflow-hidden"
+                            >
+                                <div className="space-y-3">
+                                    {sortedIncompleteDates.map(date => {
+                                        const [, mm, dd] = date.split('-');
+                                        const tasksForDate = groupedIncompletePast[date];
+
+                                        return (
+                                            <div key={date} className="bg-white border-2 border-amber-200 rounded-xl overflow-hidden shadow-sm">
+                                                <div className="bg-amber-50 px-3 py-2 border-b border-amber-200">
+                                                    <span className="font-bold text-navy font-mono text-xs">{parseInt(mm, 10)}월 {parseInt(dd, 10)}일 · 미완료 {tasksForDate.length}건</span>
+                                                </div>
+                                                <div className="p-2 space-y-1.5">
+                                                    {tasksForDate.map(task => (
+                                                        <div key={task.id} className="flex justify-between items-center bg-amber-50/50 p-2.5 border border-amber-100 rounded-lg">
+                                                            <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleDailyTask(task.id)}>
+                                                                <Circle size={18} className="text-amber-400 shrink-0" />
+                                                                <span className="text-sm font-bold text-navy">{task.task_name}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0 ml-2">
+                                                                <button
+                                                                    onClick={() => toggleDailyTask(task.id)}
+                                                                    className="text-[10px] font-bold bg-navy text-white px-2 py-1 rounded hover:bg-accent-red transition-colors"
+                                                                >
+                                                                    완료하기
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => removeDailyTask(task.id)}
+                                                                    className="text-navy/30 hover:text-accent-red p-1 shrink-0 transition-colors"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
 
             {/* Full Past Tasks History Accordion */}
             {sortedPastDates.length > 0 && (
@@ -240,9 +262,7 @@ export default function DailyTasksTab() {
                     <AnimatePresence>
                         {showFullPastHistory && (
                             <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
+                                {...TAB_LIKE_MOTION}
                                 className="overflow-hidden"
                             >
                                 <div className="space-y-3">
@@ -272,9 +292,7 @@ export default function DailyTasksTab() {
                                                 <AnimatePresence>
                                                     {isExpanded && (
                                                         <motion.div
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: 'auto', opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
+                                                            {...TAB_LIKE_MOTION}
                                                             className="overflow-hidden"
                                                         >
                                                             <div className="p-3 bg-white/50 space-y-2 border-t border-navy/10">
@@ -314,6 +332,6 @@ export default function DailyTasksTab() {
                 </div>
             )}
 
-        </motion.div>
+        </div>
     );
 }

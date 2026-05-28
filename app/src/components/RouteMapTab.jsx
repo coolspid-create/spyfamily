@@ -1,7 +1,39 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, Database, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+
+const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_MOTION = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: TAB_LIKE_TRANSITION,
+};
+
+const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+const createMissionId = (mission, missionsData) => {
+    const titleSlug = mission.title.trim().replace(/\s+/g, '-').replace(/[^\w가-힣-]/g, '') || 'new';
+    const baseId = [
+        'mission',
+        mission.type,
+        mission.year || 'monthly',
+        mission.month || 'every',
+        mission.day || 'day',
+        titleSlug,
+    ].join('-');
+
+    let candidate = baseId;
+    let suffix = 2;
+
+    while (missionsData.some(item => item.id === candidate)) {
+        candidate = `${baseId}-${suffix}`;
+        suffix += 1;
+    }
+
+    return candidate;
+};
 
 export default function RouteMapTab() {
     // Zustand
@@ -12,23 +44,36 @@ export default function RouteMapTab() {
 
     const [manageMissionForm, setManageMissionForm] = useState({ id: '', type: 'fund', day: 1, title: '' });
     const [editingMissionId, setEditingMissionId] = useState(null);
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [currentDate, setCurrentDate] = useState(() => new Date());
 
     const [isFundsExpanded, setIsFundsExpanded] = useState(false);
     const [isEventsExpanded, setIsEventsExpanded] = useState(false);
 
-    const fundMissions = missionsData.filter(m => m.type === 'fund');
-    const eventMissions = missionsData.filter(m => m.type === 'event');
+    const fundMissions = useMemo(() => missionsData.filter(m => m.type === 'fund'), [missionsData]);
+    const eventMissions = useMemo(() => missionsData.filter(m => m.type === 'event'), [missionsData]);
+    const todayMarker = useMemo(() => {
+        const today = new Date();
+        return {
+            day: today.getDate(),
+            month: today.getMonth(),
+            year: today.getFullYear(),
+        };
+    }, []);
 
     const openManageMissionForm = (mission = null) => {
         if (mission) {
             setManageMissionForm(mission);
             setEditingMissionId(mission.id);
         } else {
-            const newId = Date.now().toString();
-            const today = new Date();
-            setManageMissionForm({ id: newId, type: 'fund', day: 1, year: today.getFullYear(), month: today.getMonth() + 1, title: '' });
-            setEditingMissionId(newId);
+            setManageMissionForm({
+                id: 'draft-mission',
+                type: 'fund',
+                day: 1,
+                year: currentDate.getFullYear(),
+                month: currentDate.getMonth() + 1,
+                title: '',
+            });
+            setEditingMissionId('draft-mission');
         }
     };
 
@@ -38,21 +83,35 @@ export default function RouteMapTab() {
         if (exists) {
             updateMission(manageMissionForm);
         } else {
-            addMission(manageMissionForm);
+            addMission({
+                ...manageMissionForm,
+                id: createMissionId(manageMissionForm, missionsData),
+            });
         }
         setEditingMissionId(null);
     };
 
-    const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-    const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
-
-    const generateCalendar = () => {
+    const calendarCells = useMemo(() => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
 
         const daysInMonth = getDaysInMonth(year, month);
         const firstDayIdx = getFirstDayOfMonth(year, month);
         const prevMonthDays = getDaysInMonth(year, month - 1);
+        const missionsByDay = new Map();
+
+        missionsData.forEach(mission => {
+            const matchesFund = mission.type === 'fund';
+            const matchesEvent = mission.type === 'event' && mission.month === (month + 1) && mission.year === year;
+
+            if (!matchesFund && !matchesEvent) {
+                return;
+            }
+
+            const dayMissions = missionsByDay.get(mission.day) || [];
+            dayMissions.push(mission);
+            missionsByDay.set(mission.day, dayMissions);
+        });
 
         const cells = [];
 
@@ -63,12 +122,7 @@ export default function RouteMapTab() {
 
         // Current month days
         for (let i = 1; i <= daysInMonth; i++) {
-            const hasMissions = missionsData.filter(m => {
-                if (m.type === 'fund') return m.day === i;
-                if (m.type === 'event') return m.day === i && m.month === (month + 1) && m.year === year;
-                return false;
-            });
-            cells.push({ type: 'current', day: i, currentMonthDay: i, missions: hasMissions });
+            cells.push({ type: 'current', day: i, currentMonthDay: i, missions: missionsByDay.get(i) || [] });
         }
 
         // Next month padding
@@ -78,7 +132,7 @@ export default function RouteMapTab() {
         }
 
         return cells;
-    };
+    }, [currentDate, missionsData]);
 
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -103,25 +157,16 @@ export default function RouteMapTab() {
             }
         };
 
-        // If menus were folded, wait for framer-motion animation to complete (approx 300-400ms)
         if (wasCollapsed) {
-            setTimeout(doScroll, 500);
+            setTimeout(doScroll, 220);
         } else {
-            // Wait slightly for any React re-renders to settle just in case
-            setTimeout(doScroll, 50);
+            setTimeout(doScroll, 60);
         }
     };
 
     const renderManageForm = () => {
         return (
-            <motion.div
-                key="manage-form"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="bg-amber-50 border-2 border-navy p-4 rounded shadow-md overflow-hidden mt-2"
-            >
+            <motion.div key="manage-form" {...TAB_LIKE_MOTION} className="bg-amber-50 border-2 border-navy p-4 rounded shadow-md overflow-hidden mt-2">
                 <h3 className="font-stencil text-navy mb-3 border-b-2 border-navy pb-1">일정 정보 수정</h3>
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
@@ -175,11 +220,7 @@ export default function RouteMapTab() {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6 pb-20"
-        >
+        <div className="space-y-6 w-full max-w-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
                 <CalendarDays size={24} className="text-navy" />
@@ -198,11 +239,11 @@ export default function RouteMapTab() {
                     <div className="text-accent-red">SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div className="text-blue-600">SAT</div>
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center font-mono">
-                    {generateCalendar().map((cell, idx) => {
+                    {calendarCells.map((cell, idx) => {
                         const isToday = cell.type === 'current' &&
-                            cell.day === new Date().getDate() &&
-                            currentDate.getMonth() === new Date().getMonth() &&
-                            currentDate.getFullYear() === new Date().getFullYear();
+                            cell.day === todayMarker.day &&
+                            currentDate.getMonth() === todayMarker.month &&
+                            currentDate.getFullYear() === todayMarker.year;
 
                         if (cell.type !== 'current') {
                             return <div key={`padding-${idx}`} className="p-2 opacity-30 text-xs mt-1">{cell.day}</div>;
@@ -243,7 +284,7 @@ export default function RouteMapTab() {
                 </button>
                 */}
 
-                <AnimatePresence>
+                <AnimatePresence initial={false}>
                     {editingMissionId && !missionsData.find(m => m.id === editingMissionId) && renderManageForm()}
                 </AnimatePresence>
 
@@ -262,45 +303,37 @@ export default function RouteMapTab() {
                                 {isFundsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
                         </div>
-                        <AnimatePresence>
+                        <AnimatePresence initial={false}>
                             {isFundsExpanded && (
                                 <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
+                                    {...TAB_LIKE_MOTION}
                                     className="overflow-hidden"
                                 >
                                     <div className="p-2 space-y-2 pb-3 bg-navy/5">
-                                        {fundMissions.map((item, idx) => (
+                                        {fundMissions.map((item) => (
                                             <motion.div
-                                                layout
                                                 key={item.id}
                                                 data-day={item.day}
                                                 data-type="fund"
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: 20 }}
-                                                transition={{ delay: idx * 0.05 }}
+                                                {...TAB_LIKE_MOTION}
                                             >
-                                                <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center bg-accent-red">
+                                                <div className="bg-white border-2 border-navy rounded p-2.5 flex min-w-0 items-center gap-2 overflow-hidden group shadow-sm">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded w-14 shrink-0 whitespace-nowrap text-center bg-accent-red">
                                                             {item.day}일
                                                         </span>
-                                                        <div>
-                                                            <h4 className="font-bold text-sm">{item.title}</h4>
-                                                        </div>
+                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-sm leading-tight">{item.title}</h4>
                                                     </div>
-                                                    <div className="flex gap-1">
-                                                        <button onClick={() => openManageMissionForm(item)} className="p-2 hover:bg-navy/10 rounded text-navy transition-colors">
+                                                    <div className="flex shrink-0 gap-1">
+                                                        <button onClick={() => openManageMissionForm(item)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-navy transition-colors hover:bg-navy/10">
                                                             <Edit2 size={16} />
                                                         </button>
-                                                        <button onClick={() => removeMission(item.id)} className="p-2 hover:bg-accent-red/10 rounded text-accent-red transition-colors">
+                                                        <button onClick={() => removeMission(item.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-accent-red transition-colors hover:bg-accent-red/10">
                                                             <Trash2 size={16} />
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <AnimatePresence>
+                                                <AnimatePresence initial={false}>
                                                     {editingMissionId === item.id && renderManageForm()}
                                                 </AnimatePresence>
                                             </motion.div>
@@ -325,46 +358,38 @@ export default function RouteMapTab() {
                                 {isEventsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
                         </div>
-                        <AnimatePresence>
+                        <AnimatePresence initial={false}>
                             {isEventsExpanded && (
                                 <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
+                                    {...TAB_LIKE_MOTION}
                                     className="overflow-hidden"
                                 >
                                     <div className="p-2 space-y-2 pb-3 bg-navy/5">
-                                        {eventMissions.map((item, idx) => (
+                                        {eventMissions.map((item) => (
                                             <motion.div
-                                                layout
                                                 key={item.id}
                                                 data-day={item.day}
                                                 data-year={item.year}
                                                 data-month={item.month}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                exit={{ opacity: 0, x: 20 }}
-                                                transition={{ delay: idx * 0.05 }}
+                                                {...TAB_LIKE_MOTION}
                                             >
-                                                <div className="bg-white border-2 border-navy rounded p-3 flex justify-between items-center group shadow-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded min-w-[3rem] shrink-0 whitespace-nowrap text-center bg-accent-green">
+                                                <div className="bg-white border-2 border-navy rounded p-2.5 flex min-w-0 items-center gap-2 overflow-hidden group shadow-sm">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded w-14 shrink-0 whitespace-nowrap text-center bg-accent-green">
                                                             {item.month}/{item.day}
                                                         </span>
-                                                        <div>
-                                                            <h4 className="font-bold text-sm">{item.title}</h4>
-                                                        </div>
+                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-sm leading-tight">{item.title}</h4>
                                                     </div>
-                                                    <div className="flex gap-1">
-                                                        <button onClick={() => openManageMissionForm(item)} className="p-2 hover:bg-navy/10 rounded text-navy transition-colors">
+                                                    <div className="flex shrink-0 gap-1">
+                                                        <button onClick={() => openManageMissionForm(item)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-navy transition-colors hover:bg-navy/10">
                                                             <Edit2 size={16} />
                                                         </button>
-                                                        <button onClick={() => removeMission(item.id)} className="p-2 hover:bg-accent-red/10 rounded text-accent-red transition-colors">
+                                                        <button onClick={() => removeMission(item.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-accent-red transition-colors hover:bg-accent-red/10">
                                                             <Trash2 size={16} />
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <AnimatePresence>
+                                                <AnimatePresence initial={false}>
                                                     {editingMissionId === item.id && renderManageForm()}
                                                 </AnimatePresence>
                                             </motion.div>
@@ -376,6 +401,6 @@ export default function RouteMapTab() {
                     </div>
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">가족 × 스케줄러</string>
+    <string name="title_activity_main">가족 × 스케줄러</string>
+    <string name="package_name">com.coolspid.familyxscheduler</string>
+    <string name="custom_url_scheme">com.coolspid.familyxscheduler</string>
+</resources>

@@ -44,27 +44,12 @@ const SupportModal = ({ isOpen, onClose }) => {
                             <div className="absolute top-0 right-0 w-32 h-32 bg-accent-red/10 rounded-full -mr-16 -mt-16 blur-2xl" />
                             <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-400/10 rounded-full -ml-16 -mb-16 blur-2xl" />
                             
-                            <motion.div
-                                animate={{ 
-                                    y: [0, -10, 0],
-                                    rotate: [0, 5, -5, 0]
-                                }}
-                                transition={{ 
-                                    duration: 4,
-                                    repeat: Infinity,
-                                    ease: "easeInOut"
-                                }}
-                                className="w-20 h-20 bg-amber-400 rounded-2xl flex items-center justify-center shadow-lg transform rotate-3 relative z-10"
-                            >
+                            <div className="w-20 h-20 bg-amber-400 rounded-2xl flex items-center justify-center shadow-lg transform rotate-3 relative z-10">
                                 <Coffee size={42} className="text-navy" />
-                                <motion.div
-                                    animate={{ scale: [1, 1.2, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                    className="absolute -top-2 -right-2 w-8 h-8 bg-accent-red rounded-full flex items-center justify-center text-white shadow-md border-2 border-white"
-                                >
+                                <div className="absolute -top-2 -right-2 w-8 h-8 bg-accent-red rounded-full flex items-center justify-center text-white shadow-md border-2 border-white">
                                     <Heart size={16} fill="currentColor" />
-                                </motion.div>
-                            </motion.div>
+                                </div>
+                            </div>
                             
                             <h2 className="mt-6 text-xl font-black text-white tracking-tight text-center">
                                 후원해주셔서 감사합니다!

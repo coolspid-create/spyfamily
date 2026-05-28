@@ -1,17 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useMemo, useState, useEffect } from 'react';
 import HomeBoard from './components/HomeBoard';
 import DailyTasksTab from './components/DailyTasksTab';
 import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
-import Login from './components/Login';
-import InstallPrompt from './components/InstallPrompt';
-import SupportModal from './components/SupportModal';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, Trash2, Download, CheckSquare, Coffee } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp } from 'lucide-react';
 import { useStore } from './store/useStore';
-import { supabase } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const FAMILY_SHARING_ENABLED = import.meta.env.VITE_ENABLE_FAMILY_SHARING === 'true';
+const MAIN_TAB_TRANSITION = { duration: 0.15 };
+const MAIN_TAB_MOTION = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+  transition: MAIN_TAB_TRANSITION,
+};
+
+const Login = lazy(() => import('./components/Login'));
+const SupportModal = lazy(() => import('./components/SupportModal'));
+const OnboardingTour = lazy(() => import('./components/OnboardingTour'));
 
 function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -28,25 +39,25 @@ function App() {
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [tourReplayKey, setTourReplayKey] = useState(0);
+  const [isTourReady, setIsTourReady] = useState(false);
+  const isSupportEnabled = import.meta.env.VITE_ENABLE_SUPPORT === 'true';
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW({
-    onRegistered(r) {
-      console.log('SW Registered: ', r);
-    },
-    onRegisterError(error) {
-      console.log('SW registration error', error);
-    },
-  });
+  } = useRegisterSW();
 
   const dailyTasks = useStore(state => state.dailyTasks);
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const incompleteTasksCount = dailyTasks.filter(task => task.assigned_date === todayStr && !task.is_completed).length;
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }, []);
+  const incompleteTasksCount = useMemo(
+    () => dailyTasks.filter(task => task.assigned_date === todayStr && !task.is_completed).length,
+    [dailyTasks, todayStr]
+  );
 
   const handleRemoveChild = (e, childId) => {
     e.stopPropagation();
@@ -78,13 +89,29 @@ function App() {
   };
 
   const isAuthChecking = useStore(state => state.isAuthChecking);
-  const isGuestMode = useStore(state => state.isGuestMode);
-  const setGuestMode = useStore(state => state.setGuestMode);
+  const [isShareAuthOpen, setIsShareAuthOpen] = useState(false);
+
+  const openShareAuth = () => {
+    if (!FAMILY_SHARING_ENABLED) {
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      alert('가족 공유는 서버 설정 후 사용할 수 있습니다. 현재 데이터는 이 기기에 저장됩니다.');
+      return;
+    }
+    setIsShareAuthOpen(true);
+  };
 
   useEffect(() => {
+    if (!FAMILY_SHARING_ENABLED || !isSupabaseConfigured || !supabase) {
+      setSession(null);
+      fetchDataFromDB();
+      return undefined;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) fetchDataFromDB();
+      fetchDataFromDB();
     });
 
     const {
@@ -94,38 +121,57 @@ function App() {
       if (session && event === 'SIGNED_IN') {
         const { currentChild, syncGuestDataToCloud } = useStore.getState();
         const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
-        if (guestDataStr) {
-          if (window.confirm("체험 모드에서 작성된 데이터를 가족 계정으로 동기화하시겠습니까? (취소 시 기존 체험 데이터는 삭제됩니다)")) {
+        const lastSyncedGuestData = localStorage.getItem(`spy_guestDataLastSynced_${currentChild}`);
+        if (guestDataStr && guestDataStr !== lastSyncedGuestData) {
+          if (window.confirm("이 기기에 저장된 데이터를 가족 공유 계정으로 동기화하시겠습니까?")) {
             await syncGuestDataToCloud();
           } else {
-            localStorage.removeItem(`spy_guestData_${currentChild}`);
             fetchDataFromDB();
           }
         } else {
           fetchDataFromDB();
         }
+        setIsShareAuthOpen(false);
+      } else if (!session) {
+        fetchDataFromDB();
       }
     });
 
     return () => subscription.unsubscribe();
   }, [setSession, fetchDataFromDB]);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setIsTourReady(true), 300);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-navy flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="animate-pulse flex flex-col items-center">
-          <span className="text-white/50 font-mono text-lg font-bold tracking-widest gap-2 flex items-center"><Star size={16} className="animate-spin" /> 데이터를 불러오는 중입니다...</span>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-navy px-6 text-background">
+        <div className="flex w-full max-w-xs flex-col items-center text-center">
+          <img
+            src="/app-icon-192.png"
+            alt=""
+            className="h-20 w-20 rounded-[22px] shadow-2xl ring-1 ring-white/20"
+          />
+          <h1 className="mt-5 whitespace-nowrap font-stencil text-3xl font-bold text-background">
+            가족 × 스케줄러
+          </h1>
+          <p className="mt-3 whitespace-nowrap text-sm font-bold text-background/80">
+            우리 가족의 일정을 준비하고 있어요
+          </p>
+          <div className="mt-6 flex items-center gap-2" aria-label="로딩 중">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-accent-red" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-background/70 [animation-delay:150ms]" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-background/50 [animation-delay:300ms]" />
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!session && !isGuestMode) {
-    return <Login />;
-  }
-
   return (
-    <div className="max-w-md mx-auto min-h-screen flex flex-col border-x-4 border-navy shadow-2xl relative bg-background">
+    <div className="app-shell max-w-[420px] mx-auto h-[100dvh] min-h-[100dvh] flex flex-col overflow-hidden border-x-[3px] border-navy shadow-2xl relative bg-background">
       {/* PWA Update Notification */}
       <AnimatePresence>
         {needRefresh && (
@@ -157,49 +203,34 @@ function App() {
         )}
       </AnimatePresence>
 
-      {!session && isGuestMode && (
-        <div className="bg-accent-yellow text-navy px-4 py-3 text-[11px] font-bold flex justify-between items-center z-[100] relative border-b-2 border-navy">
-          <div className="flex-1 leading-tight">
-            <span className="animate-pulse mr-1">⚠️</span>
-            현재 체험 모드입니다. 데이터 보존을 위해<br />
-            가족과 연동하고 계정을 생성하세요.
-          </div>
-          <button
-            onClick={() => setGuestMode(false)}
-            className="bg-navy text-white px-3 py-1.5 rounded shadow-sm text-[10px] whitespace-nowrap ml-2 hover:bg-navy/90 active:scale-95 transition-transform"
-          >
-            가입하기
-          </button>
-        </div>
-      )}
-
       {/* Header / Dossier Tab */}
-      <header className="relative z-50 shrink-0 mb-2 pt-2 pb-4 px-4 text-background">
+      <header className="relative z-50 shrink-0 mb-1 bg-navy pt-1.5 pb-3 px-3.5 text-background">
         {/* Background with clip-path */}
-        <div className="absolute inset-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
+        <div className="absolute -left-px -right-px bottom-0 top-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
 
         {/* Absolute Left Controls */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-[100]">
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-[100]">
           {/* Child Profile Dropdown Manager */}
           <div className="relative">
             <button
+              data-tour="child-selector"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-full py-1.5 px-3 border border-white/20 shadow-sm"
+              className="flex h-[28px] items-center gap-1 bg-white/10 hover:bg-white/20 transition-colors rounded-full px-2.5 border border-white/20 shadow-sm"
             >
-              <span className="font-bold text-[11px] tracking-wide text-white truncate max-w-[60px]">
+              <span className="font-bold text-[10px] tracking-wide text-white truncate max-w-[46px]">
                 {childProfiles[currentChild]}
               </span>
-              <ChevronDown size={14} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={12} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute top-full left-0 mt-2 w-32 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[100]">
+              <div className="absolute top-full left-0 mt-2 w-28 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[100]">
                 {Array.from({ length: childCount }).map((_, idx) => {
                   const cId = `child${idx + 1}`;
                   return (
                     <div
                       key={cId}
-                      className={`flex items-center justify-between px-3 py-2.5 text-[11px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
+                      className={`flex items-center justify-between px-2.5 py-2 text-[10px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
                       onClick={() => { selectChild(cId); setIsDropdownOpen(false); }}
                     >
                       <span className="truncate flex-1 text-navy">{childProfiles[cId]}</span>
@@ -217,7 +248,7 @@ function App() {
                 })}
                 {childCount < 3 && (
                   <div
-                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-[11px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-[10px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
                     onClick={handleAddChild}
                   >
                     <Plus size={12} /> 추가
@@ -229,105 +260,195 @@ function App() {
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-3 right-3 z-[100] flex flex-col gap-1.5 items-end">
-          <div className="flex flex-row gap-2 items-center">
-            <button
-              onClick={() => window.dispatchEvent(new Event('manualInstallPrompt'))}
-              className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
-              title="바탕화면에 앱 설치하기"
+        <div className="absolute top-2.5 right-2.5 z-[100] flex items-center gap-1.5">
+          {FAMILY_SHARING_ENABLED && session ? (
+            <span
+              data-tour="local-status"
+              className="inline-flex h-[26px] items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 text-[10px] font-bold text-white/55"
+              title="가족 공유 중"
             >
-              <Download size={13} />
-            </button>
-            <button
-              onClick={signOut}
-              className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10 transition-transform active:scale-95"
-              title="로그아웃"
+              <Users size={10} />
+              공유
+            </span>
+          ) : (
+            <span
+              data-tour="local-status"
+              className="inline-flex h-[26px] items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 text-[10px] font-bold text-white/55"
+              title="이 기기에 저장 중"
             >
-              <LogOut size={13} className="ml-0.5" />
+              <HardDrive size={10} />
+              로컬
+            </span>
+          )}
+          {FAMILY_SHARING_ENABLED && (
+            <div className="flex flex-row gap-1.5 items-center">
+              {session ? (
+              <button
+                onClick={signOut}
+                className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
+                title="가족 공유 해제"
+              >
+                <LogOut size={12} className="ml-0.5" />
+              </button>
+            ) : (
+              <button
+                onClick={openShareAuth}
+                className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
+                title="다른 보호자와 공유하기"
+              >
+                <Users size={12} />
+              </button>
+              )}
+            </div>
+          )}
+          {isSupportEnabled && (
+            <button
+              onClick={() => setIsSupportModalOpen(true)}
+              className="text-amber-200/70 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10"
+              title="후원하기"
+            >
+              <Coffee size={12} />
             </button>
-          </div>
+          )}
           <button
-            onClick={() => setIsSupportModalOpen(true)}
-            className="text-amber-200/70 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[28px] h-[28px] rounded-full border border-white/10"
-            title="후원하기"
+            type="button"
+            data-tour="tour-help"
+            onClick={() => setTourReplayKey(key => key + 1)}
+            className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
+            title="빠른 가이드 다시 보기"
+            aria-label="빠른 가이드 다시 보기"
           >
-            <Coffee size={13} />
+            <CircleHelp size={12} />
           </button>
         </div>
 
         {/* Header Title Space */}
-        <div className="relative pt-2">
-          <h1 className="font-sans text-[22px] font-black tracking-tighter text-center flex items-center justify-center">
-            <span className="tracking-tight">가족</span>
-            <span className="text-accent-red text-xl mx-2 font-bold">×</span>
-            <span className="tracking-tight">스케줄러</span>
+        <div className="relative pt-1.5">
+          <h1 className="font-sans text-[20px] font-black tracking-tighter text-center flex items-center justify-center">
+            <span data-tour="app-title" className="inline-flex items-center justify-center">
+              <span className="tracking-tight">가족</span>
+              <span className="text-accent-red text-lg mx-1.5 font-bold">×</span>
+              <span className="tracking-tight">스케줄러</span>
+            </span>
           </h1>
-          <p className="text-center text-[10px] uppercase font-bold pt-1 text-background/90">
-            우리 가족의 소중한 일정과 자금 관리
+          <p className="text-center text-[9px] uppercase font-bold pt-0.5 text-background/90">
+            우리 가족의 소중한 일정 관리
           </p>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="p-4 flex-1 pb-16">
-        {activeTab === 'home' && <HomeBoard />}
-        {activeTab === 'daily' && <DailyTasksTab />}
-        {activeTab === 'map' && <RouteMapTab />}
-        {activeTab === 'payment' && <PaymentTab />}
-        {activeTab === 'ops' && <SpecialOpsTab />}
+      <main className="app-scroll-area p-3 flex-1 overflow-x-hidden overflow-y-auto pb-24">
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div key={activeTab} className="min-h-full" {...MAIN_TAB_MOTION}>
+            {activeTab === 'home' && <HomeBoard />}
+            {activeTab === 'daily' && <DailyTasksTab />}
+            {activeTab === 'map' && <RouteMapTab />}
+            {activeTab === 'payment' && <PaymentTab />}
+            {activeTab === 'ops' && <SpecialOpsTab />}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="sticky bottom-0 w-full bg-navy text-background grid grid-cols-5 py-3 pb-safe border-t-4 border-accent-red shadow-[0_-10px_20px_rgba(0,0,0,0.15)] z-50 mt-auto">
-        <button
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center pt-1 ${activeTab === 'home' ? 'text-accent-red' : 'text-background/70'}`}
+      <footer className="px-3 pb-2 text-center text-[10px] font-bold text-navy/35">
+        <a
+          href={PRIVACY_POLICY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => {
+            event.preventDefault();
+            openExternalPolicyPage(PRIVACY_POLICY_URL);
+          }}
+          className="hover:text-navy underline underline-offset-2"
         >
-          <Home size={22} />
-          <span className="text-[11px] mt-1 font-bold tracking-tight">주간일정</span>
+          개인정보처리방침
+        </a>
+        <span className="mx-2 text-navy/20">|</span>
+        <a
+          href={DATA_DELETE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => {
+            event.preventDefault();
+            openExternalPolicyPage(DATA_DELETE_URL);
+          }}
+          className="hover:text-navy underline underline-offset-2"
+        >
+          데이터 삭제 안내
+        </a>
+      </footer>
+
+      {/* Bottom Navigation */}
+      <nav className="absolute bottom-0 left-0 right-0 bg-white/95 text-navy grid grid-cols-5 py-2 pb-safe border-t border-navy/10 shadow-[0_-10px_20px_rgba(0,0,0,0.12)] backdrop-blur-md z-50">
+        <button
+          data-tour="nav-home"
+          onClick={() => setActiveTab('home')}
+          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'home' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+        >
+          <Home size={20} />
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">주간일정</span>
         </button>
         <button
+          data-tour="nav-daily"
           onClick={() => setActiveTab('daily')}
-          className={`relative flex flex-col items-center pt-1 ${activeTab === 'daily' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`relative flex flex-col items-center pt-1 transition-colors ${activeTab === 'daily' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
         >
           <div className="relative">
-            <CheckSquare size={22} />
+            <CheckSquare size={20} />
             {incompleteTasksCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-accent-red text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border-2 border-navy">
+              <span className="absolute -top-1.5 -right-2 bg-accent-red text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border-2 border-white">
                 {incompleteTasksCount > 9 ? '9+' : incompleteTasksCount}
               </span>
             )}
           </div>
-          <span className="text-[11px] mt-1 font-bold tracking-tight">오늘할일</span>
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">오늘할일</span>
         </button>
         <button
+          data-tour="nav-map"
           onClick={() => setActiveTab('map')}
-          className={`flex flex-col items-center pt-1 ${activeTab === 'map' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'map' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
         >
-          <CalendarDays size={22} />
-          <span className="text-[11px] mt-1 font-bold tracking-tight">월간일정</span>
+          <CalendarDays size={20} />
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">월간일정</span>
         </button>
         <button
+          data-tour="nav-payment"
           onClick={() => setActiveTab('payment')}
-          className={`flex flex-col items-center pt-1 ${activeTab === 'payment' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'payment' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
         >
-          <CreditCard size={22} />
-          <span className="text-[11px] mt-1 font-bold tracking-tight">결제관리</span>
+          <CreditCard size={20} />
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">결제관리</span>
         </button>
         <button
+          data-tour="nav-ops"
           onClick={() => setActiveTab('ops')}
-          className={`flex flex-col items-center pt-1 ${activeTab === 'ops' ? 'text-accent-red' : 'text-background/70'}`}
+          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'ops' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
         >
-          <Star size={22} />
-          <span className="text-[11px] mt-1 font-bold tracking-tight">가족일정</span>
+          <Star size={20} />
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">가족일정</span>
         </button>
       </nav>
-
-      {/* PWA Mobile Install Prompt */}
-      {showInstallPrompt && (
-        <InstallPrompt onClose={() => setShowInstallPrompt(false)} />
+      <AnimatePresence>
+        {FAMILY_SHARING_ENABLED && isShareAuthOpen && !session && (
+          <Suspense fallback={null}>
+            <Login onClose={() => setIsShareAuthOpen(false)} />
+          </Suspense>
+        )}
+      </AnimatePresence>
+      {isSupportEnabled && (
+        <Suspense fallback={null}>
+          <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
+        </Suspense>
       )}
-      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
+      {isTourReady && (
+        <Suspense fallback={null}>
+          <OnboardingTour
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            replayKey={tourReplayKey}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
