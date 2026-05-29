@@ -49,14 +49,14 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
       tab: 'home',
       target: '[data-tour="app-title"]',
       shape: 'circle',
-      message: '아이의 복잡한 하루를\n한눈에 정리하세요.',
+      message: '가족의 복잡한 하루를\n한눈에 정리하세요.',
     },
     {
       id: 'child',
       tab: 'home',
       target: '[data-tour="child-selector"]',
       shape: 'circle',
-      message: '아이별 일정과 결제 정보를\n따로 관리할 수 있어요.',
+      message: '가족별 일정과 결제 정보를\n따로 관리할 수 있어요.',
     },
     {
       id: 'weekly',
@@ -110,7 +110,7 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
     {
       id: 'start',
       tab: 'home',
-      message: '아이와 함께 즐거운 시간 보내세요!',
+      message: '가족과 함께 즐거운 시간 보내세요!',
     },
   ], []);
 
@@ -390,7 +390,7 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
               <button
                 type="button"
                 onClick={() => closeTour(true)}
-                className="pointer-events-auto mt-3 min-w-[116px] rounded-full border border-white/40 bg-white/18 px-6 py-3 text-sm font-bold text-white/90 shadow-[0_10px_28px_rgba(0,0,0,0.26)] backdrop-blur-md transition-colors hover:bg-white/28 focus:outline-none focus:ring-2 focus:ring-white/55"
+                className="pointer-events-auto mt-3 min-w-[116px] rounded-full border border-white/40 bg-white/18 px-6 py-3 text-[15px] font-bold text-white/90 shadow-[0_10px_28px_rgba(0,0,0,0.26)] backdrop-blur-md transition-colors hover:bg-white/28 focus:outline-none focus:ring-2 focus:ring-white/55"
                 aria-label="가이드 완료하고 시작하기"
               >
                 시작하기

@@ -80,7 +80,7 @@ export default function Login({ onClose }) {
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-navy mb-1 flex items-center gap-1">
+                        <label className="block text-[13px] font-bold text-navy mb-1 flex items-center gap-1">
                             <ShieldAlert size={14} className="text-accent-red" /> 이메일 (Email)
                         </label>
                         <input
@@ -93,7 +93,7 @@ export default function Login({ onClose }) {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-navy mb-1 flex items-center gap-1">
+                        <label className="block text-[13px] font-bold text-navy mb-1 flex items-center gap-1">
                             <Key size={14} className="text-accent-red" /> 비밀번호 (Password)
                         </label>
                         <input
@@ -107,7 +107,7 @@ export default function Login({ onClose }) {
                     </div>
 
                     {errorMsg && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-accent-red text-xs font-bold text-center bg-accent-red/10 p-2 rounded">
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-accent-red text-[13px] font-bold text-center bg-accent-red/10 p-2 rounded">
                             {errorMsg}
                         </motion.div>
                     )}
@@ -125,7 +125,7 @@ export default function Login({ onClose }) {
                     <button
                         type="button"
                         onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(''); }}
-                        className="text-xs text-navy font-bold underline hover:text-accent-red"
+                        className="text-[13px] text-navy font-bold underline hover:text-accent-red"
                     >
                         {isSignUp ? '이미 계정이 있으신가요? (로그인)' : '새로운 가족 계정을 만드시겠습니까? (회원가입)'}
                     </button>

@@ -1,14 +1,20 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, Database, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
-const TAB_LIKE_TRANSITION = { duration: 0.15 };
+const TAB_LIKE_TRANSITION = { duration: 0.2, ease: "easeOut" };
 const TAB_LIKE_MOTION = {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -10 },
     transition: TAB_LIKE_TRANSITION,
+};
+const ACCORDION_MOTION = {
+    initial: { height: 0, opacity: 0 },
+    animate: { height: "auto", opacity: 1 },
+    exit: { height: 0, opacity: 0 },
+    transition: { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }
 };
 
 const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
@@ -151,8 +157,8 @@ export default function RouteMapTab() {
                 allElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
                 allElements.forEach(element => {
                     const card = element.querySelector('.bg-white') || element;
-                    card.classList.add('ring-4', 'ring-accent-red', 'transition-all');
-                    setTimeout(() => card.classList.remove('ring-4', 'ring-accent-red'), 2000);
+                    card.classList.add('ring-4', 'ring-rose-500', 'transition-all');
+                    setTimeout(() => card.classList.remove('ring-4', 'ring-rose-500'), 2000);
                 });
             }
         };
@@ -166,12 +172,12 @@ export default function RouteMapTab() {
 
     const renderManageForm = () => {
         return (
-            <motion.div key="manage-form" {...TAB_LIKE_MOTION} className="bg-amber-50 border-2 border-navy p-4 rounded shadow-md overflow-hidden mt-2">
-                <h3 className="font-stencil text-navy mb-3 border-b-2 border-navy pb-1">일정 정보 수정</h3>
-                <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+            <motion.div key="manage-form" {...TAB_LIKE_MOTION} className="bg-white border border-navy/15 rounded-2xl p-4.5 shadow-lg shadow-navy/5 space-y-4 mt-2">
+                <h3 className="font-sans font-black text-[13px] text-navy border-b border-navy/10 pb-2.5">일정 정보 수정</h3>
+                <div className="space-y-3.5">
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-xs font-bold opacity-70 block">종류</label>
+                            <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">종류</label>
                             <select value={manageMissionForm.type} onChange={e => {
                                 const today = new Date();
                                 setManageMissionForm({
@@ -180,37 +186,37 @@ export default function RouteMapTab() {
                                     year: manageMissionForm.year || today.getFullYear(),
                                     month: manageMissionForm.month || (today.getMonth() + 1)
                                 });
-                            }} className="w-full border-2 border-navy rounded p-2 font-bold cursor-pointer bg-white outline-none">
+                            }} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all cursor-pointer text-navy">
                                 <option value="fund">결제관리</option>
                                 <option value="event">가족일정</option>
                             </select>
                         </div>
                         {manageMissionForm.type === 'fund' ? (
                             <div>
-                                <label className="text-xs font-bold opacity-70 block">매월 결제일 (1~31)</label>
-                                <input type="number" min="1" max="31" value={manageMissionForm.day || ''} onChange={e => setManageMissionForm({ ...manageMissionForm, day: Number(e.target.value) })} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
+                                <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">매월 결제일 (1~31)</label>
+                                <input type="number" min="1" max="31" value={manageMissionForm.day || ''} onChange={e => setManageMissionForm({ ...manageMissionForm, day: Number(e.target.value) })} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold font-mono outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" />
                             </div>
                         ) : (
                             <div>
-                                <label className="text-xs font-bold opacity-70 block">날짜</label>
+                                <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">날짜</label>
                                 <input type="date" value={manageMissionForm.year && manageMissionForm.month ? `${manageMissionForm.year}-${String(manageMissionForm.month).padStart(2, '0')}-${String(manageMissionForm.day).padStart(2, '0')}` : ''} onChange={e => {
                                     if (e.target.value) {
                                         const [y, m, d] = e.target.value.split('-');
                                         setManageMissionForm({ ...manageMissionForm, year: Number(y), month: Number(m), day: Number(d) });
                                     }
-                                }} className="w-full border-2 border-navy rounded p-2 font-mono font-bold bg-white outline-none" />
+                                }} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold font-mono outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" />
                             </div>
                         )}
                     </div>
                     <div>
-                        <label className="text-xs font-bold opacity-70 block">일정명</label>
-                        <input type="text" value={manageMissionForm.title} onChange={e => setManageMissionForm({ ...manageMissionForm, title: e.target.value })} className="w-full border-2 border-navy rounded p-2 font-bold bg-white outline-none" placeholder="ex. 아파트 관리비 결제" />
+                        <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">일정명</label>
+                        <input type="text" value={manageMissionForm.title} onChange={e => setManageMissionForm({ ...manageMissionForm, title: e.target.value })} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" placeholder="예: 아파트 관리비 결제" />
                     </div>
-                    <div className="flex gap-2 pt-2">
-                        <button onClick={saveManageMissionData} className="flex-1 bg-navy text-white font-bold py-2 rounded flex justify-center items-center gap-1 border-2 border-navy hover:bg-white hover:text-navy transition-colors">
-                            <Save size={16} /> 저장하기
+                    <div className="flex gap-2.5 pt-2">
+                        <button onClick={saveManageMissionData} className="flex-1 bg-accent-blue text-white font-bold py-2.5 rounded-xl flex justify-center items-center gap-1 border border-accent-blue hover:bg-accent-blue/95 transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 cursor-pointer text-[13px]">
+                            <Save size={14} /> 저장하기
                         </button>
-                        <button onClick={() => setEditingMissionId(null)} className="flex-1 bg-gray-200 text-navy font-bold py-2 rounded border-2 border-gray-400 hover:bg-white transition-colors">
+                        <button onClick={() => setEditingMissionId(null)} className="flex-1 bg-navy/5 text-navy/60 font-bold py-2.5 rounded-xl border border-navy/5 hover:bg-navy/10 transition-colors cursor-pointer text-[13px]">
                             취소
                         </button>
                     </div>
@@ -221,24 +227,20 @@ export default function RouteMapTab() {
 
     return (
         <div className="space-y-6 w-full max-w-full overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center gap-3 border-b-2 border-navy pb-2">
-                <CalendarDays size={24} className="text-navy" />
-                <h2 className="font-stencil text-xl flex-1 text-navy">월간 일정표</h2>
-            </div>
+
 
             {/* Mini Calendar View */}
-            <div className="bg-white border-2 border-navy rounded p-4 shadow-sm relative overflow-hidden">
-                <div className="flex justify-between items-center mb-4">
-                    <button onClick={prevMonth} className="p-1 hover:bg-navy/10 rounded transition-colors"><ChevronLeft size={20} /></button>
-                    <h3 className="font-stencil text-lg text-navy tracking-widest">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                    <button onClick={nextMonth} className="p-1 hover:bg-navy/10 rounded transition-colors"><ChevronRight size={20} /></button>
+            <div className="bg-white border border-navy/5 rounded-2xl p-4.5 shadow-sm relative overflow-hidden">
+                <div className="flex justify-between items-center mb-4.5">
+                    <button onClick={prevMonth} className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"><ChevronLeft size={18} /></button>
+                    <h3 className="font-sans font-black text-[15px] text-navy tracking-wider">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
+                    <button onClick={nextMonth} className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"><ChevronRight size={18} /></button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs mb-2 text-navy/60 border-b-2 border-navy/20 pb-2">
-                    <div className="text-accent-red">SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div className="text-blue-600">SAT</div>
+                <div className="grid grid-cols-7 gap-1 text-center font-black text-[10px] mb-3 text-navy/40 border-b border-navy/5 pb-2">
+                    <div className="text-rose-500">SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div className="text-blue-500">SAT</div>
                 </div>
-                <div className="grid grid-cols-7 gap-1 text-center font-mono">
+                <div className="grid grid-cols-7 gap-1.5 text-center font-mono">
                     {calendarCells.map((cell, idx) => {
                         const isToday = cell.type === 'current' &&
                             cell.day === todayMarker.day &&
@@ -246,19 +248,41 @@ export default function RouteMapTab() {
                             currentDate.getFullYear() === todayMarker.year;
 
                         if (cell.type !== 'current') {
-                            return <div key={`padding-${idx}`} className="p-2 opacity-30 text-xs mt-1">{cell.day}</div>;
+                            return <div key={`padding-${idx}`} className="p-2 opacity-20 text-[10px] mt-1 text-navy">{cell.day}</div>;
                         }
 
                         return (
                             <div
                                 key={`day-${cell.day}`}
                                 onClick={() => cell.missions.length > 0 && scrollToDay(cell.day, currentDate.getFullYear(), currentDate.getMonth() + 1)}
-                                className={`relative p-2 border border-navy/10 rounded-sm transition-colors ${isToday ? 'bg-navy/10 border-navy/50 shadow-inner' : ''} ${cell.missions.length > 0 ? 'cursor-pointer hover:bg-navy/10 active:bg-navy/20' : ''}`}
+                                className={`relative py-1.5 px-0.5 border border-navy/5 rounded-xl transition-all duration-200 ${
+                                    isToday
+                                        ? 'bg-navy/5 border-navy/20 shadow-inner'
+                                        : 'bg-white'
+                                } ${
+                                    cell.missions.length > 0
+                                        ? 'cursor-pointer hover:bg-navy/5 hover:scale-[1.05] active:scale-[0.95]'
+                                        : ''
+                                }`}
                             >
-                                <span className={`text-sm font-bold ${isToday ? 'text-accent-red font-black underline decoration-2 underline-offset-2' : 'text-navy'}`}>{cell.day}</span>
-                                <div className="flex justify-center gap-1 mt-1 flex-wrap h-3 overflow-hidden">
+                                <span className={`text-[13px] font-black block ${
+                                    isToday
+                                        ? 'text-rose-500 font-black'
+                                        : 'text-navy/80'
+                                }`}>
+                                    {cell.day}
+                                </span>
+                                <div className="flex justify-center gap-0.5 mt-1 flex-wrap h-2 overflow-hidden px-0.5">
                                     {cell.missions.map(m => (
-                                        <div key={m.id} className={`w-2 h-2 rounded-full ${m.type === 'fund' ? 'bg-accent-red' : 'bg-accent-green'}`} title={m.title}></div>
+                                        <div
+                                            key={m.id}
+                                            className={`w-1.5 h-1.5 rounded-full shrink-0 shadow-sm ${
+                                                m.type === 'fund'
+                                                    ? 'bg-rose-500 shadow-rose-200'
+                                                    : 'bg-emerald-500 shadow-emerald-200'
+                                            }`}
+                                            title={m.title}
+                                        ></div>
                                     ))}
                                 </div>
                             </div>
@@ -266,50 +290,40 @@ export default function RouteMapTab() {
                     })}
                 </div>
 
-                <div className="flex gap-4 mt-6 justify-center text-xs font-bold text-navy/70 border-t border-navy/10 pt-3">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div> 결제관리</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div> 가족일정</div>
+                <div className="flex gap-4 mt-5 justify-center text-[10px] font-black text-navy/40 border-t border-navy/5 pt-3.5 uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-200"></div> 결제관리</div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200"></div> 가족일정</div>
                 </div>
             </div>
 
             {/* Calendar Data Manager */}
-            <div className="bg-navy/5 p-4 rounded border-2 border-navy/20 space-y-4">
-                <h3 className="font-stencil text-navy mb-1 flex items-center gap-2 border-b-2 border-navy/20 pb-2">
-                    <Database size={20} className="text-navy" /> 데이터 관리
-                </h3>
-                {/* 
-                // [NOTE] 결제미션 및 특수임무 탭과 데이터가 연동되므로 임시 가림 처리
-                <button onClick={() => openManageMissionForm()} className="w-full bg-navy text-background font-bold text-sm py-3 rounded border-2 border-navy flex justify-center items-center gap-2 hover:bg-white hover:text-navy transition-colors">
-                    <Plus size={16} /> 새로운 일정/결제일 추가
-                </button>
-                */}
-
+            <div className="bg-navy/5 p-4.5 rounded-2xl border border-navy/5 space-y-4">
                 <AnimatePresence initial={false}>
                     {editingMissionId && !missionsData.find(m => m.id === editingMissionId) && renderManageForm()}
                 </AnimatePresence>
 
-                <div className="space-y-4 mt-4">
+                <div className="space-y-3.5 mt-2">
                     {/* Funds Accordion */}
-                    <div className="bg-white border-2 border-navy/20 rounded-md shadow-sm overflow-hidden">
+                    <div className="bg-white border border-navy/5 rounded-2xl shadow-sm overflow-hidden">
                         <div
                             onClick={() => setIsFundsExpanded(!isFundsExpanded)}
-                            className="bg-navy/5 p-3 flex justify-between items-center border-b-2 border-navy/20 cursor-pointer hover:bg-navy/10 transition-colors"
+                            className="bg-navy/5 p-3.5 flex justify-between items-center border-b border-navy/5 cursor-pointer hover:bg-navy/10 transition-colors"
                         >
-                            <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-navy font-mono flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-accent-red border-2 border-white drop-shadow-sm"></div>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-200"></div>
+                                <h4 className="font-sans font-black text-[13px] text-navy flex items-center gap-2">
                                     결제관리 ({fundMissions.length})
                                 </h4>
-                                {isFundsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
+                            {isFundsExpanded ? <ChevronUp size={14} className="text-navy/45" /> : <ChevronDown size={14} className="text-navy/45" />}
                         </div>
                         <AnimatePresence initial={false}>
                             {isFundsExpanded && (
                                 <motion.div
-                                    {...TAB_LIKE_MOTION}
-                                    className="overflow-hidden"
+                                    {...ACCORDION_MOTION}
+                                    className="overflow-hidden bg-navy/5"
                                 >
-                                    <div className="p-2 space-y-2 pb-3 bg-navy/5">
+                                    <div className="p-3.5 space-y-2.5 pb-4">
                                         {fundMissions.map((item) => (
                                             <motion.div
                                                 key={item.id}
@@ -317,19 +331,19 @@ export default function RouteMapTab() {
                                                 data-type="fund"
                                                 {...TAB_LIKE_MOTION}
                                             >
-                                                <div className="bg-white border-2 border-navy rounded p-2.5 flex min-w-0 items-center gap-2 overflow-hidden group shadow-sm">
-                                                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded w-14 shrink-0 whitespace-nowrap text-center bg-accent-red">
+                                                <div className="bg-white border border-navy/5 rounded-xl p-3.5 flex min-w-0 items-center justify-between gap-2 shadow-sm group">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                        <span className="font-mono font-bold text-white px-2 py-0.5 rounded-xl w-14 shrink-0 text-center bg-rose-500 text-[10px] tracking-tight">
                                                             {item.day}일
                                                         </span>
-                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-sm leading-tight">{item.title}</h4>
+                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-[13px] text-navy">{item.title}</h4>
                                                     </div>
-                                                    <div className="flex shrink-0 gap-1">
-                                                        <button onClick={() => openManageMissionForm(item)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-navy transition-colors hover:bg-navy/10">
-                                                            <Edit2 size={16} />
+                                                    <div className="flex shrink-0 gap-0.5 bg-navy/5 rounded-full p-0.5">
+                                                        <button onClick={() => openManageMissionForm(item)} className="p-1 rounded-full text-navy/40 hover:text-navy hover:bg-white transition-all cursor-pointer" title="수정">
+                                                            <Edit2 size={11} />
                                                         </button>
-                                                        <button onClick={() => removeMission(item.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-accent-red transition-colors hover:bg-accent-red/10">
-                                                            <Trash2 size={16} />
+                                                        <button onClick={() => removeMission(item.id)} className="p-1 rounded-full text-navy/40 hover:text-rose-500 hover:bg-white transition-all cursor-pointer" title="삭제">
+                                                            <Trash2 size={11} />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -345,26 +359,26 @@ export default function RouteMapTab() {
                     </div>
 
                     {/* Events Accordion */}
-                    <div className="bg-white border-2 border-navy/20 rounded-md shadow-sm overflow-hidden">
+                    <div className="bg-white border border-navy/5 rounded-2xl shadow-sm overflow-hidden">
                         <div
                             onClick={() => setIsEventsExpanded(!isEventsExpanded)}
-                            className="bg-navy/5 p-3 flex justify-between items-center border-b-2 border-navy/20 cursor-pointer hover:bg-navy/10 transition-colors"
+                            className="bg-navy/5 p-3.5 flex justify-between items-center border-b border-navy/5 cursor-pointer hover:bg-navy/10 transition-colors"
                         >
-                            <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-navy font-mono flex items-center gap-2">
-                                    <div className="w-3 h-3 rounded-full bg-accent-green border-2 border-white drop-shadow-sm"></div>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200"></div>
+                                <h4 className="font-sans font-black text-[13px] text-navy flex items-center gap-2">
                                     가족일정 ({eventMissions.length})
                                 </h4>
-                                {isEventsExpanded ? <ChevronUp size={16} className="text-navy/50" /> : <ChevronDown size={16} className="text-navy/50" />}
                             </div>
+                            {isEventsExpanded ? <ChevronUp size={14} className="text-navy/45" /> : <ChevronDown size={14} className="text-navy/45" />}
                         </div>
                         <AnimatePresence initial={false}>
                             {isEventsExpanded && (
                                 <motion.div
-                                    {...TAB_LIKE_MOTION}
-                                    className="overflow-hidden"
+                                    {...ACCORDION_MOTION}
+                                    className="overflow-hidden bg-navy/5"
                                 >
-                                    <div className="p-2 space-y-2 pb-3 bg-navy/5">
+                                    <div className="p-3.5 space-y-2.5 pb-4">
                                         {eventMissions.map((item) => (
                                             <motion.div
                                                 key={item.id}
@@ -373,19 +387,19 @@ export default function RouteMapTab() {
                                                 data-month={item.month}
                                                 {...TAB_LIKE_MOTION}
                                             >
-                                                <div className="bg-white border-2 border-navy rounded p-2.5 flex min-w-0 items-center gap-2 overflow-hidden group shadow-sm">
-                                                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                                                        <span className="font-mono font-bold text-white px-2 py-1 rounded w-14 shrink-0 whitespace-nowrap text-center bg-accent-green">
+                                                <div className="bg-white border border-navy/5 rounded-xl p-3.5 flex min-w-0 items-center justify-between gap-2 shadow-sm group">
+                                                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                        <span className="font-mono font-bold text-white px-2 py-0.5 rounded-xl w-14 shrink-0 text-center bg-emerald-500 text-[10px] tracking-tight">
                                                             {item.month}/{item.day}
                                                         </span>
-                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-sm leading-tight">{item.title}</h4>
+                                                        <h4 className="min-w-0 flex-1 truncate font-bold text-[13px] text-navy">{item.title}</h4>
                                                     </div>
-                                                    <div className="flex shrink-0 gap-1">
-                                                        <button onClick={() => openManageMissionForm(item)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-navy transition-colors hover:bg-navy/10">
-                                                            <Edit2 size={16} />
+                                                    <div className="flex shrink-0 gap-0.5 bg-navy/5 rounded-full p-0.5">
+                                                        <button onClick={() => openManageMissionForm(item)} className="p-1 rounded-full text-navy/40 hover:text-navy hover:bg-white transition-all cursor-pointer" title="수정">
+                                                            <Edit2 size={11} />
                                                         </button>
-                                                        <button onClick={() => removeMission(item.id)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-accent-red transition-colors hover:bg-accent-red/10">
-                                                            <Trash2 size={16} />
+                                                        <button onClick={() => removeMission(item.id)} className="p-1 rounded-full text-navy/40 hover:text-rose-500 hover:bg-white transition-all cursor-pointer" title="삭제">
+                                                            <Trash2 size={11} />
                                                         </button>
                                                     </div>
                                                 </div>

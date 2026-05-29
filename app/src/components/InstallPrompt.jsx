@@ -85,14 +85,14 @@ export default function InstallPrompt() {
                         <Download size={24} />
                     </div>
                     <div>
-                        <h4 className="font-bold text-sm">앱 설치 안내</h4>
+                        <h4 className="font-bold text-[15px]">앱 설치 안내</h4>
                         <p className="text-[10px] text-white/70">스마트폰 바탕화면에 설치하고<br />최적화된 환경으로 접속하시겠습니까?</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <button
                         onClick={handleInstallClick}
-                        className="bg-accent-red hover:bg-red-600 text-white font-bold text-xs py-2 px-3 rounded shadow-md transition-colors"
+                        className="bg-accent-red hover:bg-red-600 text-white font-bold text-[13px] py-2 px-3 rounded shadow-md transition-colors"
                     >
                         설치하기
                     </button>

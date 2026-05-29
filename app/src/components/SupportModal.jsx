@@ -54,7 +54,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                             <h2 className="mt-6 text-xl font-black text-white tracking-tight text-center">
                                 후원해주셔서 감사합니다!
                             </h2>
-                            <p className="mt-2 text-white/60 text-xs font-bold text-center leading-relaxed">
+                            <p className="mt-2 text-white/60 text-[13px] font-bold text-center leading-relaxed">
                                 보내주신 소중한 마음은 더 나은<br />
                                 앱 서비스를 위해 사용됩니다.
                             </p>
@@ -94,7 +94,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                                     
                                     <div className="relative">
                                         <div className="bg-navy/5 rounded-xl py-3 px-4 flex items-center justify-between border border-navy/5 overflow-hidden">
-                                            <span className="font-mono text-sm font-bold text-navy tracking-tighter">
+                                            <span className="font-mono text-[15px] font-bold text-navy tracking-tighter">
                                                 {accountInfo.number}
                                             </span>
                                             <button
@@ -129,7 +129,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                             {/* Done Button */}
                             <button
                                 onClick={onClose}
-                                className="w-full py-4 bg-navy text-white rounded-2xl font-black text-sm shadow-xl hover:shadow-2xl hover:bg-navy/95 active:scale-[0.98] transition-all transform"
+                                className="w-full py-4 bg-navy text-white rounded-2xl font-black text-[15px] shadow-xl hover:shadow-2xl hover:bg-navy/95 active:scale-[0.98] transition-all transform"
                             >
                                 닫기
                             </button>

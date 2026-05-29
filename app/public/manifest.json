@@ -1,11 +1,11 @@
 {
-    "name": "가족스케줄러",
-    "short_name": "가족스케줄러",
+    "name": "가족일정",
+    "short_name": "가족일정",
     "description": "우리 가족의 소중한 일정과 자금 관리 앱",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#1e245a",
-    "theme_color": "#1e245a",
+    "background_color": "#1a237e",
+    "theme_color": "#1a237e",
     "orientation": "portrait",
     "icons": [
         {

@@ -4,6 +4,7 @@
   --color-background: #F5F5DC;
   --color-accent-red: #D32F2F;
   --color-accent-green: #2E7D32;
+  --color-accent-blue: #2c3ca9;
   --color-navy: #1a237e;
   --font-sans: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   --font-stencil: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -124,3 +125,21 @@
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+@utility glass-nav {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(26, 35, 126, 0.08);
+}
+
+@utility premium-card {
+  background-color: #ffffff;
+  border: 1px solid rgba(26, 35, 126, 0.05);
+  box-shadow: 0 10px 25px -5px rgba(26, 35, 126, 0.04), 0 4px 12px -2px rgba(26, 35, 126, 0.02);
+}
+
+@utility soft-glow {
+  box-shadow: 0 0 20px 0px rgba(211, 47, 47, 0.15);
+}
+

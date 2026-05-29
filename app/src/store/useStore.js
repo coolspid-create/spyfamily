@@ -363,8 +363,8 @@ export const useStore = create(persistGuestData((set, get) => ({
                 location: item.location || '',
                 contactName: item.contactName || '',
                 contactPhone: item.contactPhone || '',
-                isEarly: item.isUrgent || false,
-                isUrgent: item.isEarly || false
+                isEarly: item.isEarly || false,
+                isUrgent: item.isUrgent || false
             };
             set(s => {
                 const newWeekly = { ...s.weeklyData };

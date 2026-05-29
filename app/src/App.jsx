@@ -1,10 +1,11 @@
-import React, { lazy, Suspense, useMemo, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import HomeBoard from './components/HomeBoard';
 import DailyTasksTab from './components/DailyTasksTab';
 import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp } from 'lucide-react';
+import CustomMemoryMvp from './components/CustomMemoryMvp';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
@@ -39,10 +40,27 @@ function App() {
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showLocalTooltip, setShowLocalTooltip] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [tourReplayKey, setTourReplayKey] = useState(0);
   const [isTourReady, setIsTourReady] = useState(false);
   const isSupportEnabled = import.meta.env.VITE_ENABLE_SUPPORT === 'true';
+
+  const localTooltipRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (localTooltipRef.current && !localTooltipRef.current.contains(event.target)) {
+        setShowLocalTooltip(false);
+      }
+    }
+    if (showLocalTooltip) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showLocalTooltip]);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -157,7 +175,7 @@ function App() {
           <h1 className="mt-5 whitespace-nowrap font-stencil text-3xl font-bold text-background">
             가족 × 스케줄러
           </h1>
-          <p className="mt-3 whitespace-nowrap text-sm font-bold text-background/80">
+          <p className="mt-3 whitespace-nowrap text-[15px] font-bold text-background/80">
             우리 가족의 일정을 준비하고 있어요
           </p>
           <div className="mt-6 flex items-center gap-2" aria-label="로딩 중">
@@ -183,18 +201,18 @@ function App() {
           >
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-accent-red rounded-full animate-pulse" />
-              <p className="text-sm font-bold">새로운 버전이 준비되었습니다!</p>
+              <p className="text-[15px] font-bold">새로운 버전이 준비되었습니다!</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => updateServiceWorker(true)}
-                className="flex-1 bg-accent-red text-white py-2 rounded-lg font-bold text-xs shadow-lg hover:brightness-110 active:scale-95 transition-all"
+                className="flex-1 bg-accent-red text-white py-2 rounded-lg font-bold text-[13px] shadow-lg hover:brightness-110 active:scale-95 transition-all"
               >
                 지금 업데이트 적용
               </button>
               <button
                 onClick={() => setNeedRefresh(false)}
-                className="px-4 py-2 bg-white/10 text-white/70 rounded-lg font-bold text-xs hover:bg-white/20 transition-all"
+                className="px-4 py-2 bg-white/10 text-white/70 rounded-lg font-bold text-[13px] hover:bg-white/20 transition-all"
               >
                 나중에
               </button>
@@ -204,10 +222,7 @@ function App() {
       </AnimatePresence>
 
       {/* Header / Dossier Tab */}
-      <header className="relative z-50 shrink-0 mb-1 bg-navy pt-1.5 pb-3 px-3.5 text-background">
-        {/* Background with clip-path */}
-        <div className="absolute -left-px -right-px bottom-0 top-0 bg-navy clip-paper shadow-md drop-shadow-md"></div>
-
+      <header className="relative z-50 shrink-0 bg-white/80 backdrop-blur-md pt-2.5 pb-4 px-4 border-b border-navy/5 text-navy shadow-sm">
         {/* Absolute Left Controls */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-[100]">
           {/* Child Profile Dropdown Manager */}
@@ -215,32 +230,32 @@ function App() {
             <button
               data-tour="child-selector"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex h-[28px] items-center gap-1 bg-white/10 hover:bg-white/20 transition-colors rounded-full px-2.5 border border-white/20 shadow-sm"
+              className="flex h-[28px] items-center gap-1.5 bg-navy/5 hover:bg-navy/10 active:scale-95 transition-all rounded-full px-3 border border-navy/10 shadow-sm cursor-pointer text-navy"
             >
-              <span className="font-bold text-[10px] tracking-wide text-white truncate max-w-[46px]">
+              <span className="font-sans font-black text-[10px] tracking-wide text-navy truncate max-w-[46px]">
                 {childProfiles[currentChild]}
               </span>
-              <ChevronDown size={12} className={`text-white/70 transition-transform shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={11} className={`text-navy/50 transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute top-full left-0 mt-2 w-28 bg-white rounded shadow-xl overflow-hidden border border-navy/10 origin-top-left z-[100]">
+              <div className="absolute top-full left-0 mt-2 w-28 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl overflow-hidden border border-navy/5 origin-top-left z-[100] p-1">
                 {Array.from({ length: childCount }).map((_, idx) => {
                   const cId = `child${idx + 1}`;
                   return (
                     <div
                       key={cId}
-                      className={`flex items-center justify-between px-2.5 py-2 text-[10px] font-bold cursor-pointer transition-colors ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
+                      className={`flex items-center justify-between px-2.5 py-1.5 text-[10px] font-bold cursor-pointer transition-all rounded-lg ${currentChild === cId ? 'bg-navy/10 text-navy' : 'text-navy/70 hover:bg-navy/5'}`}
                       onClick={() => { selectChild(cId); setIsDropdownOpen(false); }}
                     >
                       <span className="truncate flex-1 text-navy">{childProfiles[cId]}</span>
                       <div className="flex items-center shrink-0">
                         <button
                           onClick={(e) => handleRenameChild(e, cId)}
-                          className="p-1 hover:bg-navy/10 rounded text-navy/40 hover:text-navy transition-colors ml-1"
+                          className="p-1 hover:bg-navy/10 rounded-md text-navy/40 hover:text-navy transition-colors ml-1"
                           title="이름 수정"
                         >
-                          <Edit2 size={12} />
+                          <Edit2 size={11} />
                         </button>
                       </div>
                     </div>
@@ -248,10 +263,10 @@ function App() {
                 })}
                 {childCount < 3 && (
                   <div
-                    className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-[10px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 transition-colors border-t border-navy/10"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-accent-red cursor-pointer hover:bg-accent-red/5 rounded-lg transition-colors border-t border-navy/5 mt-1"
                     onClick={handleAddChild}
                   >
-                    <Plus size={12} /> 추가
+                    <Plus size={11} /> 추가
                   </div>
                 )}
               </div>
@@ -260,78 +275,99 @@ function App() {
         </div>
 
         {/* Absolute Right Control */}
-        <div className="absolute top-2.5 right-2.5 z-[100] flex items-center gap-1.5">
+        <div className="absolute top-2.5 right-2.5 z-[100] flex flex-col items-end gap-1.5">
           {FAMILY_SHARING_ENABLED && session ? (
             <span
               data-tour="local-status"
-              className="inline-flex h-[26px] items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 text-[10px] font-bold text-white/55"
+              className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-emerald-200/50 bg-emerald-50 px-2.5 text-[9px] font-black text-emerald-600 shadow-sm"
               title="가족 공유 중"
             >
-              <Users size={10} />
+              <Users size={10} className="stroke-[2.5px]" />
               공유
             </span>
           ) : (
-            <span
-              data-tour="local-status"
-              className="inline-flex h-[26px] items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 text-[10px] font-bold text-white/55"
-              title="이 기기에 저장 중"
-            >
-              <HardDrive size={10} />
-              로컬
-            </span>
-          )}
-          {FAMILY_SHARING_ENABLED && (
-            <div className="flex flex-row gap-1.5 items-center">
-              {session ? (
+            <div className="relative" ref={localTooltipRef}>
               <button
-                onClick={signOut}
-                className="text-white/50 hover:text-accent-red transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
-                title="가족 공유 해제"
+                type="button"
+                data-tour="local-status"
+                onClick={() => setShowLocalTooltip(!showLocalTooltip)}
+                className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-navy/10 bg-navy/5 px-2.5 text-[9px] font-black text-navy/40 shadow-sm hover:bg-navy/10 transition-colors cursor-pointer"
+                title="로컬 저장 안내 보기"
               >
-                <LogOut size={12} className="ml-0.5" />
+                <HardDrive size={10} />
+                로컬
               </button>
-            ) : (
-              <button
-                onClick={openShareAuth}
-                className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
-                title="다른 보호자와 공유하기"
-              >
-                <Users size={12} />
-              </button>
-              )}
+
+              <AnimatePresence>
+                {showLocalTooltip && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 5 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-md border border-navy/10 rounded-xl p-2.5 shadow-xl z-50 text-[9px] text-navy/70 leading-relaxed font-semibold"
+                  >
+                    <div className="absolute -top-1 right-5 w-2 h-2 bg-white border-t border-l border-navy/10 rotate-45" />
+                    <p className="text-[10px] font-black text-navy mb-1 flex items-center gap-1">
+                      <HardDrive size={11} className="text-navy" /> 로컬 모드 안내
+                    </p>
+                    현재 등록하는 일정 및 정보는 <span className="text-rose-500 font-bold">이 기기에만</span> 안전하게 임시 저장됩니다. 가족 공유 로그인을 하기 전까지는 기기를 변경하면 일정이 연동되지 않습니다.
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
-          {isSupportEnabled && (
+          
+          <div className="flex items-center gap-1.5">
+            {FAMILY_SHARING_ENABLED && (
+              <div className="flex flex-row gap-1.5 items-center">
+                {session ? (
+                  <button
+                    onClick={signOut}
+                    className="text-navy/40 hover:text-rose-500 hover:bg-rose-50 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 transition-transform active:scale-95 cursor-pointer"
+                    title="가족 공유 해제"
+                  >
+                    <LogOut size={11} className="ml-0.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={openShareAuth}
+                    className="text-navy/40 hover:text-navy hover:bg-navy/10 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 transition-transform active:scale-95 cursor-pointer"
+                    title="다른 보호자와 공유하기"
+                  >
+                    <Users size={11} />
+                  </button>
+                )}
+              </div>
+            )}
+            {isSupportEnabled && (
+              <button
+                onClick={() => setIsSupportModalOpen(true)}
+                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 cursor-pointer"
+                title="후원하기"
+              >
+                <Coffee size={11} />
+              </button>
+            )}
             <button
-              onClick={() => setIsSupportModalOpen(true)}
-              className="text-amber-200/70 hover:text-amber-400 transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10"
-              title="후원하기"
+              type="button"
+              data-tour="tour-help"
+              onClick={() => setTourReplayKey(key => key + 1)}
+              className="text-navy/40 hover:text-navy hover:bg-navy/10 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 transition-transform active:scale-95 cursor-pointer"
+              title="빠른 가이드 다시 보기"
+              aria-label="빠른 가이드 다시 보기"
             >
-              <Coffee size={12} />
+              <CircleHelp size={11} />
             </button>
-          )}
-          <button
-            type="button"
-            data-tour="tour-help"
-            onClick={() => setTourReplayKey(key => key + 1)}
-            className="text-white/50 hover:text-white transition-colors flex items-center justify-center bg-white/5 hover:bg-white/10 w-[26px] h-[26px] rounded-full border border-white/10 transition-transform active:scale-95"
-            title="빠른 가이드 다시 보기"
-            aria-label="빠른 가이드 다시 보기"
-          >
-            <CircleHelp size={12} />
-          </button>
+          </div>
         </div>
 
         {/* Header Title Space */}
-        <div className="relative pt-1.5">
-          <h1 className="font-sans text-[20px] font-black tracking-tighter text-center flex items-center justify-center">
-            <span data-tour="app-title" className="inline-flex items-center justify-center">
-              <span className="tracking-tight">가족</span>
-              <span className="text-accent-red text-lg mx-1.5 font-bold">×</span>
-              <span className="tracking-tight">스케줄러</span>
-            </span>
+        <div className="relative pt-2 pb-1 text-center flex flex-col items-center justify-center">
+          <h1 className="font-serif font-black italic text-[21px] tracking-tight text-navy flex items-center justify-center leading-none">
+            Family <span className="text-rose-500 font-sans font-normal not-italic mx-1.5 text-[16px] font-black">×</span> Scheduler
           </h1>
-          <p className="text-center text-[9px] uppercase font-bold pt-0.5 text-background/90">
+          <p className="text-center text-[11px] font-bold text-navy/40 mt-1">
             우리 가족의 소중한 일정 관리
           </p>
         </div>
@@ -346,6 +382,7 @@ function App() {
             {activeTab === 'map' && <RouteMapTab />}
             {activeTab === 'payment' && <PaymentTab />}
             {activeTab === 'ops' && <SpecialOpsTab />}
+            {activeTab === 'diary' && <CustomMemoryMvp isEmbedded={true} />}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -379,24 +416,24 @@ function App() {
       </footer>
 
       {/* Bottom Navigation */}
-      <nav className="absolute bottom-0 left-0 right-0 bg-white/95 text-navy grid grid-cols-5 py-2 pb-safe border-t border-navy/10 shadow-[0_-10px_20px_rgba(0,0,0,0.12)] backdrop-blur-md z-50">
+      <nav className="absolute bottom-0 left-0 right-0 glass-nav text-navy grid grid-cols-6 py-2 pb-safe shadow-[0_-12px_30px_rgba(26,35,126,0.06)] backdrop-blur-lg z-50">
         <button
           data-tour="nav-home"
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'home' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+          className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'home' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
-          <Home size={20} />
+          <Home size={20} className={activeTab === 'home' ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[10px] mt-0.5 font-bold tracking-tight">주간일정</span>
         </button>
         <button
           data-tour="nav-daily"
           onClick={() => setActiveTab('daily')}
-          className={`relative flex flex-col items-center pt-1 transition-colors ${activeTab === 'daily' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+          className={`relative flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'daily' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <div className="relative">
-            <CheckSquare size={20} />
+            <CheckSquare size={20} className={activeTab === 'daily' ? 'stroke-[2.5px]' : 'stroke-2'} />
             {incompleteTasksCount > 0 && (
-              <span className="absolute -top-1.5 -right-2 bg-accent-red text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border-2 border-white">
+              <span className="absolute -top-1.5 -right-2 bg-accent-red text-white text-[9px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-white">
                 {incompleteTasksCount > 9 ? '9+' : incompleteTasksCount}
               </span>
             )}
@@ -406,26 +443,34 @@ function App() {
         <button
           data-tour="nav-map"
           onClick={() => setActiveTab('map')}
-          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'map' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+          className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'map' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
-          <CalendarDays size={20} />
+          <CalendarDays size={20} className={activeTab === 'map' ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[10px] mt-0.5 font-bold tracking-tight">월간일정</span>
         </button>
         <button
           data-tour="nav-payment"
           onClick={() => setActiveTab('payment')}
-          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'payment' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+          className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'payment' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
-          <CreditCard size={20} />
+          <CreditCard size={20} className={activeTab === 'payment' ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[10px] mt-0.5 font-bold tracking-tight">결제관리</span>
         </button>
         <button
           data-tour="nav-ops"
           onClick={() => setActiveTab('ops')}
-          className={`flex flex-col items-center pt-1 transition-colors ${activeTab === 'ops' ? 'text-accent-red' : 'text-[#a2a8cc]'}`}
+          className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'ops' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
-          <Star size={20} />
+          <Star size={20} className={activeTab === 'ops' ? 'stroke-[2.5px]' : 'stroke-2'} />
           <span className="text-[10px] mt-0.5 font-bold tracking-tight">가족일정</span>
+        </button>
+        <button
+          data-tour="nav-diary"
+          onClick={() => setActiveTab('diary')}
+          className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'diary' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
+        >
+          <BookOpen size={20} className={activeTab === 'diary' ? 'stroke-[2.5px]' : 'stroke-2'} />
+          <span className="text-[10px] mt-0.5 font-bold tracking-tight">다이어리</span>
         </button>
       </nav>
       <AnimatePresence>
