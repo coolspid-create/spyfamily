@@ -4,8 +4,9 @@ This file explains how Antigravity and Codex should coordinate while sharing one
 `C:\Users\KPSA\Documents\Codex\FamilyScheduler`
 
 Current operating model:
-- Antigravity: MVP, prototype, UX exploration, product copy.
-- Codex: production integration, refactor, verification, release-safe fixes.
+- Antigravity: UX exploration, product copy, screen variants, and handoff notes.
+- Codex: integrated app implementation, refactor, verification, and release-safe fixes.
+- Diary/memory is now part of the single app rather than a separate MVP target.
 
 Write ownership:
 - Antigravity writes `docs/antigravity-out.md`.
@@ -15,16 +16,14 @@ Write ownership:
 Source file rule:
 - Only one agent should actively edit a given source file at a time.
 - If a file is being explored by Antigravity, Codex should wait for `docs/antigravity-out.md`.
-- If Codex is integrating a production change, Antigravity should avoid touching those same files until Codex finishes.
-- Codex must not edit MVP/prototype files unless the user explicitly gives Codex an exception.
-- Antigravity must not edit main app/production files unless the user explicitly gives Antigravity an exception.
+- If Codex is implementing a change, Antigravity should avoid touching those same files until Codex finishes.
 
 Suggested workflow:
-1. Antigravity prototypes or describes the MVP behavior.
+1. Antigravity explores or describes the requested behavior.
 2. Antigravity updates `docs/antigravity-out.md`.
 3. Codex reads the handoff and implements only the accepted parts.
 4. Codex updates `docs/codex-integration-log.md`.
-5. User reviews the production result.
+5. User reviews the integrated app result.
 
 High-risk areas requiring explicit approval:
 - Auth

@@ -1,11 +1,11 @@
-import React, { lazy, Suspense, useMemo, useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import HomeBoard from './components/HomeBoard';
 import DailyTasksTab from './components/DailyTasksTab';
 import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
-import CustomMemoryMvp from './components/CustomMemoryMvp';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen } from 'lucide-react';
+import FamilyDiaryTab from './components/FamilyDiaryTab';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
@@ -20,13 +20,77 @@ const MAIN_TAB_MOTION = {
   exit: { opacity: 0, y: -10 },
   transition: MAIN_TAB_TRANSITION,
 };
+const DIARY_FLOATING_PANEL_MOTION = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.12 },
+};
+const TAB_PATHS = {
+  home: '/',
+  daily: '/daily',
+  map: '/monthly',
+  payment: '/payment',
+  ops: '/family',
+  diary: '/diary',
+};
+const PATH_TABS = {
+  '/': 'home',
+  '/daily': 'daily',
+  '/today': 'daily',
+  '/monthly': 'map',
+  '/calendar': 'map',
+  '/payment': 'payment',
+  '/payments': 'payment',
+  '/family': 'ops',
+  '/family-events': 'ops',
+  '/diary': 'diary',
+  '/custom-memory': 'diary',
+  '/memory-mvp.html': 'diary',
+};
+
+const getTabFromPath = () => {
+  if (typeof window === 'undefined') return 'home';
+  return PATH_TABS[window.location.pathname] || 'home';
+};
+
+const DiaryFloatingTabButton = ({ active, label, icon, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-2 text-[11px] font-black transition-all hover:bg-white/20 active:scale-95 ${
+      active
+        ? 'text-accent-red'
+        : 'text-navy/55 hover:text-navy'
+    }`}
+  >
+    {React.createElement(icon, { size: 15, className: active ? 'stroke-[2.7px]' : 'stroke-2' })}
+    <span className="truncate">{label}</span>
+  </button>
+);
+
+const DiaryFloatingTabs = ({ activeTab, onTabChange }) => (
+  <motion.div
+    data-diary-floating-tabs="true"
+    className="fixed left-1/2 z-40 w-[min(360px,calc(100vw-28px))] -translate-x-1/2 rounded-full border border-white/45 bg-white/30 p-1.5 shadow-[0_12px_28px_rgba(18,27,97,0.12)] backdrop-blur-md will-change-opacity"
+    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 78px)' }}
+    {...DIARY_FLOATING_PANEL_MOTION}
+  >
+    <div className="flex items-center gap-1">
+      <DiaryFloatingTabButton active={activeTab === 'home'} label="타임라인" icon={Home} onClick={() => onTabChange('home')} />
+      <DiaryFloatingTabButton active={activeTab === 'calendar'} label="기록달력" icon={CalendarDays} onClick={() => onTabChange('calendar')} />
+      <DiaryFloatingTabButton active={activeTab === 'gallery'} label="사진모음" icon={ImageIcon} onClick={() => onTabChange('gallery')} />
+    </div>
+  </motion.div>
+);
 
 const Login = lazy(() => import('./components/Login'));
 const SupportModal = lazy(() => import('./components/SupportModal'));
 const OnboardingTour = lazy(() => import('./components/OnboardingTour'));
 
 function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(getTabFromPath);
+  const [diarySectionTab, setDiarySectionTab] = useState('home');
   const session = useStore(state => state.session);
   const setSession = useStore(state => state.setSession);
   const signOut = useStore(state => state.signOut);
@@ -48,6 +112,15 @@ function App() {
 
   const localTooltipRef = useRef(null);
 
+  const switchTab = useCallback((tab) => {
+    setActiveTab(tab);
+
+    const nextPath = TAB_PATHS[tab] || '/';
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ tab }, '', nextPath);
+    }
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
       if (localTooltipRef.current && !localTooltipRef.current.contains(event.target)) {
@@ -61,6 +134,12 @@ function App() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showLocalTooltip]);
+
+  useEffect(() => {
+    const handlePopState = () => setActiveTab(getTabFromPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -364,7 +443,7 @@ function App() {
 
         {/* Header Title Space */}
         <div className="relative pt-2 pb-1 text-center flex flex-col items-center justify-center">
-          <h1 className="font-serif font-black italic text-[21px] tracking-tight text-navy flex items-center justify-center leading-none">
+          <h1 data-tour="app-title" className="font-serif font-black italic text-[21px] tracking-tight text-navy flex items-center justify-center leading-none">
             Family <span className="text-rose-500 font-sans font-normal not-italic mx-1.5 text-[16px] font-black">×</span> Scheduler
           </h1>
           <p className="text-center text-[11px] font-bold text-navy/40 mt-1">
@@ -382,10 +461,22 @@ function App() {
             {activeTab === 'map' && <RouteMapTab />}
             {activeTab === 'payment' && <PaymentTab />}
             {activeTab === 'ops' && <SpecialOpsTab />}
-            {activeTab === 'diary' && <CustomMemoryMvp isEmbedded={true} />}
+            {activeTab === 'diary' && (
+              <FamilyDiaryTab
+                isEmbedded={true}
+                embeddedActiveTab={diarySectionTab}
+                onEmbeddedTabChange={setDiarySectionTab}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <AnimatePresence initial={false}>
+        {activeTab === 'diary' && (
+          <DiaryFloatingTabs activeTab={diarySectionTab} onTabChange={setDiarySectionTab} />
+        )}
+      </AnimatePresence>
 
       <footer className="px-3 pb-2 text-center text-[10px] font-bold text-navy/35">
         <a
@@ -419,7 +510,7 @@ function App() {
       <nav className="absolute bottom-0 left-0 right-0 glass-nav text-navy grid grid-cols-6 py-2 pb-safe shadow-[0_-12px_30px_rgba(26,35,126,0.06)] backdrop-blur-lg z-50">
         <button
           data-tour="nav-home"
-          onClick={() => setActiveTab('home')}
+          onClick={() => switchTab('home')}
           className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'home' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <Home size={20} className={activeTab === 'home' ? 'stroke-[2.5px]' : 'stroke-2'} />
@@ -427,7 +518,7 @@ function App() {
         </button>
         <button
           data-tour="nav-daily"
-          onClick={() => setActiveTab('daily')}
+          onClick={() => switchTab('daily')}
           className={`relative flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'daily' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <div className="relative">
@@ -442,7 +533,7 @@ function App() {
         </button>
         <button
           data-tour="nav-map"
-          onClick={() => setActiveTab('map')}
+          onClick={() => switchTab('map')}
           className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'map' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <CalendarDays size={20} className={activeTab === 'map' ? 'stroke-[2.5px]' : 'stroke-2'} />
@@ -450,7 +541,7 @@ function App() {
         </button>
         <button
           data-tour="nav-payment"
-          onClick={() => setActiveTab('payment')}
+          onClick={() => switchTab('payment')}
           className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'payment' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <CreditCard size={20} className={activeTab === 'payment' ? 'stroke-[2.5px]' : 'stroke-2'} />
@@ -458,7 +549,7 @@ function App() {
         </button>
         <button
           data-tour="nav-ops"
-          onClick={() => setActiveTab('ops')}
+          onClick={() => switchTab('ops')}
           className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'ops' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <Star size={20} className={activeTab === 'ops' ? 'stroke-[2.5px]' : 'stroke-2'} />
@@ -466,7 +557,7 @@ function App() {
         </button>
         <button
           data-tour="nav-diary"
-          onClick={() => setActiveTab('diary')}
+          onClick={() => switchTab('diary')}
           className={`flex flex-col items-center pt-1 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${activeTab === 'diary' ? 'text-accent-red' : 'text-navy/40 hover:text-navy/70'}`}
         >
           <BookOpen size={20} className={activeTab === 'diary' ? 'stroke-[2.5px]' : 'stroke-2'} />
@@ -489,7 +580,7 @@ function App() {
         <Suspense fallback={null}>
           <OnboardingTour
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={switchTab}
             replayKey={tourReplayKey}
           />
         </Suspense>

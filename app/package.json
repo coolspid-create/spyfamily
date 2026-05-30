@@ -6,29 +6,25 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5175 --strictPort",
     "dev:main": "vite --host 127.0.0.1 --port 5175 --strictPort",
-    "dev:mvp": "vite --config vite.memory.config.js --host 127.0.0.1",
     "build": "vite build",
     "build:main": "vite build",
-    "build:mvp": "vite build --config vite.memory.config.js",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "preview:mvp": "vite preview --config vite.memory.config.js --host 127.0.0.1 --port 4174 --strictPort"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
-    "@capacitor/cli": "^8.3.1",
     "@capacitor/core": "^8.3.1",
     "@supabase/supabase-js": "^2.97.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.3",
     "html2pdf.js": "^0.14.0",
-    "puppeteer": "^25.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.2.0",
     "@types/react": "^19.2.7",

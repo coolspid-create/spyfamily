@@ -32,6 +32,19 @@ const PAST_ITEM_MOTION = {
     exit: { opacity: 0, y: -10 },
     transition: TAB_LIKE_TRANSITION,
 };
+const ADD_FORM_TRANSITION = { duration: 0.22, ease: "easeOut" };
+const ADD_FORM_MOTION = {
+    initial: { opacity: 0, height: 0 },
+    animate: { opacity: 1, height: "auto" },
+    exit: { opacity: 0, height: 0 },
+    transition: ADD_FORM_TRANSITION,
+};
+const ADD_BUTTON_MOTION = {
+    initial: { opacity: 0, scale: 0.98 },
+    animate: { opacity: 1, scale: 1 },
+    exit: { opacity: 0, scale: 0.98 },
+    transition: { duration: 0.16, ease: "easeOut" },
+};
 const STAMP_OUTER_POINTS = Array.from({ length: 80 })
     .map((_, i) => `${130 + (i % 2 === 0 ? 122 : 112) * Math.cos(i * 4.5 * Math.PI / 180)},${130 + (i % 2 === 0 ? 122 : 112) * Math.sin(i * 4.5 * Math.PI / 180)}`)
     .join(' ');
@@ -193,11 +206,14 @@ export default function HomeBoard() {
     return (
         <div className="space-y-5">
             {/* Top Fixed Notice Checklist */}
-            <div className="bg-gradient-to-br from-accent-blue via-accent-blue/95 to-accent-blue/90 p-4.5 rounded-2xl shadow-sm relative overflow-hidden border border-white/5 space-y-3.5">
-                <h3 className="font-sans font-black text-[13px] text-white border-b border-white/10 pb-2 flex items-center gap-2 relative z-10">
-                    <CheckSquare size={15} className="stroke-[2.5px] text-white" /> 가족 알림장
+            <div className="bg-gradient-to-br from-accent-blue via-accent-blue/95 to-accent-blue/90 p-5 rounded-2xl shadow-sm relative overflow-hidden border border-white/5">
+                <div className="absolute top-2 right-2 opacity-[0.03] pointer-events-none text-white">
+                    <CheckSquare size={120} />
+                </div>
+                <h3 className="font-bold text-[13px] text-white border-b border-white/10 pb-2 mb-2 flex items-center gap-2 relative z-10">
+                    <CheckSquare size={14} className="stroke-[2.5px] text-amber-300" /> 가족 알림장
                 </h3>
-                <ul className="space-y-2 text-[13px] font-bold text-white/80 relative z-10">
+                <ul className="space-y-2 text-[12px] font-semibold text-white/75 relative z-10">
                     <AnimatePresence>
                         {notices.map(notice => (
                             <motion.li
@@ -205,9 +221,14 @@ export default function HomeBoard() {
                                 {...TAB_LIKE_MOTION}
                                 className="flex items-center justify-between group py-0.5 rounded-lg hover:bg-white/10 transition-colors"
                             >
-                                <label className="flex items-center gap-2.5 cursor-pointer flex-1 py-1 px-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => updateNotice(notice.id)}
+                                    aria-pressed={notice.checked}
+                                    aria-label={`${notice.text} 완료 상태 변경`}
+                                    className="flex items-center gap-2.5 cursor-pointer flex-1 py-1 px-1.5 text-left rounded-md border-0 bg-transparent text-white/75 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                >
                                     <div
-                                        onClick={() => updateNotice(notice.id)}
                                         className={`w-4.5 h-4.5 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 ${
                                             notice.checked
                                                 ? 'bg-rose-500 border-rose-500 text-white'
@@ -219,7 +240,7 @@ export default function HomeBoard() {
                                     <span className={`leading-tight transition-all ${notice.checked ? 'line-through opacity-40 text-white' : 'group-hover:text-rose-300'}`}>
                                         {notice.text}
                                     </span>
-                                </label>
+                                </button>
                                 <button
                                     onClick={() => removeNotice(notice.id)}
                                     className="opacity-0 group-hover:opacity-100 text-rose-300 p-1.5 transition-opacity cursor-pointer hover:bg-white/20 rounded-full mr-1.5 shadow-sm"
@@ -231,14 +252,14 @@ export default function HomeBoard() {
                         ))}
                     </AnimatePresence>
                 </ul>
-                <div className="flex min-w-0 items-center gap-2 pt-1.5 mt-1.5 relative z-10">
+                <div className="flex min-w-0 items-center gap-2 pt-2 mt-2 relative z-10">
                     <input
                         type="text"
                         value={newNotice}
                         onChange={(e) => setNewNotice(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddNotice()}
                         placeholder="새로운 알림이나 메모 남기기..."
-                        className="min-w-0 flex-1 bg-transparent px-2 py-1 text-[13px] font-semibold text-white outline-none placeholder:text-white/40"
+                        className="min-w-0 flex-1 bg-transparent px-2 py-1 text-[12px] font-semibold text-white outline-none placeholder:text-white/40"
                     />
                     <button
                         type="button"
@@ -454,12 +475,12 @@ export default function HomeBoard() {
                                 <div className="absolute -left-[4.5px] top-4 w-2 h-2 rounded-full border border-background bg-gray-400"></div>
 
                                 {/* Time */}
-                                <div className="font-mono text-[10px] font-bold flex items-center gap-2 mb-1 text-gray-500">
+                                <div className="font-mono text-[15px] font-black flex items-center gap-2 mb-1 text-gray-500">
                                     <span>{item.time}</span>
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-gray-50 border border-gray-200/50 p-4.5 rounded-2xl shadow-sm relative group transition-all duration-300 hover:grayscale-0 hover:bg-white hover:shadow-md ${item.contactPhone ? 'min-h-[100px]' : ''}`}>
+                                <div className={`bg-gray-50 border border-gray-200/50 p-4.5 rounded-2xl shadow-sm relative group transition-all duration-300 hover:grayscale-0 hover:bg-white hover:shadow-md ${editingId === item.id ? '' : 'h-[96px]'}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -526,14 +547,15 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="flex justify-between items-start w-full gap-2">
+                                            <div className="flex h-full justify-between items-center w-full gap-2">
                                                 <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                                                    <h3 className="font-sans font-black text-[15px] text-gray-600 truncate">{item.title}</h3>
-                                                    {item.location && (
-                                                        <p className="text-[13px] text-gray-400 flex items-center gap-1 truncate w-full font-semibold">
-                                                            <MapPin size={12} className="shrink-0" /> <span className="truncate">{item.location}</span>
-                                                        </p>
-                                                    )}
+                                                    <h3 className="font-sans font-black text-[17px] leading-5 text-gray-600 truncate">{item.title}</h3>
+                                                    <p
+                                                        aria-hidden={!item.location}
+                                                        className={`text-[12px] leading-4 text-gray-400 flex items-center gap-1 truncate w-full font-semibold ${item.location ? '' : 'invisible'}`}
+                                                    >
+                                                        <MapPin size={12} className="shrink-0" /> <span className="truncate">{item.location || '장소'}</span>
+                                                    </p>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-2 shrink-0 relative z-10">
                                                     <div className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200 w-fit shrink-0">
@@ -541,14 +563,14 @@ export default function HomeBoard() {
                                                         <span className="text-[9px] font-bold text-gray-500 whitespace-nowrap">{item.agent}</span>
                                                     </div>
                                                     <div className="flex bg-navy/5 rounded-full overflow-hidden border border-navy/5 p-0.5 shadow-inner">
-                                                        <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                        <button onClick={() => startEdit(item)} aria-label={`${item.title} 수정`} title={`${item.title} 수정`} className="text-navy/40 hover:text-navy hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                             <Edit2 size={11} />
                                                         </button>
-                                                        <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-rose-500 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                        <button onClick={() => handleDelete(item.id)} aria-label={`${item.title} 삭제`} title={`${item.title} 삭제`} className="text-navy/40 hover:text-rose-500 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                             <Trash2 size={11} />
                                                         </button>
                                                         {item.contactPhone && (
-                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/60 hover:text-blue-600 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} aria-label={`${item.title} 연락처 보기`} title={`${item.title} 연락처 보기`} className="text-navy/60 hover:text-blue-600 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                                 <Phone size={11} />
                                                             </button>
                                                         )}
@@ -606,7 +628,7 @@ export default function HomeBoard() {
                                 }`}></div>
 
                                 {/* Time */}
-                                <div className="font-mono text-[10px] font-bold flex items-center gap-2 mb-1">
+                                <div className="font-mono text-[15px] font-black flex items-center gap-2 mb-1">
                                     <span className="text-navy">
                                         {item.time}
                                     </span>
@@ -619,7 +641,7 @@ export default function HomeBoard() {
 
                                 {/* Card */}
                                 <div className={`bg-white border p-4.5 rounded-2xl shadow-sm relative group transition-all duration-300 hover:shadow-md hover:border-navy/10 ${
-                                    item.contactPhone ? 'min-h-[100px]' : ''
+                                    editingId === item.id ? '' : 'h-[96px]'
                                 } ${
                                     isCurrentActive
                                         ? 'border-emerald-500/30 shadow-emerald-500/5 ring-4 ring-emerald-500/10'
@@ -691,14 +713,15 @@ export default function HomeBoard() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                            <div className="flex justify-between items-start w-full gap-2">
+                                            <div className="flex h-full justify-between items-center w-full gap-2">
                                                 <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                                                    <h3 className="font-sans font-black text-[15px] text-navy truncate">{item.title}</h3>
-                                                    {item.location && (
-                                                        <p className="text-[13px] text-navy/60 flex items-center gap-1 truncate w-full font-semibold">
-                                                            <MapPin size={12} className="shrink-0" /> <span className="truncate">{item.location}</span>
-                                                        </p>
-                                                    )}
+                                                    <h3 className="font-sans font-black text-[17px] leading-5 text-navy truncate">{item.title}</h3>
+                                                    <p
+                                                        aria-hidden={!item.location}
+                                                        className={`text-[12px] leading-4 text-navy/60 flex items-center gap-1 truncate w-full font-semibold ${item.location ? '' : 'invisible'}`}
+                                                    >
+                                                        <MapPin size={12} className="shrink-0" /> <span className="truncate">{item.location || '장소'}</span>
+                                                    </p>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-2 shrink-0 relative z-10">
                                                     <div className="flex items-center gap-1 bg-navy/5 px-2.5 py-0.5 rounded-full border border-navy/5 w-fit shrink-0">
@@ -706,14 +729,14 @@ export default function HomeBoard() {
                                                         <span className="text-[9px] font-bold text-navy whitespace-nowrap">{item.agent}</span>
                                                     </div>
                                                     <div className="flex bg-navy/5 rounded-full overflow-hidden border border-navy/5 p-0.5 shadow-inner">
-                                                        <button onClick={() => startEdit(item)} className="text-navy/40 hover:text-navy hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                        <button onClick={() => startEdit(item)} aria-label={`${item.title} 수정`} title={`${item.title} 수정`} className="text-navy/40 hover:text-navy hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                             <Edit2 size={11} />
                                                         </button>
-                                                        <button onClick={() => handleDelete(item.id)} className="text-navy/40 hover:text-rose-500 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                        <button onClick={() => handleDelete(item.id)} aria-label={`${item.title} 삭제`} title={`${item.title} 삭제`} className="text-navy/40 hover:text-rose-500 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                             <Trash2 size={11} />
                                                         </button>
                                                         {item.contactPhone && (
-                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} className="text-navy/60 hover:text-blue-600 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
+                                                            <button onClick={() => setActiveContactPopup(activeContactPopup === item.id ? null : item.id)} aria-label={`${item.title} 연락처 보기`} title={`${item.title} 연락처 보기`} className="text-navy/60 hover:text-blue-600 hover:bg-white rounded-full transition-all w-6 h-6 flex items-center justify-center bg-transparent cursor-pointer">
                                                                 <Phone size={11} />
                                                             </button>
                                                         )}
@@ -749,10 +772,11 @@ export default function HomeBoard() {
 
             {/* Add Schedule Form - outside timeline to avoid extending the left border line */}
             <div className="ml-4 pb-20">
-                <AnimatePresence>
-                    {showAddForm && (
+                <AnimatePresence initial={false} mode="wait">
+                    {showAddForm ? (
                         <motion.div
-                            {...TAB_LIKE_MOTION}
+                            key="add-schedule-form"
+                            {...ADD_FORM_MOTION}
                             className={`relative pl-6 overflow-hidden ${isAllCompleted ? 'mt-0' : 'mt-4'}`}
                         >
                             <div className="bg-white border border-dashed border-navy/20 p-4.5 rounded-2xl shadow-sm space-y-4">
@@ -821,21 +845,24 @@ export default function HomeBoard() {
                                 </div>
                             </div>
                         </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {!showAddForm && (
-                    <div className={`relative pl-6 ${isAllCompleted ? 'mt-0' : 'mt-3'}`}>
+                    ) : (
+                    <motion.div
+                        key="add-schedule-button"
+                        {...ADD_BUTTON_MOTION}
+                        className={`relative pl-6 ${isAllCompleted ? 'mt-0' : 'mt-3'}`}
+                    >
                         <button
+                            data-tour="add-schedule"
                             onClick={() => setShowAddForm(true)}
-                            className="w-full bg-transparent border border-dashed border-navy/35 text-navy/70 font-black text-[13px] py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-navy hover:text-white hover:border-navy transition-all hover:-translate-y-0.5 cursor-pointer shadow-sm"
+                            className="w-full bg-navy/5 text-navy font-black py-3.5 rounded-xl border border-navy/10 shadow-md hover:bg-navy/10 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer text-[13px]"
                         >
-                            <span data-tour="add-schedule" className="inline-flex items-center justify-center gap-2">
+                            <span className="inline-flex items-center justify-center gap-2">
                                 <Plus size={14} /> 새 일정 추가
                             </span>
                         </button>
-                    </div>
-                )}
+                    </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Floating Action Button for Emergency */}

@@ -9,8 +9,9 @@ Single-folder setup:
 - This means file ownership matters more than tool connectivity.
 
 Agent ownership:
-- Antigravity explores MVP flows, product copy, quick UX variants, and prototype behavior.
-- Codex integrates accepted behavior into the main app and verifies it against existing patterns.
+- Antigravity can explore UX flows, product copy, and quick variants inside the integrated app workflow.
+- Codex implements, refactors, and verifies accepted behavior against existing app patterns.
+- The former MVP diary is now part of the single app, not a separate workstream.
 
 File ownership:
 - Antigravity writes `docs/antigravity-out.md`.
@@ -21,12 +22,10 @@ File ownership:
 Do not mix:
 - Do not make both agents edit the same source file simultaneously.
 - Do not make both agents write the same handoff file.
-- Codex must not edit MVP/prototype files unless the user explicitly gives an exception.
-- Antigravity must not edit main app/production files unless the user explicitly gives an exception.
-- Do not copy MVP code into production without adapting it to production architecture.
+- Keep exploratory changes and production changes coordinated through handoff notes when both agents are active.
 - Do not use production environment variables or database mutations for experiments.
 
 Handoff protocol:
-- Antigravity writes the proposed behavior and changed files to `docs/antigravity-out.md`.
-- Codex reads that handoff, integrates selected work, and records the result in `docs/codex-integration-log.md`.
+- Antigravity writes proposed behavior and changed files to `docs/antigravity-out.md`.
+- Codex reads that handoff, implements selected work, and records the result in `docs/codex-integration-log.md`.
 - Large or risky decisions should be listed as open decisions instead of silently implemented.

@@ -1,12 +1,185 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronLeft, ChevronRight, MoreHorizontal, X, Camera, CalendarHeart, Video, Trash2, Edit2, MessageCircle, Heart, Smile, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import html2pdf from 'html2pdf.js';
 
 // Initial Mock Data
 const INITIAL_RECORDS = [];
 
 const MOODS = ['😊', '🥰', '😮', '😴', '🤒', '😭', '😠', '🥳', '🤔'];
+const DIARY_RECORDS_STORAGE_KEY = 'family-diary-records-v1';
+const LEGACY_DIARY_RECORDS_STORAGE_KEY = 'memory-mvp-records-v2';
+const DIARY_TITLE_MAX_LENGTH = 25;
+const DIARY_TEXT_MAX_LENGTH = 500;
+const DIARY_COMMENT_MAX_LENGTH = 50;
+const DIARY_COLLAPSE_TEXT_LENGTH = 90;
+const DIARY_TEXT_COLLAPSED_HEIGHT = 68;
+const VIEWER_TEXT_COLLAPSED_HEIGHT = 73;
+const DIARY_TEXT_EXPAND_TRANSITION = { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] };
+const DIARY_TOGGLE_LABEL_TRANSITION = { duration: 0.16, ease: 'easeOut' };
+const HIDDEN_SCROLLBAR_STYLE = {
+  scrollbarWidth: 'none',
+  msOverflowStyle: 'none'
+};
+
+const toSafeString = (value, fallback = '') => {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const getLocalDateString = (date = new Date()) => (
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
+
+const normalizeIsoDate = (value) => {
+  const raw = toSafeString(value).trim().replace(/\./g, '-');
+  const match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return getLocalDateString();
+  return `${match[1]}-${String(parseInt(match[2], 10)).padStart(2, '0')}-${String(parseInt(match[3], 10)).padStart(2, '0')}`;
+};
+
+const createDateLabelFromIso = (isoDate) => {
+  const [, month, day] = normalizeIsoDate(isoDate).split('-');
+  return `${parseInt(month, 10)}월 ${parseInt(day, 10)}일`;
+};
+
+const createIsoDateFromLabel = (date, fallbackYear = new Date().getFullYear()) => {
+  const match = toSafeString(date).trim().match(/^(\d{1,2})월\s*(\d{1,2})일/);
+  if (!match) return null;
+  return `${fallbackYear}-${String(parseInt(match[1], 10)).padStart(2, '0')}-${String(parseInt(match[2], 10)).padStart(2, '0')}`;
+};
+
+const getDiaryRecordIsoDate = (record) => {
+  const rawIsoDate = toSafeString(record?.isoDate).trim();
+  if (rawIsoDate) return normalizeIsoDate(rawIsoDate);
+  return createIsoDateFromLabel(record?.date) || getLocalDateString();
+};
+
+const normalizeDiaryDateLabel = (date, isoDate) => {
+  const raw = toSafeString(date).trim();
+  const match = raw.match(/^(\d{1,2})월\s*(\d{1,2})일/);
+  if (match) return `${parseInt(match[1], 10)}월 ${parseInt(match[2], 10)}일`;
+  return createDateLabelFromIso(isoDate);
+};
+
+const normalizeDiaryTime = (value) => {
+  const raw = toSafeString(value).trim();
+  if (raw.includes('오전') || raw.includes('오후')) return raw;
+  const match = raw.match(/^(\d{1,2}):(\d{1,2})/);
+  if (!match) return '';
+  let hour = Math.min(Math.max(parseInt(match[1], 10) || 0, 0), 23);
+  const minute = String(Math.min(Math.max(parseInt(match[2], 10) || 0, 0), 59)).padStart(2, '0');
+  const ampm = hour >= 12 ? '오후' : '오전';
+  if (hour > 12) hour -= 12;
+  if (hour === 0) hour = 12;
+  return `${ampm} ${hour}:${minute}`;
+};
+
+const limitText = (value, maxLength) => toSafeString(value).slice(0, maxLength);
+
+const shouldCollapseDiaryText = (value) => {
+  const text = toSafeString(value).trim();
+  return text.length > DIARY_COLLAPSE_TEXT_LENGTH || text.split(/\r\n|\r|\n/).length > 3;
+};
+
+const CollapsibleDiaryText = ({
+  text,
+  canToggle,
+  isExpanded,
+  collapsedHeight,
+  expandedMaxViewportRatio = null
+}) => {
+  const contentRef = useRef(null);
+  const [measuredHeight, setMeasuredHeight] = useState(collapsedHeight);
+  const [viewportHeight, setViewportHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!canToggle) return undefined;
+
+    const measure = () => {
+      const nextHeight = contentRef.current?.scrollHeight || collapsedHeight;
+      setMeasuredHeight(Math.max(collapsedHeight, Math.ceil(nextHeight)));
+      if (typeof window !== 'undefined') {
+        setViewportHeight(window.innerHeight);
+      }
+    };
+
+    measure();
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (resizeObserver && contentRef.current) {
+      resizeObserver.observe(contentRef.current);
+    }
+    window.addEventListener('resize', measure);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [canToggle, collapsedHeight, text]);
+
+  if (!canToggle) {
+    return (
+      <span className="block whitespace-pre-wrap break-words">
+        {text}
+      </span>
+    );
+  }
+
+  const expandedMaxHeight = expandedMaxViewportRatio && viewportHeight
+    ? Math.round(viewportHeight * expandedMaxViewportRatio)
+    : null;
+  const expandedHeight = expandedMaxHeight ? Math.min(measuredHeight, expandedMaxHeight) : measuredHeight;
+  const targetHeight = isExpanded ? expandedHeight : collapsedHeight;
+  const shouldScrollExpandedText = Boolean(isExpanded && expandedMaxHeight && measuredHeight > expandedMaxHeight);
+
+  return (
+    <motion.span
+      initial={false}
+      animate={{ height: targetHeight }}
+      transition={DIARY_TEXT_EXPAND_TRANSITION}
+      style={shouldScrollExpandedText ? HIDDEN_SCROLLBAR_STYLE : undefined}
+      className={`block ${shouldScrollExpandedText ? 'overflow-y-auto [&::-webkit-scrollbar]:hidden' : 'overflow-hidden'}`}
+    >
+      <span ref={contentRef} className="block whitespace-pre-wrap break-words">
+        {text}
+      </span>
+    </motion.span>
+  );
+};
+
+const normalizeDiaryRecords = (records) => (
+  Array.isArray(records) ? records : []
+).map((record, index) => {
+  const isoDate = getDiaryRecordIsoDate(record);
+  const imageUrls = Array.isArray(record?.imageUrls)
+    ? record.imageUrls.filter(url => typeof url === 'string' && url)
+    : [];
+  const imageUrl = toSafeString(record?.imageUrl || imageUrls[0] || '');
+  const allImageUrls = imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+
+  return {
+    id: toSafeString(record?.id) || `diary-${isoDate}-${index}`,
+    child: toSafeString(record?.child, '아이1') || '아이1',
+    date: normalizeDiaryDateLabel(record?.date, isoDate),
+    isoDate,
+    time: normalizeDiaryTime(record?.time),
+    mood: MOODS.includes(record?.mood) ? record.mood : '😊',
+    title: toSafeString(record?.title, '다이어리'),
+    text: toSafeString(record?.text),
+    hasMedia: Boolean(record?.hasMedia || allImageUrls.length > 0),
+    imageUrl: imageUrl || null,
+    imageUrls: allImageUrls,
+    linked: toSafeString(record?.linked),
+    reactions: Array.isArray(record?.reactions) ? record.reactions.filter(item => typeof item === 'string') : [],
+    comments: Array.isArray(record?.comments) ? record.comments.map((comment, commentIndex) => ({
+      id: toSafeString(comment?.id) || `comment-${index}-${commentIndex}`,
+      author: toSafeString(comment?.author, '가족') || '가족',
+      text: limitText(comment?.text, DIARY_COMMENT_MAX_LENGTH),
+      time: toSafeString(comment?.time)
+    })) : []
+  };
+});
 
 const BottomTab = ({ active, label, icon, onClick }) => (
   <button
@@ -20,17 +193,27 @@ const BottomTab = ({ active, label, icon, onClick }) => (
   </button>
 );
 
-export default function CustomMemoryMvp({ isEmbedded = false }) {
-  const [activeTab, setActiveTab] = useState('home');
+export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, onEmbeddedTabChange }) {
+  const [internalActiveTab, setInternalActiveTab] = useState('home');
+  const activeTab = isEmbedded && embeddedActiveTab ? embeddedActiveTab : internalActiveTab;
+  const setActiveTab = useCallback((nextTab) => {
+    if (isEmbedded && onEmbeddedTabChange) {
+      onEmbeddedTabChange(nextTab);
+      return;
+    }
+
+    setInternalActiveTab(nextTab);
+  }, [isEmbedded, onEmbeddedTabChange]);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const didHydrateRecordsRef = useRef(false);
   
   // CRUD States
   const [records, setRecords] = useState(() => {
     try {
-      const saved = localStorage.getItem('memory-mvp-records-v2');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem(DIARY_RECORDS_STORAGE_KEY) || localStorage.getItem(LEGACY_DIARY_RECORDS_STORAGE_KEY);
+      if (saved) return normalizeDiaryRecords(JSON.parse(saved));
     } catch (e) {
       console.error('Failed to parse records from localStorage', e);
     }
@@ -38,8 +221,13 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   });
 
   useEffect(() => {
+    if (!didHydrateRecordsRef.current) {
+      didHydrateRecordsRef.current = true;
+      return;
+    }
+
     try {
-      localStorage.setItem('memory-mvp-records-v2', JSON.stringify(records));
+      localStorage.setItem(DIARY_RECORDS_STORAGE_KEY, JSON.stringify(records));
     } catch (error) {
       console.error('Storage quota exceeded', error);
       alert('브라우저 저장 공간이 부족합니다. 이미지가 너무 많습니다. 불필요한 기록을 삭제해주세요.');
@@ -52,6 +240,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   const [editingRecordId, setEditingRecordId] = useState(null);
   const [titleInput, setTitleInput] = useState('');
   const [textInput, setTextInput] = useState('');
+  const [expandedTextIds, setExpandedTextIds] = useState(() => new Set());
   const [selectedMood, setSelectedMood] = useState('😊');
   
   // New States for Date/Time
@@ -60,6 +249,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   
   // Photo Viewer State
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [isViewerTextExpanded, setIsViewerTextExpanded] = useState(false);
   
   // Action Menu States
   const [activeMenuId, setActiveMenuId] = useState(null);
@@ -113,6 +303,10 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    setIsViewerTextExpanded(false);
+  }, [viewingPhoto?.photoId]);
+
   // Helper to parse YYYY-MM-DD to "X월 Y일"
   const getFormattedDate = (dateStr) => {
     if (!dateStr) return null;
@@ -137,8 +331,8 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   const handleOpenComposer = (record = null) => {
     if (record) {
       setEditingRecordId(record.id);
-      setTitleInput(record.title);
-      setTextInput(record.text);
+      setTitleInput(limitText(record.title, DIARY_TITLE_MAX_LENGTH));
+      setTextInput(limitText(record.text, DIARY_TEXT_MAX_LENGTH));
       setSelectedMood(record.mood);
       
       // Parse "5월 27일" back to "YYYY-MM-DD"
@@ -173,6 +367,26 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
     setSelectedImages(record?.imageUrls || (record?.imageUrl ? [record.imageUrl] : []));
     setComposerOpen(true);
     setActiveMenuId(null);
+  };
+
+  const handleTitleInputChange = (event) => {
+    setTitleInput(limitText(event.target.value, DIARY_TITLE_MAX_LENGTH));
+  };
+
+  const handleTextInputChange = (event) => {
+    setTextInput(limitText(event.target.value, DIARY_TEXT_MAX_LENGTH));
+  };
+
+  const toggleRecordText = (recordId) => {
+    setExpandedTextIds(prev => {
+      const next = new Set(prev);
+      if (next.has(recordId)) {
+        next.delete(recordId);
+      } else {
+        next.add(recordId);
+      }
+      return next;
+    });
   };
 
   const handleImageChange = (e) => {
@@ -227,7 +441,10 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   };
 
   const handleSaveRecord = () => {
-    if (!titleInput.trim()) return alert('제목을 입력해주세요.');
+    const safeTitle = limitText(titleInput, DIARY_TITLE_MAX_LENGTH).trim();
+    const safeText = limitText(textInput, DIARY_TEXT_MAX_LENGTH);
+
+    if (!safeTitle) return alert('제목을 입력해주세요.');
     
     const displayDate = dateInput ? getFormattedDate(dateInput) : '날짜 미상';
     const displayTime = timeInput ? getFormattedTime(timeInput) : '';
@@ -236,8 +453,8 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
       // Update
       setRecords(prev => prev.map(r => r.id === editingRecordId ? {
         ...r,
-        title: titleInput,
-        text: textInput,
+        title: safeTitle,
+        text: safeText,
         mood: selectedMood,
         date: displayDate,
         isoDate: dateInput,
@@ -254,8 +471,8 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
         isoDate: dateInput,
         time: displayTime,
         mood: selectedMood,
-        title: titleInput,
-        text: textInput,
+        title: safeTitle,
+        text: safeText,
         hasMedia: selectedImages.length > 0,
         imageUrl: selectedImages.length > 0 ? selectedImages[0] : null,
         imageUrls: selectedImages,
@@ -287,7 +504,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   };
 
   const handleAddComment = (recordId) => {
-    const text = commentInputs[recordId]?.trim();
+    const text = limitText(commentInputs[recordId], DIARY_COMMENT_MAX_LENGTH).trim();
     if (!text) return;
     
     setRecords(prev => prev.map(r => {
@@ -319,11 +536,22 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
     setCommentInputs(prev => ({ ...prev, [recordId]: '' }));
   };
 
+  const handleCommentInputChange = (recordId, value) => {
+    setCommentInputs(prev => ({
+      ...prev,
+      [recordId]: limitText(value, DIARY_COMMENT_MAX_LENGTH)
+    }));
+  };
+
+  const handleSearchDateChange = (event) => {
+    setSearchDate(event.target.value ? normalizeIsoDate(event.target.value) : '');
+  };
+
   // --- Pages ---
   const renderHomePage = () => {
     const formattedSearchDate = getFormattedDate(searchDate);
     const displayedRecords = formattedSearchDate 
-      ? records.filter(r => r.date === formattedSearchDate)
+      ? records.filter(r => normalizeIsoDate(r.isoDate) === searchDate || r.date === formattedSearchDate)
       : records;
 
     return (
@@ -331,18 +559,17 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
         {isEmbedded && (
           <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-navy/5 shadow-md">
             <div className="flex items-center gap-2">
-              <div className="relative flex items-center">
+              <label className="relative flex items-center gap-1.5 bg-navy/5 border border-navy/10 text-navy font-bold text-[11px] px-3.5 py-2 rounded-full hover:bg-navy/10 active:scale-95 transition-all cursor-pointer">
                 <input 
                   type="date" 
                   value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
-                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10"
+                  onChange={handleSearchDateChange}
+                  onInput={handleSearchDateChange}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
-                <button className="flex items-center gap-1.5 bg-navy/5 border border-navy/10 text-navy font-bold text-[11px] px-3.5 py-2 rounded-full hover:bg-navy/10 active:scale-95 transition-all">
-                  <CalendarDays size={12} className="text-navy" />
-                  {searchDate ? getFormattedDate(searchDate) : '날짜 검색'}
-                </button>
-              </div>
+                <CalendarDays size={12} className="text-navy" />
+                {searchDate ? getFormattedDate(searchDate) : '날짜 검색'}
+              </label>
             </div>
             
             <button
@@ -372,7 +599,13 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
               <p className="font-bold text-[14px]">기록된 내용이 없습니다.</p>
             </motion.div>
           ) : (
-            displayedRecords.map(record => (
+            displayedRecords.map(record => {
+              const displayTitle = limitText(record.title, DIARY_TITLE_MAX_LENGTH);
+              const displayText = limitText(record.text, DIARY_TEXT_MAX_LENGTH);
+              const canToggleText = shouldCollapseDiaryText(displayText);
+              const isTextExpanded = expandedTextIds.has(record.id);
+
+              return (
               <motion.div layout key={record.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }} className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md relative">
                 <div className="flex items-center justify-between mb-3 border-b border-navy/10 pb-2">
                   <div className="flex items-center gap-2">
@@ -381,7 +614,11 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                   </div>
                   
                   <div className="relative">
-                    <button onClick={() => setActiveMenuId(activeMenuId === record.id ? null : record.id)} className="text-navy/30 hover:text-navy/70 p-1">
+                    <button
+                      onClick={() => setActiveMenuId(activeMenuId === record.id ? null : record.id)}
+                      aria-label={`${displayTitle} 메뉴 열기`}
+                      className="text-navy/30 hover:text-navy/70 p-1"
+                    >
                       <MoreHorizontal size={16} />
                     </button>
                     
@@ -400,19 +637,47 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                 
                 <h3 className="font-bold text-navy text-[17px] leading-tight flex items-center gap-2 mb-2">
                   <span className="text-xl">{record.mood}</span>
-                  {record.title}
+                  {displayTitle}
                 </h3>
-                <p className="text-navy/80 text-[14px] leading-relaxed font-medium mb-4 whitespace-pre-wrap">{record.text}</p>
+                {displayText && (
+                  <button
+                    type="button"
+                    onClick={() => canToggleText && toggleRecordText(record.id)}
+                    aria-expanded={canToggleText ? isTextExpanded : undefined}
+                    className={`mb-4 block w-full rounded-md text-left text-navy/80 text-[14px] leading-relaxed font-medium focus:outline-none ${canToggleText ? 'cursor-pointer focus:ring-2 focus:ring-navy/10' : 'cursor-default'}`}
+                  >
+                    <CollapsibleDiaryText
+                      text={displayText}
+                      canToggle={canToggleText}
+                      isExpanded={isTextExpanded}
+                      collapsedHeight={DIARY_TEXT_COLLAPSED_HEIGHT}
+                    />
+                    {canToggleText && (
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.span
+                          key={isTextExpanded ? 'collapse' : 'more'}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={DIARY_TOGGLE_LABEL_TRANSITION}
+                          className="mt-1.5 block text-[11px] font-bold text-navy/45"
+                        >
+                          {isTextExpanded ? '접기' : '더보기'}
+                        </motion.span>
+                      </AnimatePresence>
+                    )}
+                  </button>
+                )}
                 
                 {record.hasMedia && (
                   record.imageUrls && record.imageUrls.length > 0 ? (
                     <div className={`mb-4 flex ${record.imageUrls.length === 1 ? '' : 'overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden'}`} style={{ scrollbarWidth: 'none' }}>
                       {record.imageUrls.map((imgUrl, idx) => (
-                        <img key={idx} src={imgUrl} alt={`Attached ${idx+1}`} onClick={() => setViewingPhoto({ ...record, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
+                        <img key={idx} src={imgUrl} alt={`Attached ${idx+1}`} loading="lazy" decoding="async" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
                       ))}
                     </div>
                   ) : record.imageUrl ? (
-                    <img src={record.imageUrl} alt="Attached" onClick={() => setViewingPhoto({ ...record, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
+                    <img src={record.imageUrl} alt="Attached" loading="lazy" decoding="async" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
                   ) : (
                     <div className="mb-4 aspect-video bg-navy/5 border-2 border-dashed border-navy/20 rounded-lg flex items-center justify-center text-navy/30">
                       <Camera size={32} strokeWidth={1.5} />
@@ -424,7 +689,11 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                 <div className="mt-2 pt-3 border-t border-navy/5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="relative">
-                      <button onClick={() => setActiveReactionMenu(activeReactionMenu === record.id ? null : record.id)} className="flex items-center justify-center w-8 h-8 rounded-full bg-navy/5 text-navy/60 hover:bg-navy/10 hover:text-navy transition-colors">
+                      <button
+                        onClick={() => setActiveReactionMenu(activeReactionMenu === record.id ? null : record.id)}
+                        aria-label={`${displayTitle} 반응 추가`}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-navy/5 text-navy/60 hover:bg-navy/10 hover:text-navy transition-colors"
+                      >
                         <Smile size={16} />
                       </button>
                       <AnimatePresence>
@@ -453,7 +722,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                             <span className="font-bold text-navy">{c.author}</span>
                             <span className="text-[10px] text-navy/40 font-medium">{c.time}</span>
                           </div>
-                          <p className="text-navy/80">{c.text}</p>
+                          <p className="text-navy/80">{limitText(c.text, DIARY_COMMENT_MAX_LENGTH)}</p>
                         </div>
                       ))}
                     </div>
@@ -484,17 +753,24 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                       type="text" 
                       placeholder="댓글을 남겨보세요..." 
                       value={commentInputs[record.id] || ''}
-                      onChange={(e) => setCommentInputs(prev => ({ ...prev, [record.id]: e.target.value }))}
+                      maxLength={DIARY_COMMENT_MAX_LENGTH}
+                      onChange={(e) => handleCommentInputChange(record.id, e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddComment(record.id)}
                       className="flex-1 min-w-0 bg-navy/5 border border-navy/10 rounded-full px-4 py-2 text-[12px] text-navy outline-none focus:border-navy/20 focus:bg-white transition-all"
                     />
-                    <button onClick={() => handleAddComment(record.id)} disabled={!commentInputs[record.id]?.trim()} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-navy text-white disabled:bg-navy/20 disabled:text-navy/40 transition-colors">
+                    <button
+                      onClick={() => handleAddComment(record.id)}
+                      disabled={!commentInputs[record.id]?.trim()}
+                      aria-label={`${displayTitle} 댓글 등록`}
+                      className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-navy text-white disabled:bg-navy/20 disabled:text-navy/40 transition-colors"
+                    >
                       <Send size={14} className="-ml-0.5" />
                     </button>
                   </div>
                 </div>
               </motion.div>
-            ))
+              );
+            })
           )}
         </AnimatePresence>
       </div>
@@ -583,17 +859,21 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                       hidden: { opacity: 0, y: -20 },
                       visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
                     }}
-                    className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md relative"
+                    className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md"
                   >
-                    <div className="absolute top-0 right-0 bg-navy text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl rounded-tr-lg">
-                      {selectedRecord.date}
+                    <div className="mb-2 flex justify-end">
+                      <span className="shrink-0 bg-navy text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                        {selectedRecord.date}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xl">{selectedRecord.mood}</span>
-                      <h4 className="font-bold text-navy text-[15px]">{selectedRecord.title}</h4>
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="shrink-0 text-2xl leading-none">{selectedRecord.mood}</span>
+                      <h4 className="min-w-0 flex-1 break-words font-bold text-navy text-[15px] leading-snug">
+                        {limitText(selectedRecord.title, DIARY_TITLE_MAX_LENGTH)}
+                      </h4>
                     </div>
                     <p className="text-navy/70 text-[13px] font-medium leading-relaxed mb-3 line-clamp-2">
-                      {selectedRecord.text}
+                      {limitText(selectedRecord.text, DIARY_TEXT_MAX_LENGTH)}
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-navy/50">{selectedRecord.child} · {selectedRecord.time}</span>
@@ -631,15 +911,15 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
           <div className="flex bg-navy/5 border border-navy/5 rounded-lg p-3 gap-2 mb-5 relative overflow-hidden h-44 justify-center items-center">
             {/* Cover Thumbnail */}
             <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_cover.jpg" alt="Book Cover" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
+              <img src="/book_cover.jpg" alt="Book Cover" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
             </div>
             {/* First Page Thumbnail */}
             <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_page1.jpg" alt="First Page" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
+              <img src="/book_page1.jpg" alt="First Page" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
             </div>
             {/* Second Page Thumbnail */}
             <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_page2.jpg" alt="Second Page" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
+              <img src="/book_page2.jpg" alt="Second Page" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
             </div>
           </div>
 
@@ -708,10 +988,10 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                   {group.photos.map((photo) => (
                     <div
                       key={photo.photoId}
-                      onClick={() => setViewingPhoto(photo)}
+                      onClick={() => setViewingPhoto({ ...photo, viewerSource: 'gallery' })}
                       className={`${isSinglePhoto ? 'h-40 w-40' : 'aspect-square'} bg-background border border-navy/10 rounded-xl flex items-center justify-center relative group overflow-hidden cursor-pointer`}
                     >
-                      <img src={photo.imageUrl} alt={photo.title} className="w-full h-full object-cover" />
+                      <img src={photo.imageUrl} alt={photo.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       
                       {/* Hover/Tap Info */}
                       <div className="absolute inset-0 bg-navy/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-1 text-center">
@@ -735,47 +1015,92 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
 
     const mediaPhotos = galleryData.flatMap(g => g.photos);
     const currentIndex = mediaPhotos.findIndex(p => p.photoId === viewingPhoto.photoId);
+    const isGalleryPhotoViewer = viewingPhoto.viewerSource === 'gallery';
+    const viewerTitle = limitText(viewingPhoto.title, DIARY_TITLE_MAX_LENGTH);
+    const viewerText = limitText(viewingPhoto.text, DIARY_TEXT_MAX_LENGTH);
+    const canToggleViewerText = shouldCollapseDiaryText(viewerText);
+    const viewerTextExpanded = !canToggleViewerText || isViewerTextExpanded;
+    const photoCardShadowClass = isGalleryPhotoViewer
+      ? 'shadow-[0_10px_20px_rgba(18,27,97,0.14)]'
+      : 'shadow-2xl';
 
     const handlePrev = (e) => {
       e.stopPropagation();
-      if (currentIndex > 0) setViewingPhoto(mediaPhotos[currentIndex - 1]);
+      if (currentIndex > 0) {
+        setViewingPhoto({ ...mediaPhotos[currentIndex - 1], viewerSource: viewingPhoto.viewerSource });
+      }
     };
 
     const handleNext = (e) => {
       e.stopPropagation();
-      if (currentIndex < mediaPhotos.length - 1) setViewingPhoto(mediaPhotos[currentIndex + 1]);
+      if (currentIndex < mediaPhotos.length - 1) {
+        setViewingPhoto({ ...mediaPhotos[currentIndex + 1], viewerSource: viewingPhoto.viewerSource });
+      }
     };
 
     return (
       <AnimatePresence>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[200] bg-slate-200/85 backdrop-blur-md flex flex-col items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
           <div className="absolute top-4 right-4 z-[210]">
-            <button onClick={() => setViewingPhoto(null)} className="p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 transition-all"><X size={28} /></button>
+            <button onClick={() => setViewingPhoto(null)} aria-label="사진 보기 닫기" className="p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 transition-all"><X size={28} /></button>
           </div>
           
           {currentIndex > 0 && (
-            <button onClick={handlePrev} className="absolute left-2 top-1/2 -translate-y-1/2 p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 z-[210] transition-transform active:scale-95">
+            <button onClick={handlePrev} aria-label="이전 사진" className="absolute left-2 top-1/2 -translate-y-1/2 p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 z-[210] transition-transform active:scale-95">
               <ChevronLeft size={32} />
             </button>
           )}
           
           {currentIndex < mediaPhotos.length - 1 && (
-            <button onClick={handleNext} className="absolute right-2 top-1/2 -translate-y-1/2 p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 z-[210] transition-transform active:scale-95">
+            <button onClick={handleNext} aria-label="다음 사진" className="absolute right-2 top-1/2 -translate-y-1/2 p-3 text-navy/60 hover:text-navy bg-white/50 rounded-full border border-navy/10 z-[210] transition-transform active:scale-95">
               <ChevronRight size={32} />
             </button>
           )}
 
-          <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} className="w-full max-w-[340px] flex flex-col items-center gap-6 relative z-[205]">
-            <div className="w-full bg-white p-3 rounded-2xl border-[3px] border-white shadow-2xl relative">
+          <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} style={HIDDEN_SCROLLBAR_STYLE} className="w-full max-w-[340px] max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden px-1 py-2 flex flex-col items-center gap-4 relative z-[205]">
+            <div className={`w-full bg-white p-3 rounded-2xl border-[3px] border-white relative ${photoCardShadowClass}`}>
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-white/90 backdrop-blur-md shadow-md -rotate-2 rounded-[2px]"></div>
-              <img src={viewingPhoto.imageUrl} alt={viewingPhoto.title} className="w-full max-h-[50vh] object-contain rounded-md bg-gray-50" />
+              <img src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
             </div>
-            <div className="text-center w-full max-w-[90%] flex flex-col items-center">
-              <span className="text-[40px] mb-2 filter drop-shadow-md">{viewingPhoto.mood}</span>
-              <h3 className="text-navy font-black text-[22px] mb-1.5">{viewingPhoto.title}</h3>
-              <p className="text-accent-red font-bold text-[13px] mb-3">{viewingPhoto.date}</p>
-              <p className="text-navy/80 text-[15px] font-medium leading-relaxed break-keep">{viewingPhoto.text}</p>
-            </div>
+            {isGalleryPhotoViewer ? (
+              <p className="relative z-[206] text-accent-red font-black text-[17px] leading-none tracking-tight">{viewingPhoto.date}</p>
+            ) : (
+              <div className="text-center w-full max-w-[90%] flex flex-col items-center">
+                <span className="text-[40px] mb-2 filter drop-shadow-md">{viewingPhoto.mood}</span>
+                <h3 className="text-navy font-black text-[22px] mb-1.5">{viewerTitle}</h3>
+                <p className="text-accent-red font-bold text-[13px] mb-3">{viewingPhoto.date}</p>
+                {viewerText && (
+                  <button
+                    type="button"
+                    onClick={() => canToggleViewerText && setIsViewerTextExpanded(prev => !prev)}
+                    aria-expanded={canToggleViewerText ? isViewerTextExpanded : undefined}
+                    className={`w-full rounded-md text-center text-navy/80 text-[15px] font-medium leading-relaxed focus:outline-none ${canToggleViewerText ? 'cursor-pointer focus:ring-2 focus:ring-navy/10' : 'cursor-default'}`}
+                  >
+                    <CollapsibleDiaryText
+                      text={viewerText}
+                      canToggle={canToggleViewerText}
+                      isExpanded={viewerTextExpanded}
+                      collapsedHeight={VIEWER_TEXT_COLLAPSED_HEIGHT}
+                      expandedMaxViewportRatio={0.28}
+                    />
+                    {canToggleViewerText && (
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.span
+                          key={isViewerTextExpanded ? 'collapse' : 'more'}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={DIARY_TOGGLE_LABEL_TRANSITION}
+                          className="mt-1.5 block text-[11px] font-bold text-navy/45"
+                        >
+                          {isViewerTextExpanded ? '접기' : '더보기'}
+                        </motion.span>
+                      </AnimatePresence>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
           </motion.div>
         </motion.div>
       </AnimatePresence>
@@ -787,7 +1112,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
       {composerOpen && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-background flex flex-col border-x-[3px] border-navy shadow-2xl">
           <div className="bg-navy px-4 py-3 flex items-center justify-between shrink-0 shadow-md">
-            <button onClick={() => setComposerOpen(false)} className="p-2 -ml-2 text-white/70 hover:text-white"><X size={20} /></button>
+            <button onClick={() => setComposerOpen(false)} aria-label="다이어리 작성 닫기" className="p-2 -ml-2 text-white/70 hover:text-white"><X size={20} /></button>
             <h2 className="font-bold text-[16px] text-white">{editingRecordId ? '다이어리 수정하기' : '다이어리 남기기'}</h2>
             <button onClick={handleSaveRecord} className="text-[13px] font-bold text-navy px-3 py-1.5 bg-white rounded-md hover:bg-gray-100 transition-colors">저장</button>
           </div>
@@ -795,9 +1120,15 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
             <div className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
               <p className="text-[12px] font-bold text-navy/60 mb-3 border-b border-navy/10 pb-2">오늘의 기분은?</p>
-              <div className="flex flex-wrap gap-3 justify-between px-1">
+              <div className="grid grid-cols-9 gap-0.5 px-0">
                 {MOODS.map(m => (
-                  <button key={m} onClick={() => setSelectedMood(m)} className={`text-2xl transition-transform ${selectedMood === m ? 'scale-125 drop-shadow-md' : 'opacity-40 grayscale'}`}>{m}</button>
+                  <button
+                    key={m}
+                    onClick={() => setSelectedMood(m)}
+                    className={`flex h-8 min-w-0 items-center justify-center text-[22px] leading-none transition-transform ${selectedMood === m ? 'scale-110 drop-shadow-md' : 'opacity-40 grayscale'}`}
+                  >
+                    {m}
+                  </button>
                 ))}
               </div>
             </div>
@@ -813,10 +1144,32 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
               </div>
             </div>
 
-            <div className="space-y-4 bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
-              <input type="text" value={titleInput} onChange={e => setTitleInput(e.target.value)} placeholder="제목을 입력하세요" className="w-full bg-transparent font-bold text-[18px] text-navy outline-none placeholder:text-navy/30" />
+            <div className="space-y-3 bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={titleInput}
+                  maxLength={DIARY_TITLE_MAX_LENGTH}
+                  onChange={handleTitleInputChange}
+                  placeholder="제목을 입력하세요"
+                  className="min-w-0 flex-1 bg-transparent font-bold text-[18px] text-navy outline-none placeholder:text-navy/30"
+                />
+                <span className="shrink-0 text-[10px] font-bold text-navy/35">
+                  {titleInput.length}/{DIARY_TITLE_MAX_LENGTH}
+                </span>
+              </div>
               <div className="h-0.5 bg-navy/10 w-full" />
-              <textarea rows={6} value={textInput} onChange={e => setTextInput(e.target.value)} placeholder="오늘 있었던 일, 기억하고 싶은 순간, 혹은 아이에게 하고 싶은 말을 자유롭게 남겨주세요" className="w-full bg-transparent text-[15px] font-medium text-navy/80 outline-none placeholder:text-navy/30 resize-none leading-relaxed" />
+              <textarea
+                rows={6}
+                value={textInput}
+                maxLength={DIARY_TEXT_MAX_LENGTH}
+                onChange={handleTextInputChange}
+                placeholder="오늘 있었던 일, 기억하고 싶은 순간, 혹은 아이에게 하고 싶은 말을 자유롭게 남겨주세요"
+                className="w-full bg-transparent text-[15px] font-medium text-navy/80 outline-none placeholder:text-navy/30 resize-none leading-relaxed"
+              />
+              <div className="flex justify-end text-[10px] font-bold text-navy/35">
+                {textInput.length}/{DIARY_TEXT_MAX_LENGTH}
+              </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-navy/5 shadow-md p-4">
@@ -827,7 +1180,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
                     {selectedImages.map((img, idx) => (
                       <div key={idx} className="relative w-32 h-32 shrink-0 rounded-lg overflow-hidden border border-navy/5">
                         <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
-                        <button onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-navy/80 text-white p-1 rounded-full hover:bg-navy shadow-md">
+                        <button onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} aria-label={`첨부 사진 ${idx + 1} 삭제`} className="absolute top-1 right-1 bg-navy/80 text-white p-1 rounded-full hover:bg-navy shadow-md">
                           <X size={14} />
                         </button>
                       </div>
@@ -884,29 +1237,26 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
       };
 
       try {
+        const { default: html2pdf } = await import('html2pdf.js');
         await html2pdf().set(opt).from(element).save();
       } catch (err) {
         console.error("PDF Export failed", err);
         alert('PDF 내보내기 중 오류가 발생했습니다.');
+      } finally {
+        setIsExporting(false);
+        setPdfExportOpen(false);
       }
-      
-      setIsExporting(false);
-      setPdfExportOpen(false);
     };
 
     return (
       <>
-        {/* Invisible elements to force browser font fetching on mount */}
-        <div style={{ position: 'fixed', top: '-1000px', opacity: 0, pointerEvents: 'none', fontFamily: "'Gaegu', cursive" }}>.</div>
-        <div style={{ position: 'fixed', top: '-1000px', opacity: 0, pointerEvents: 'none', fontFamily: "'Jost', sans-serif" }}>.</div>
-
         <AnimatePresence>
           {pdfExportOpen && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-2xl border border-navy/5 overflow-hidden">
               <div className="bg-navy px-4 py-3 flex items-center justify-between">
                 <h2 className="font-bold text-[15px] text-white">기록책 제작</h2>
-                <button onClick={() => !isExporting && setPdfExportOpen(false)} className="text-white/70 hover:text-white"><X size={20} /></button>
+                <button onClick={() => !isExporting && setPdfExportOpen(false)} aria-label="기록책 제작 닫기" className="text-white/70 hover:text-white"><X size={20} /></button>
               </div>
               
               <div className="p-5 space-y-5">
@@ -1091,7 +1441,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
         {paywallOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[300] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-3xl border border-navy/5 overflow-hidden flex flex-col items-center p-6 relative">
-              <button onClick={() => setPaywallOpen(false)} className="absolute top-4 right-4 text-navy/40 hover:text-navy/70 transition-colors">
+              <button onClick={() => setPaywallOpen(false)} aria-label="프리미엄 안내 닫기" className="absolute top-4 right-4 text-navy/40 hover:text-navy/70 transition-colors">
                 <X size={24} />
               </button>
               
@@ -1139,7 +1489,7 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
   };
 
   return (
-    <div className={isEmbedded ? "w-full bg-transparent text-navy font-sans flex flex-col relative" : "app-shell max-w-[420px] mx-auto h-screen bg-background text-navy font-sans flex flex-col relative overflow-hidden border-x-[3px] border-navy shadow-lg"}>
+    <div className={isEmbedded ? "w-full bg-transparent text-navy font-sans flex flex-col relative pb-24" : "app-shell max-w-[420px] mx-auto h-screen bg-background text-navy font-sans flex flex-col relative overflow-hidden border-x-[3px] border-navy shadow-lg"}>
       {/* Header */}
       {!isEmbedded && (
         <header id="app-header" className="bg-white px-3.5 pt-1.5 pb-3 flex items-center justify-between border-b border-navy/5 sticky top-0 z-10 shrink-0 relative min-h-[58px]">
@@ -1154,50 +1504,21 @@ export default function CustomMemoryMvp({ isEmbedded = false }) {
           
           <div className="w-10 flex justify-end z-10 mt-1">
             {activeTab === 'home' && (
-              <div className="relative flex items-center">
+              <label className="relative flex items-center cursor-pointer">
                 <input 
                   type="date" 
                   value={searchDate}
-                  onChange={(e) => setSearchDate(e.target.value)}
-                  className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                  onChange={handleSearchDateChange}
+                  onInput={handleSearchDateChange}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
-                <button className="p-2 -mr-2 text-navy/50 hover:text-navy transition-colors">
+                <span className="p-2 -mr-2 text-navy/50 hover:text-navy transition-colors">
                   <CalendarDays size={20} strokeWidth={2.5} className="text-navy/70" />
-                </button>
-              </div>
+                </span>
+              </label>
             )}
           </div>
         </header>
-      )}
-
-      {/* Segmented Control for Embedded Mode */}
-      {isEmbedded && (
-        <div className="flex bg-navy/5 p-1 rounded-xl mb-4 shrink-0">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all text-center cursor-pointer ${
-              activeTab === 'home' ? 'bg-white text-navy shadow-sm font-bold' : 'text-navy/60 hover:text-navy'
-            }`}
-          >
-            타임라인
-          </button>
-          <button
-            onClick={() => setActiveTab('calendar')}
-            className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all text-center cursor-pointer ${
-              activeTab === 'calendar' ? 'bg-white text-navy shadow-sm font-bold' : 'text-navy/60 hover:text-navy'
-            }`}
-          >
-            기록달력
-          </button>
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`flex-1 py-2 text-[11px] font-black rounded-lg transition-all text-center cursor-pointer ${
-              activeTab === 'gallery' ? 'bg-white text-navy shadow-sm font-bold' : 'text-navy/60 hover:text-navy'
-            }`}
-          >
-            사진모음
-          </button>
-        </div>
       )}
 
       {/* Main Content Area */}

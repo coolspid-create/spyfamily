@@ -10,6 +10,7 @@ const TAB_LIKE_MOTION = {
     exit: { opacity: 0, y: -10 },
     transition: TAB_LIKE_TRANSITION,
 };
+const DAILY_TASK_MAX_LENGTH = 50;
 
 export default function DailyTasksTab() {
     const dailyTasks = useStore(state => state.dailyTasks);
@@ -24,8 +25,9 @@ export default function DailyTasksTab() {
 
     const handleAddTask = (e) => {
         e.preventDefault();
-        if (newTaskText.trim()) {
-            addDailyTask(newTaskText.trim());
+        const taskText = newTaskText.trim().slice(0, DAILY_TASK_MAX_LENGTH);
+        if (taskText) {
+            addDailyTask(taskText);
             setNewTaskText('');
         }
     };
@@ -80,23 +82,21 @@ export default function DailyTasksTab() {
     return (
         <div className="space-y-6">
             {/* Header and Progress */}
-            <div className="bg-gradient-to-br from-accent-blue via-accent-blue/95 to-accent-blue/90 p-5 rounded-2xl shadow-sm relative overflow-hidden border border-white/5">
-                <div className="relative z-10 flex justify-between items-center mb-4">
-                    <div>
-                        <h2 className="text-white font-sans font-black text-lg flex items-center gap-2">
-                            <CalendarCheck className="text-accent-red stroke-[2.5px]" size={20} />
-                            오늘 할 일
-                        </h2>
-                        <p className="text-white/50 text-[10px] font-bold mt-1 tracking-wider uppercase">{formattedDate}</p>
-                    </div>
+            <div className="bg-gradient-to-br from-accent-blue via-accent-blue/95 to-accent-blue/90 p-4.5 rounded-2xl shadow-sm relative overflow-hidden border border-white/5">
+                <h3 className="font-bold text-[13px] text-white border-b border-white/10 pb-1.5 mb-2 flex items-center gap-2 relative z-10">
+                    <CalendarCheck className="text-accent-red stroke-[2.5px]" size={14} />
+                    오늘 할 일
+                </h3>
+                <div className="relative z-10 flex justify-between items-end mb-2">
+                    <p className="text-white/60 text-[10px] font-semibold tracking-wider uppercase leading-none pb-0.5">{formattedDate}</p>
                     <div className="text-right">
-                        <span className="text-white font-black text-2xl font-mono tracking-tight">{progressPercent}%</span>
-                        <p className="text-white/45 text-[9px] uppercase font-black tracking-widest mt-0.5">Completed</p>
+                        <span className="text-white font-black text-[15px] leading-none font-mono tracking-tight">{progressPercent}%</span>
+                        <p className="text-white/45 text-[9px] uppercase font-black tracking-widest mt-0.5 leading-none">Completed</p>
                     </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="relative z-10 w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="relative z-10 w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                     <motion.div
                         initial={false}
                         animate={{ width: `${progressPercent}%` }}
@@ -116,12 +116,14 @@ export default function DailyTasksTab() {
                 <input
                     type="text"
                     value={newTaskText}
-                    onChange={(e) => setNewTaskText(e.target.value)}
+                    onChange={(e) => setNewTaskText(e.target.value.slice(0, DAILY_TASK_MAX_LENGTH))}
+                    maxLength={DAILY_TASK_MAX_LENGTH}
                     placeholder="오늘 끝내야 할 일 추가하기..."
                     className="w-full bg-white border border-navy/5 rounded-2xl py-3 pl-4 pr-12 text-[15px] font-bold text-navy placeholder:text-navy/30 focus:outline-none focus:border-accent-red/20 focus:ring-4 focus:ring-accent-red/5 transition-all shadow-md"
                 />
                 <button
                     type="submit"
+                    aria-label="할 일 추가"
                     disabled={!newTaskText.trim()}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-navy hover:bg-navy/90 text-white p-2 rounded-xl disabled:bg-gray-100 disabled:text-navy/20 transition-all cursor-pointer"
                 >
@@ -158,7 +160,11 @@ export default function DailyTasksTab() {
                                     className="flex items-center gap-3 flex-1 cursor-pointer"
                                     onClick={() => toggleDailyTask(task.id)}
                                 >
-                                    <button className={`shrink-0 transition-colors cursor-pointer ${task.is_completed ? 'text-accent-green' : 'text-navy/30 hover:text-navy/50'}`}>
+                                    <button
+                                        type="button"
+                                        aria-label={task.is_completed ? `${task.task_name} 미완료로 변경` : `${task.task_name} 완료로 변경`}
+                                        className={`shrink-0 transition-colors cursor-pointer ${task.is_completed ? 'text-accent-green' : 'text-navy/30 hover:text-navy/50'}`}
+                                    >
                                         {task.is_completed ? <CheckCircle2 size={24} className="stroke-[2.5px]" /> : <Circle size={24} />}
                                     </button>
                                     <span className={`font-bold text-[15px] transition-all ${task.is_completed ? 'text-navy/40 line-through decoration-2' : 'text-navy'}`}>
@@ -167,6 +173,7 @@ export default function DailyTasksTab() {
                                 </div>
                                 <button
                                     onClick={() => removeDailyTask(task.id)}
+                                    aria-label={`${task.task_name} 삭제`}
                                     className="text-navy/20 hover:text-accent-red p-2 shrink-0 transition-colors ml-2 cursor-pointer"
                                 >
                                     <Trash2 size={18} />

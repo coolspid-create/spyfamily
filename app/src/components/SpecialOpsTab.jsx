@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Star, FileSignature, AlertCircle, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
+import { Star, FileSignature, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -10,6 +10,14 @@ const TAB_LIKE_MOTION = {
     exit: { opacity: 0, y: -10 },
     transition: TAB_LIKE_TRANSITION,
 };
+const EXPAND_COLLAPSE_TRANSITION = { duration: 0.22, ease: "easeOut" };
+const EXPAND_COLLAPSE_MOTION = {
+    initial: { opacity: 0, height: 0 },
+    animate: { opacity: 1, height: "auto" },
+    exit: { opacity: 0, height: 0 },
+    transition: EXPAND_COLLAPSE_TRANSITION,
+};
+const CHECKLIST_TASK_MAX_LENGTH = 30;
 
 export default function SpecialOpsTab() {
     const ops = useStore(state => state.opsData);
@@ -45,7 +53,14 @@ export default function SpecialOpsTab() {
     };
 
     const handleAddOp = () => {
-        if (!newOp.title.trim() || !newOp.date) return;
+        if (!newOp.title.trim()) {
+            alert('가족일정 제목을 입력해주세요.');
+            return;
+        }
+        if (!newOp.date) {
+            alert('기한/실행일을 선택해주세요.');
+            return;
+        }
 
         if (newOp.id) {
             updateOp({
@@ -71,13 +86,13 @@ export default function SpecialOpsTab() {
     };
 
     const handleAddTask = (opsId) => {
-        const taskText = newTaskInputs[opsId];
+        const taskText = newTaskInputs[opsId]?.trim().slice(0, CHECKLIST_TASK_MAX_LENGTH);
         if (!taskText || !taskText.trim()) return;
         const op = ops.find(o => o.id === opsId);
         if (op) {
             updateOp({
                 ...op,
-                checklist: [...op.checklist, { id: `c-${Date.now()}`, task: taskText.trim(), checked: false }]
+                checklist: [...op.checklist, { id: `c-${Date.now()}`, task: taskText, checked: false }]
             });
         }
         setNewTaskInputs({ ...newTaskInputs, [opsId]: '' });
@@ -91,6 +106,16 @@ export default function SpecialOpsTab() {
                 checklist: op.checklist.map(item =>
                     item.id === checklistId ? { ...item, checked: !item.checked } : item
                 )
+            });
+        }
+    };
+
+    const handleDeleteTask = (opsId, checklistId) => {
+        const op = ops.find(o => o.id === opsId);
+        if (op) {
+            updateOp({
+                ...op,
+                checklist: op.checklist.filter(item => item.id !== checklistId)
             });
         }
     };
@@ -118,11 +143,12 @@ export default function SpecialOpsTab() {
                     <Star size={120} />
                 </div>
                 <h3 className="font-bold text-[13px] text-white border-b border-white/10 pb-2 mb-2 flex items-center gap-2 relative z-10">
-                    <AlertCircle size={14} className="text-rose-400" />
+                    <Star size={14} className="text-fuchsia-200" />
                     중요 일정 및 할 일
                 </h3>
                 <p className="text-[10px] text-white/60 leading-relaxed font-semibold relative z-10">
-                    가족 일정과 준비물을 함께 관리하세요. 담당자 버튼을 토글하여 역할을 분담할 수 있습니다.
+                    가족들과 함께 일정과 준비물을 함께 관리하세요.<br />
+                    중요 일정 및 할일은 월간일정과 연동이 됩니다.
                 </p>
             </div>
 
@@ -179,6 +205,7 @@ export default function SpecialOpsTab() {
                                         <div className="flex bg-navy/5 rounded-full p-0.5 shadow-sm gap-0.5">
                                             <button
                                                 onClick={() => handleEditOp(op)}
+                                                aria-label={`${op.title} 수정`}
                                                 className="p-1 rounded-full transition-all text-navy/40 hover:text-navy hover:bg-white cursor-pointer"
                                                 title="할 일 수정"
                                             >
@@ -186,6 +213,7 @@ export default function SpecialOpsTab() {
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteOp(op.id)}
+                                                aria-label={`${op.title} 삭제`}
                                                 className="p-1 rounded-full transition-all text-navy/40 hover:text-rose-500 hover:bg-white cursor-pointer"
                                                 title="할 일 삭제"
                                             >
@@ -198,7 +226,7 @@ export default function SpecialOpsTab() {
                                 <AnimatePresence initial={false}>
                                     {isExpanded && (
                                         <motion.div
-                                            {...TAB_LIKE_MOTION}
+                                            {...EXPAND_COLLAPSE_MOTION}
                                             className="overflow-hidden"
                                         >
                                             <div className="pt-4 border-t border-dashed border-navy/10 mt-3.5 space-y-4">
@@ -249,19 +277,36 @@ export default function SpecialOpsTab() {
                                                         {op.checklist.map((item) => (
                                                             <li
                                                                 key={item.id}
-                                                                className="flex items-center gap-2.5 text-[13px] font-bold text-navy/80 cursor-pointer group py-1.5 px-2 rounded-lg hover:bg-navy/5 transition-colors"
-                                                                onClick={() => toggleChecklist(op.id, item.id)}
+                                                                className="flex items-center gap-2.5 text-[13px] font-bold text-navy/80 group py-1.5 px-2 rounded-lg hover:bg-navy/5 transition-colors"
                                                             >
-                                                                <div className={`w-4.5 h-4.5 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 ${
-                                                                    item.checked
-                                                                        ? 'bg-emerald-500 border-emerald-500 text-white'
-                                                                        : 'border-navy/20 bg-white group-hover:border-navy/40'
-                                                                }`}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleChecklist(op.id, item.id)}
+                                                                    aria-label={item.checked ? `${item.task} 미완료로 변경` : `${item.task} 완료로 변경`}
+                                                                    className={`w-4.5 h-4.5 rounded-full border flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer ${
+                                                                        item.checked
+                                                                            ? 'bg-emerald-500 border-emerald-500 text-white'
+                                                                            : 'border-navy/20 bg-white group-hover:border-navy/40'
+                                                                    }`}
+                                                                >
                                                                     {item.checked && <Check size={11} className="stroke-[3px]" />}
-                                                                </div>
-                                                                <span className={`flex-1 leading-tight ${item.checked ? 'line-through opacity-40 text-navy' : 'group-hover:text-rose-500'}`}>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleChecklist(op.id, item.id)}
+                                                                    className={`min-w-0 flex-1 text-left leading-tight cursor-pointer ${item.checked ? 'line-through opacity-40 text-navy' : 'group-hover:text-rose-500'}`}
+                                                                >
                                                                     {item.task}
-                                                                </span>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteTask(op.id, item.id)}
+                                                                    aria-label={`${item.task} 삭제`}
+                                                                    title="체크리스트 삭제"
+                                                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-navy/25 transition-all hover:bg-white hover:text-rose-500 cursor-pointer"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
                                                             </li>
                                                         ))}
                                                     </ul>
@@ -271,7 +316,8 @@ export default function SpecialOpsTab() {
                                                             type="text"
                                                             placeholder="새로운 체크리스트 추가..."
                                                             value={newTaskInputs[op.id] || ''}
-                                                            onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [op.id]: e.target.value })}
+                                                            onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [op.id]: e.target.value.slice(0, CHECKLIST_TASK_MAX_LENGTH) })}
+                                                            maxLength={CHECKLIST_TASK_MAX_LENGTH}
                                                             onKeyDown={(e) => e.key === 'Enter' && handleAddTask(op.id)}
                                                             className="min-w-0 flex-1 bg-transparent px-3 py-1.5 text-[13px] font-bold text-navy outline-none placeholder:opacity-50"
                                                         />

@@ -13,8 +13,6 @@ export default defineConfig([
       'node_modules/**',
       '.vite/**',
       'public/**',
-      'src/MemoryMvpEntry.jsx',
-      'src/components/CustomMemoryMvp.jsx',
     ]
   },
   {

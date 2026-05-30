@@ -3,28 +3,9 @@ import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const mainOnlyRoutes = () => ({
-  name: 'main-only-routes',
-  configureServer(server) {
-    server.middlewares.use((req, res, next) => {
-      const pathname = req.url?.split(/[?#]/)[0];
-
-      if (pathname === '/memory-mvp.html' || pathname === '/custom-memory') {
-        res.statusCode = 404;
-        res.end('MVP is served separately at http://127.0.0.1:5174/memory-mvp.html');
-        return;
-      }
-
-      next();
-    });
-  },
-});
-
 // https://vite.dev/config/
 export default defineConfig({
-  appType: 'mpa',
   plugins: [
-    mainOnlyRoutes(),
     react(),
     tailwindcss(),
     VitePWA({

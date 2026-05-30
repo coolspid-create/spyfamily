@@ -2,20 +2,20 @@
 
 Date:
 
-MVP worktree or branch:
+Worktree or branch:
 
 Goal:
 
 User-facing behavior:
 - 
 
-Files changed in MVP:
+Files changed:
 - 
 
-Recommended production integration:
+Recommended implementation:
 - 
 
-Do not bring into production:
+Do not include:
 - 
 
 Open decisions:

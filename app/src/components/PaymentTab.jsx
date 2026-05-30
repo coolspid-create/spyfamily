@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, Settings, RotateCcw, History, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, RotateCcw, History, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
@@ -42,12 +42,10 @@ export default function PaymentTab() {
     });
 
     // Zustand
-    const funds = useStore(state => state.funds);
     const payments = useStore(state => state.payments);
     const processPayment = useStore(state => state.processPayment);
     const undoPayment = useStore(state => state.undoPayment);
     const transactionHistory = useStore(state => state.transactionHistory);
-    const updateFund = useStore(state => state.updateFund);
     const updatePayment = useStore(state => state.updatePayment);
     const addPayment = useStore(state => state.addPayment);
     const removePayment = useStore(state => state.removePayment);
@@ -56,9 +54,6 @@ export default function PaymentTab() {
     const removeTransactionHistory = useStore(state => state.removeTransactionHistory);
 
     // Editing States
-    const [editingFundId, setEditingFundId] = useState(null);
-    const [fundBalance, setFundBalance] = useState('');
-
     const [editingPaymentId, setEditingPaymentId] = useState(null);
     const [paymentForm, setPaymentForm] = useState(null);
 
@@ -74,15 +69,6 @@ export default function PaymentTab() {
     const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(true);
     const [isArchiveExpanded, setIsArchiveExpanded] = useState(false);
 
-
-    const handleSaveFund = (fund) => {
-        const numBalance = Number(fundBalance.replace(/[^0-9]/g, ''));
-        if (!isNaN(numBalance)) {
-            const todayStr = new Date().toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }).replace(/\. /g, '.').replace('.', '');
-            updateFund({ ...fund, balance: numBalance, updated: todayStr });
-        }
-        setEditingFundId(null);
-    };
 
     const handleSavePayment = () => {
         updatePayment(paymentForm);
@@ -241,53 +227,6 @@ export default function PaymentTab() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 mt-2">
-                {funds.map((fund) => (
-                    <div key={fund.id} className="bg-white border border-navy/5 p-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all relative overflow-hidden group">
-                        <div className="flex justify-between items-center mb-1">
-                            <div className="text-[10px] text-navy/50 font-black uppercase tracking-wider">{fund.name}</div>
-                            <button
-                                onClick={() => {
-                                    setEditingFundId(fund.id);
-                                    setFundBalance(fund.balance.toString());
-                                }}
-                                className="text-navy/30 hover:text-navy transition-colors p-1 cursor-pointer"
-                            >
-                                <Settings size={13} />
-                            </button>
-                        </div>
-
-                        {editingFundId === fund.id ? (
-                            <div className="flex items-center gap-1 mt-1.5 z-20 relative">
-                                <input
-                                    type="number"
-                                    value={fundBalance}
-                                    onChange={(e) => setFundBalance(e.target.value)}
-                                    className="w-full border border-navy/15 rounded-lg px-2 py-1 font-mono text-[13px] font-bold bg-white text-navy focus:outline-none focus:border-accent-red"
-                                />
-                                <button onClick={() => handleSaveFund(fund)} className="text-white bg-accent-blue rounded-lg p-1.5 cursor-pointer hover:bg-accent-blue/90"><Save size={12} /></button>
-                                <button onClick={() => setEditingFundId(null)} className="text-navy bg-gray-100 rounded-lg p-1.5 cursor-pointer hover:bg-gray-250"><Plus size={12} className="rotate-45" /></button>
-                            </div>
-                        ) : (
-                            <div className="mt-1 flex flex-col items-end">
-                                <div className="w-full flex items-baseline gap-0.5 overflow-hidden">
-                                    <span className="text-base font-mono font-black text-navy tracking-tight truncate">
-                                        {fund.balance.toLocaleString()}
-                                    </span>
-                                    <span className="text-[10px] font-black text-navy shrink-0">₩</span>
-                                </div>
-                                <div className="text-[9px] font-bold text-navy/35 whitespace-nowrap mt-1">
-                                    UPDATE: {fund.updated}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="absolute right-0 top-0 bg-accent-green/5 w-16 h-16 rounded-full blur-xl pointer-events-none z-0"></div>
-                    </div>
-                ))}
-            </div>
-
-
             {/* Calendar Data Manager - Unifying design */}
             <div className="bg-navy/5 p-4.5 rounded-2xl border border-navy/5 space-y-4">
                 {/* Upcoming Payments Accordion */}
@@ -324,7 +263,7 @@ export default function PaymentTab() {
                                 {...ACCORDION_MOTION}
                                 className="overflow-hidden bg-navy/5"
                             >
-                                <div className="p-3.5 space-y-3 pb-4">
+                                <div className="p-2.5 space-y-2 pb-3">
                                     <AnimatePresence initial={false}>
                                         {showAddForm && (
                                             <motion.div
@@ -381,7 +320,7 @@ export default function PaymentTab() {
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: -5 }}
                                                 transition={PAYMENT_CARD_TRANSITION}
-                                                className={`p-3.5 rounded-xl border transition-all duration-300 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-50 border-gray-250 shadow-sm opacity-60' :
+                                                className={`p-2 rounded-xl border transition-all duration-300 relative overflow-hidden ${payment.isCompleted ? 'bg-gray-50 border-gray-250 shadow-sm opacity-60' :
                                                     payment.discount ? 'bg-amber-50/70 border-amber-300 shadow-sm hover:border-amber-400' : 'bg-white border-navy/5 shadow-sm hover:border-navy/10 hover:shadow-md'
                                                     }`}
                                             >
@@ -408,7 +347,7 @@ export default function PaymentTab() {
                                                     <div className="space-y-3 relative z-10 bg-white/50 py-1">
                                                         <div className="flex justify-between items-center border-b border-navy/10 pb-1">
                                                             <span className="text-[12px] font-bold text-navy">결제 내역 수정</span>
-                                                            <button onClick={() => setEditingPaymentId(null)} className="text-navy/50 hover:text-accent-red"><X size={14} /></button>
+                                                            <button onClick={() => setEditingPaymentId(null)} aria-label={`${payment.source} 수정 취소`} className="text-navy/50 hover:text-accent-red"><X size={14} /></button>
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <div>
@@ -444,66 +383,77 @@ export default function PaymentTab() {
                                                     </div>
                                                 ) : (
                                                     <>
-                                                        <div className="absolute top-2 left-2 z-30 flex flex-col gap-1">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingPaymentId(payment.id);
-                                                                    setPaymentForm(payment);
-                                                                }}
-                                                                className="text-navy/30 hover:text-navy hover:bg-navy/5 transition-all bg-white/80 p-1.5 rounded-lg border border-navy/10 shadow-sm cursor-pointer"
-                                                            >
-                                                                <Edit2 size={13} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeletePayment(payment.id)}
-                                                                className="text-navy/30 hover:text-accent-red hover:bg-rose-50 transition-all bg-white/80 p-1.5 rounded-lg border border-navy/10 shadow-sm cursor-pointer"
-                                                            >
-                                                                <Trash2 size={13} />
-                                                            </button>
-                                                        </div>
-
-                                                        <div className="flex justify-between items-start relative z-10 pl-10 pr-1">
-                                                            <div>
-                                                                <h3 className={`font-bold text-[14px] ${payment.isCompleted ? 'text-gray-500 line-through' : 'text-navy'}`}>
-                                                                    {payment.source}
-                                                                </h3>
-                                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${payment.isCompleted ? 'bg-black/5 text-gray-500' :
-                                                                        calculateDDay(payment.day).includes('D-Day') || parseInt(calculateDDay(payment.day).replace('D-', '')) <= 3 ? 'bg-accent-red text-white' : 'bg-black/5 text-navy/70'
-                                                                        }`}>
-                                                                        {payment.isCompleted ? `결제일: ${payment.day}` : calculateDDay(payment.day)}
-                                                                    </span>
-                                                                    {payment.discount && <span className="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-lg font-bold">{payment.discount}</span>}
-                                                                </div>
-                                                            </div>
-                                                            <div className={`font-mono font-black shrink-0 text-[14px] ${payment.isCompleted ? 'text-gray-500' : 'text-accent-red'}`}>
-                                                                {payment.amount.toLocaleString()} ₩
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex justify-between items-end mt-2.5 relative z-10 pl-10">
-                                                            <div className="text-[11px] font-bold text-navy/60 flex items-center gap-1">
-                                                                <AlertCircle size={12} /> {payment.method}
-                                                            </div>
-                                                            {!payment.isCompleted ? (
-                                                                <motion.button
-                                                                    whileTap={{ scale: 0.95 }}
-                                                                    onClick={() => processPayment(payment.id)}
-                                                                    className="bg-accent-blue text-white text-[10px] font-bold px-3 py-1.5 rounded-lg border border-accent-blue hover:bg-accent-blue/95 transition-all cursor-pointer shadow-sm"
+                                                        <div className="grid grid-cols-[28px_minmax(0,1fr)] gap-1.5 relative z-10">
+                                                            <div className="flex flex-col gap-0.5 pt-0.5">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setEditingPaymentId(payment.id);
+                                                                        setPaymentForm(payment);
+                                                                    }}
+                                                                    aria-label={`${payment.source} 수정`}
+                                                                    title={`${payment.source} 수정`}
+                                                                    className="text-navy/30 hover:text-navy hover:bg-navy/5 transition-all bg-white/80 p-1 rounded-md border border-navy/10 shadow-sm cursor-pointer"
                                                                 >
-                                                                    결제 처리하기
-                                                                </motion.button>
-                                                            ) : (
-                                                                <div className="flex flex-col items-end gap-1">
-                                                                    <div className="text-accent-green flex items-center gap-1 text-[11px] font-bold">
-                                                                        <CheckCircle2 size={12} /> 완료
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeletePayment(payment.id)}
+                                                                    aria-label={`${payment.source} 삭제`}
+                                                                    title={`${payment.source} 삭제`}
+                                                                    className="text-navy/30 hover:text-accent-red hover:bg-rose-50 transition-all bg-white/80 p-1 rounded-md border border-navy/10 shadow-sm cursor-pointer"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="min-w-0">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <h3 className={`font-bold text-[13px] leading-snug truncate ${payment.isCompleted ? 'text-gray-500 line-through' : 'text-navy'}`}>
+                                                                            {payment.source}
+                                                                        </h3>
+                                                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-lg font-bold leading-none ${payment.isCompleted ? 'bg-black/5 text-gray-500' :
+                                                                                calculateDDay(payment.day).includes('D-Day') || parseInt(calculateDDay(payment.day).replace('D-', '')) <= 3 ? 'bg-accent-red text-white' : 'bg-black/5 text-navy/70'
+                                                                                }`}>
+                                                                                {payment.isCompleted ? `결제일: ${payment.day}` : calculateDDay(payment.day)}
+                                                                            </span>
+                                                                            {payment.discount && <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-lg font-bold leading-none">{payment.discount}</span>}
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="text-[9px] text-gray-500 font-mono tracking-tighter">{payment.completedAt}</div>
-                                                                    <button onClick={() => undoPayment(payment.id)} className="text-[9px] text-navy/40 hover:text-navy underline flex items-center gap-1 mt-0.5 cursor-pointer">
-                                                                        <RotateCcw size={10} /> 취소
-                                                                    </button>
+                                                                    <div className={`font-mono font-black shrink-0 max-w-[45%] text-right text-[13px] leading-snug truncate ${payment.isCompleted ? 'text-gray-500' : 'text-accent-red'}`}>
+                                                                        {payment.amount.toLocaleString()} ₩
+                                                                    </div>
                                                                 </div>
-                                                            )}
+
+                                                                <div className="flex justify-between items-center gap-2 mt-1.5">
+                                                                    <div className="min-w-0 text-[10px] font-bold text-navy/60 flex items-center gap-1">
+                                                                        <AlertCircle size={11} className="shrink-0" />
+                                                                        <span className="truncate">{payment.method}</span>
+                                                                    </div>
+                                                                    {!payment.isCompleted ? (
+                                                                        <motion.button
+                                                                            whileTap={{ scale: 0.95 }}
+                                                                            onClick={() => processPayment(payment.id)}
+                                                                            className="bg-accent-blue text-white text-[9px] font-bold px-2 py-1 rounded-lg border border-accent-blue hover:bg-accent-blue/95 transition-all cursor-pointer shadow-sm shrink-0"
+                                                                        >
+                                                                            결제 처리하기
+                                                                        </motion.button>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                            <div className="flex flex-col items-end leading-tight">
+                                                                                <div className="text-accent-green flex items-center gap-1 text-[10px] font-bold">
+                                                                                    <CheckCircle2 size={11} /> 완료
+                                                                                </div>
+                                                                                <div className="text-[9px] text-gray-500 font-mono tracking-tighter">{payment.completedAt}</div>
+                                                                            </div>
+                                                                            <button onClick={() => undoPayment(payment.id)} className="text-[9px] text-navy/40 hover:text-navy underline flex items-center gap-1 cursor-pointer">
+                                                                                <RotateCcw size={10} /> 취소
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </>
                                                 )}

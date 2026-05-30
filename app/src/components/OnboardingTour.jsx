@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const ONBOARDING_VERSION = '4';
+const ONBOARDING_VERSION = '5';
 const COMPLETED_KEY = 'familyScheduler.onboarding.completed';
 const VERSION_KEY = 'familyScheduler.onboarding.version';
 const TOUR_MOTION_TRANSITION = { duration: 0.15 };
@@ -99,6 +99,13 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
       target: '[data-tour="nav-ops"]',
       shape: 'circle',
       message: '특별한 가족 일정은\n따로 모아보세요.',
+    },
+    {
+      id: 'diary',
+      tab: 'diary',
+      target: '[data-tour="nav-diary"]',
+      shape: 'circle',
+      message: '소중한 순간은 다이어리에\n사진과 함께 남겨보세요.',
     },
     {
       id: 'local',
@@ -374,6 +381,15 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
             />
           )}
 
+          {!highlightStyle && isTargetMissing && !isStartStep && (
+            <button
+              type="button"
+              onClick={goNext}
+              className="fixed inset-0 pointer-events-auto z-[202] cursor-pointer bg-transparent"
+              aria-label={`${currentStep.message.replace(/\n/g, ' ')} 다음 안내 보기`}
+            />
+          )}
+
           {isStartStep ? (
             <motion.div
               key={`${currentStep.id}-message`}
@@ -406,7 +422,7 @@ export default function OnboardingTour({ activeTab, onTabChange, replayKey }) {
               exit={{ opacity: 0, y: 14 }}
               transition={{ duration: 0.2 }}
             >
-              {isTargetMissing ? '화면을 다시 정리한 뒤\n가이드를 이어갈게요.' : currentStep.message}
+              {currentStep.message}
             </motion.p>
           )}
         </motion.div>

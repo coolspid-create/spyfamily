@@ -18,6 +18,175 @@ const INITIAL_PAYMENTS = [];
 const INITIAL_HISTORY = [];
 const INITIAL_OPS = [];
 const INITIAL_DAILY = [];
+const WEEK_DAYS = Object.keys(INITIAL_WEEKLY);
+const DEFAULT_CHILD_PROFILES = { child1: '아이1', child2: '아이2', child3: '아이3' };
+
+const asArray = (value) => (Array.isArray(value) ? value : []);
+const toSafeString = (value, fallback = '') => {
+    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return fallback;
+    return String(value);
+};
+const toSafeNumber = (value, fallback = 0) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+const getLocalDateString = (date = new Date()) => (
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
+const normalizeBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const normalizeMethod = (method, fallback = '신용카드') => {
+    const normalized = toSafeString(method, fallback).replace('성남', '지역').trim();
+    return normalized || fallback;
+};
+const normalizeTime = (value, fallback = '09:00') => {
+    const match = toSafeString(value).match(/^(\d{1,2}):(\d{1,2})/);
+    if (!match) return fallback;
+    const hour = Math.min(Math.max(parseInt(match[1], 10) || 0, 0), 23);
+    const minute = Math.min(Math.max(parseInt(match[2], 10) || 0, 0), 59);
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+const normalizeDayNumber = (value, fallback = 1) => {
+    const parsed = typeof value === 'number'
+        ? value
+        : parseInt(toSafeString(value).replace('일', ''), 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(Math.max(parsed, 1), 31);
+};
+const normalizeDateDashes = (value, fallback = '') => {
+    const raw = toSafeString(value).trim();
+    if (!raw) return fallback;
+    const dashed = raw.replace(/\./g, '-');
+    const match = dashed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!match) return fallback || raw;
+    return `${match[1]}-${String(parseInt(match[2], 10)).padStart(2, '0')}-${String(parseInt(match[3], 10)).padStart(2, '0')}`;
+};
+const normalizeDateDots = (value) => normalizeDateDashes(value).replace(/-/g, '.');
+const createLocalId = (prefix, fallbackParts) => {
+    const safeParts = fallbackParts.map(part => toSafeString(part).trim()).filter(Boolean);
+    return `${prefix}-${safeParts.join('-') || 'item'}`;
+};
+
+const normalizeChildProfiles = (profiles) => (
+    profiles && typeof profiles === 'object' && !Array.isArray(profiles)
+        ? { ...DEFAULT_CHILD_PROFILES, ...profiles }
+        : DEFAULT_CHILD_PROFILES
+);
+const normalizeChildCount = (count) => {
+    const parsed = parseInt(count, 10);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.min(Math.max(parsed, 1), 3);
+};
+const normalizeCurrentChild = (childId) => {
+    const normalized = toSafeString(childId, 'child1');
+    return /^child[1-3]$/.test(normalized) ? normalized : 'child1';
+};
+
+const normalizeWeeklyData = (weeklyData) => WEEK_DAYS.reduce((normalized, day) => {
+    normalized[day] = asArray(weeklyData?.[day]).map((item, index) => ({
+        id: toSafeString(item?.id) || createLocalId(`schedule-${day}`, [index, item?.time, item?.title]),
+        time: normalizeTime(item?.time),
+        title: toSafeString(item?.title, '일정'),
+        agent: toSafeString(item?.agent, '자율') || '자율',
+        location: toSafeString(item?.location),
+        contactName: toSafeString(item?.contactName),
+        contactPhone: toSafeString(item?.contactPhone),
+        isEarly: normalizeBoolean(item?.isEarly),
+        isUrgent: normalizeBoolean(item?.isUrgent)
+    }));
+    return normalized;
+}, {});
+
+const normalizeFunds = (funds) => {
+    const normalizedFunds = asArray(funds).map((fund, index) => ({
+        id: toSafeString(fund?.id) || `fund-${index + 1}`,
+        name: toSafeString(fund?.name, index === 0 ? '아동수당' : '지역사랑상품권').replace('성남', '지역'),
+        balance: toSafeNumber(fund?.balance),
+        updated: toSafeString(fund?.updated, '미설정') || '미설정'
+    }));
+
+    return normalizedFunds.length > 0 ? normalizedFunds : INITIAL_FUNDS;
+};
+
+const normalizePayments = (payments) => asArray(payments).map((payment, index) => {
+    const day = normalizeDayNumber(payment?.day ?? payment?.payment_day);
+    return {
+        id: toSafeString(payment?.id) || createLocalId('payment', [index, payment?.source, day]),
+        source: toSafeString(payment?.source, '결제 내역'),
+        amount: toSafeNumber(payment?.amount),
+        method: normalizeMethod(payment?.method),
+        day: `${day} 일`,
+        discount: toSafeString(payment?.discount ?? payment?.discount_info),
+        isCompleted: normalizeBoolean(payment?.isCompleted ?? payment?.is_completed),
+        completedAt: toSafeString(payment?.completedAt),
+        justCompleted: false
+    };
+});
+
+const normalizeMissions = (missions) => asArray(missions).map((mission, index) => {
+    const type = mission?.type === 'event' ? 'event' : 'fund';
+    const day = normalizeDayNumber(mission?.day);
+    return {
+        id: toSafeString(mission?.id) || createLocalId('mission', [type, index, mission?.title, day]),
+        type,
+        day,
+        year: type === 'event' ? toSafeNumber(mission?.year, new Date().getFullYear()) : mission?.year,
+        month: type === 'event' ? Math.min(Math.max(toSafeNumber(mission?.month, new Date().getMonth() + 1), 1), 12) : mission?.month,
+        title: toSafeString(mission?.title, type === 'event' ? '가족일정' : '결제관리')
+    };
+});
+
+const normalizeOps = (opsData) => asArray(opsData).map((op, index) => ({
+    id: toSafeString(op?.id) || createLocalId('ops', [index, op?.title]),
+    title: toSafeString(op?.title, '가족일정'),
+    date: normalizeDateDots(op?.date) || '',
+    description: toSafeString(op?.description),
+    priority: ['HIGH', 'MEDIUM', 'LOW'].includes(op?.priority) ? op.priority : 'MEDIUM',
+    status: toSafeString(op?.status, 'PENDING') || 'PENDING',
+    participants: {
+        mom: normalizeBoolean(op?.participants?.mom),
+        dad: normalizeBoolean(op?.participants?.dad)
+    },
+    checklist: asArray(op?.checklist).map((item, checklistIndex) => ({
+        id: toSafeString(item?.id) || createLocalId('checklist', [index, checklistIndex, item?.task]),
+        task: toSafeString(item?.task, '준비물'),
+        checked: normalizeBoolean(item?.checked ?? item?.is_checked)
+    }))
+}));
+
+const normalizeDailyTasks = (dailyTasks) => asArray(dailyTasks).map((task, index) => ({
+    id: toSafeString(task?.id) || createLocalId('daily', [index, task?.task_name ?? task?.text]),
+    task_name: toSafeString(task?.task_name ?? task?.text ?? task?.title, '할 일'),
+    is_completed: normalizeBoolean(task?.is_completed ?? task?.completed ?? task?.checked),
+    assigned_date: normalizeDateDashes(task?.assigned_date, getLocalDateString())
+}));
+
+const normalizeTransactionHistory = (history) => asArray(history).map((record, index) => ({
+    id: toSafeString(record?.id) || createLocalId('history', [index, record?.source, record?.date_formatted]),
+    paymentId: toSafeString(record?.paymentId ?? record?.payment_id),
+    month: toSafeString(record?.month),
+    date_formatted: toSafeString(record?.date_formatted),
+    source: toSafeString(record?.source, '결제 내역'),
+    amount: toSafeNumber(record?.amount),
+    method: normalizeMethod(record?.method, '')
+}));
+
+const normalizeNotices = (notices) => asArray(notices).map((notice, index) => ({
+    id: toSafeString(notice?.id) || createLocalId('notice', [index, notice?.text]),
+    text: toSafeString(notice?.text, '알림'),
+    checked: normalizeBoolean(notice?.checked ?? notice?.is_checked)
+}));
+
+const normalizeGuestData = (data) => ({
+    weeklyData: normalizeWeeklyData(data?.weeklyData),
+    missionsData: normalizeMissions(data?.missionsData),
+    funds: normalizeFunds(data?.funds),
+    payments: normalizePayments(data?.payments),
+    opsData: normalizeOps(data?.opsData),
+    transactionHistory: normalizeTransactionHistory(data?.transactionHistory),
+    notices: normalizeNotices(data?.notices),
+    dailyTasks: normalizeDailyTasks(data?.dailyTasks)
+});
 
 const createScheduleKey = (item) => [
     item.time || '',
@@ -42,21 +211,21 @@ const createScheduleCopy = (item, id) => ({
 
 const savedProfiles = (() => {
     try {
-        return JSON.parse(localStorage.getItem('spy_childProfiles')) || { child1: '아이1', child2: '아이2', child3: '아이3' };
+        return normalizeChildProfiles(JSON.parse(localStorage.getItem('spy_childProfiles')));
     } catch {
-        return { child1: '아이1', child2: '아이2', child3: '아이3' };
+        return DEFAULT_CHILD_PROFILES;
     }
 })();
 const savedChildCount = (() => {
     try {
-        return parseInt(localStorage.getItem('spy_childCount')) || 1;
+        return normalizeChildCount(localStorage.getItem('spy_childCount'));
     } catch {
         return 1;
     }
 })();
 const savedCurrentChild = (() => {
     try {
-        return localStorage.getItem('spy_currentChild') || 'child1';
+        return normalizeCurrentChild(localStorage.getItem('spy_currentChild'));
     } catch {
         return 'child1';
     }
@@ -73,10 +242,10 @@ const GUEST_DATA_KEYS = [
     'dailyTasks'
 ];
 
-const createGuestDataSnapshot = (state) => GUEST_DATA_KEYS.reduce((snapshot, key) => {
+const createGuestDataSnapshot = (state) => normalizeGuestData(GUEST_DATA_KEYS.reduce((snapshot, key) => {
     snapshot[key] = state[key];
     return snapshot;
-}, {});
+}, {}));
 
 const hasGuestDataChanged = (prevState, nextState) => (
     !prevState || GUEST_DATA_KEYS.some((key) => prevState[key] !== nextState[key])
@@ -1131,7 +1300,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         }
 
         try {
-            const guestData = JSON.parse(guestDataStr);
+            const guestData = normalizeGuestData(JSON.parse(guestDataStr));
 
             const schedules = [];
             for (const day in guestData.weeklyData) {
@@ -1141,10 +1310,10 @@ export const useStore = create(persistGuestData((set, get) => ({
             }
             if (schedules.length > 0) await supabase.from('schedule').insert(schedules);
 
-            const payments = guestData.payments.map(p => ({ source: p.source, amount: p.amount, method: p.method, payment_day: parseInt(p.day.replace('일', ''), 10) || 1, discount_info: p.discount, is_completed: p.isCompleted, child_id: currentChild }));
+            const payments = guestData.payments.map(p => ({ source: p.source, amount: p.amount, method: p.method, payment_day: normalizeDayNumber(p.day), discount_info: p.discount, is_completed: p.isCompleted, child_id: currentChild }));
             if (payments.length > 0) await supabase.from('payment').insert(payments);
 
-            const ops = guestData.opsData.map(o => ({ title: o.title, execution_date: o.date.replace(/\./g, '-'), description: o.description || '', priority: o.priority, status: o.status, child_id: currentChild }));
+            const ops = guestData.opsData.map(o => ({ title: o.title, execution_date: normalizeDateDashes(o.date), description: o.description || '', priority: o.priority, status: o.status, child_id: currentChild }));
             if (ops.length > 0) await supabase.from('ops').insert(ops);
 
             const dailyTasks = guestData.dailyTasks.map(t => ({ task_name: t.task_name, is_completed: t.is_completed, assigned_date: t.assigned_date, child_id: currentChild }));
@@ -1173,19 +1342,19 @@ export const useStore = create(persistGuestData((set, get) => ({
             const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
             if (guestDataStr) {
                 try {
-                    const parsed = JSON.parse(guestDataStr);
+                    const parsed = normalizeGuestData(JSON.parse(guestDataStr));
                     set({ ...parsed, isLoading: false, isDataLoaded: true });
-                } catch { }
+                } catch (error) {
+                    console.warn('Local guest data could not be loaded safely:', error);
+                    set({
+                        ...normalizeGuestData({}),
+                        isLoading: false,
+                        isDataLoaded: true
+                    });
+                }
             } else {
                 set({
-                    weeklyData: INITIAL_WEEKLY,
-                    missionsData: INITIAL_MISSIONS,
-                    funds: INITIAL_FUNDS,
-                    payments: INITIAL_PAYMENTS,
-                    opsData: INITIAL_OPS,
-                    transactionHistory: INITIAL_HISTORY,
-                    notices: [],
-                    dailyTasks: INITIAL_DAILY,
+                    ...normalizeGuestData({}),
                     isLoading: false, isDataLoaded: true
                 });
             }

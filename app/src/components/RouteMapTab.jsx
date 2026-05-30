@@ -232,9 +232,23 @@ export default function RouteMapTab() {
             {/* Mini Calendar View */}
             <div className="bg-white border border-navy/5 rounded-2xl p-4.5 shadow-sm relative overflow-hidden">
                 <div className="flex justify-between items-center mb-4.5">
-                    <button onClick={prevMonth} className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"><ChevronLeft size={18} /></button>
+                    <button
+                        onClick={prevMonth}
+                        aria-label="이전 달 보기"
+                        title="이전 달 보기"
+                        className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"
+                    >
+                        <ChevronLeft size={18} />
+                    </button>
                     <h3 className="font-sans font-black text-[15px] text-navy tracking-wider">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                    <button onClick={nextMonth} className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"><ChevronRight size={18} /></button>
+                    <button
+                        onClick={nextMonth}
+                        aria-label="다음 달 보기"
+                        title="다음 달 보기"
+                        className="p-1.5 hover:bg-navy/5 rounded-full transition-all active:scale-90 cursor-pointer text-navy"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-7 gap-1 text-center font-black text-[10px] mb-3 text-navy/40 border-b border-navy/5 pb-2">
