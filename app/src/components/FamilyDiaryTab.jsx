@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronLeft, ChevronRight, MoreHorizontal, X, Camera, CalendarHeart, Video, Trash2, Edit2, MessageCircle, Heart, Smile, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
 
 // Initial Mock Data
 const INITIAL_RECORDS = [];
@@ -257,6 +258,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const [commentInputs, setCommentInputs] = useState({});
   const [commentAuthors, setCommentAuthors] = useState({});
   const [customAuthors, setCustomAuthors] = useState({});
+  const [deleteRecordTargetId, setDeleteRecordTargetId] = useState(null);
   const [activeReactionMenu, setActiveReactionMenu] = useState(null);
 
   // Photo Upload State
@@ -274,6 +276,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   // PDF Export States
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState('spring');
+  const [exportStartDate, setExportStartDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [exportEndDate, setExportEndDate] = useState(() => getLocalDateString());
 
   // Gallery Scroll Observer & Indicator Logic
   useEffect(() => {
@@ -486,10 +493,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const handleDeleteRecord = (id) => {
-    if (window.confirm('정말 이 기록을 삭제하시겠습니까?')) {
-      setRecords(prev => prev.filter(r => r.id !== id));
-    }
+    setDeleteRecordTargetId(id);
     setActiveMenuId(null);
+  };
+
+  const confirmDeleteRecord = () => {
+    if (!deleteRecordTargetId) return;
+    setRecords(prev => prev.filter(r => r.id !== deleteRecordTargetId));
+    setDeleteRecordTargetId(null);
   };
 
   const handleAddReaction = (recordId, emoji) => {
@@ -543,8 +554,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     }));
   };
 
-  const handleSearchDateChange = (event) => {
-    setSearchDate(event.target.value ? normalizeIsoDate(event.target.value) : '');
+  const handleSearchDateChange = (valueOrEvent) => {
+    const nextValue = typeof valueOrEvent === 'string' ? valueOrEvent : valueOrEvent.target.value;
+    setSearchDate(nextValue ? normalizeIsoDate(nextValue) : '');
   };
 
   // --- Pages ---
@@ -559,17 +571,16 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         {isEmbedded && (
           <div className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-navy/5 shadow-md">
             <div className="flex items-center gap-2">
-              <label className="relative flex items-center gap-1.5 bg-navy/5 border border-navy/10 text-navy font-bold text-[11px] px-3.5 py-2 rounded-full hover:bg-navy/10 active:scale-95 transition-all cursor-pointer">
-                <input 
-                  type="date" 
-                  value={searchDate}
-                  onChange={handleSearchDateChange}
-                  onInput={handleSearchDateChange}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                />
-                <CalendarDays size={12} className="text-navy" />
-                {searchDate ? getFormattedDate(searchDate) : '날짜 검색'}
-              </label>
+              <NativeSafeDateInput
+                value={searchDate}
+                onChange={handleSearchDateChange}
+                compact
+                pickerMode="popup"
+                popupAlign="left"
+                placeholder="날짜 검색"
+                className="min-w-[118px]"
+                buttonClassName="bg-navy/5 border border-navy/10 text-navy font-bold text-[11px] px-3.5 py-2 rounded-full hover:bg-navy/10 active:scale-95 transition-all"
+              />
             </div>
             
             <button
@@ -729,15 +740,17 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   )}
 
                   <div className="flex items-center gap-2">
-                    <select 
+                    <NativeSafeSelect
                       value={commentAuthors[record.id] || '아빠'}
-                      onChange={(e) => setCommentAuthors(prev => ({ ...prev, [record.id]: e.target.value }))}
-                      className="bg-navy/5 border border-navy/10 rounded-full px-2.5 py-2 text-[11px] text-navy font-bold outline-none focus:border-navy/20 focus:bg-white transition-all shrink-0 cursor-pointer"
-                    >
-                      <option value="아빠">아빠</option>
-                      <option value="엄마">엄마</option>
-                      <option value="직접입력">직접작성</option>
-                    </select>
+                      options={[
+                        { value: '아빠', label: '아빠' },
+                        { value: '엄마', label: '엄마' },
+                        { value: '직접입력', label: '직접작성' },
+                      ]}
+                      onChange={(author) => setCommentAuthors(prev => ({ ...prev, [record.id]: author }))}
+                      className="shrink-0 min-w-[82px]"
+                      buttonClassName="bg-navy/5 border border-navy/10 rounded-full px-2.5 py-2 text-[11px] text-navy font-bold outline-none focus:border-navy/20 focus:bg-white transition-all"
+                    />
                     
                     {commentAuthors[record.id] === '직접입력' && (
                       <input 
@@ -1117,7 +1130,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             <button onClick={handleSaveRecord} className="text-[13px] font-bold text-navy px-3 py-1.5 bg-white rounded-md hover:bg-gray-100 transition-colors">저장</button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div style={HIDDEN_SCROLLBAR_STYLE} className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar [&::-webkit-scrollbar]:hidden">
             <div className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
               <p className="text-[12px] font-bold text-navy/60 mb-3 border-b border-navy/10 pb-2">오늘의 기분은?</p>
               <div className="grid grid-cols-9 gap-0.5 px-0">
@@ -1134,14 +1147,27 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             </div>
 
             <div className="flex gap-3">
-              <div className="flex-1 bg-white p-3 rounded-2xl border border-navy/5 shadow-md space-y-1.5">
-                <label className="text-[11px] font-bold text-navy/60">날짜</label>
-                <input type="date" value={dateInput} onChange={e => setDateInput(e.target.value)} className="w-full bg-transparent font-bold text-[14px] text-navy outline-none" />
-              </div>
-              <div className="flex-1 bg-white p-3 rounded-2xl border border-navy/5 shadow-md space-y-1.5">
-                <label className="text-[11px] font-bold text-navy/60">시간</label>
-                <input type="time" value={timeInput} onChange={e => setTimeInput(e.target.value)} className="w-full bg-transparent font-bold text-[14px] text-navy outline-none" />
-              </div>
+              <NativeSafeDateInput
+                value={dateInput}
+                onChange={setDateInput}
+                label="날짜"
+                labelClassName="text-[11px] font-bold text-navy/60"
+                stacked
+                pickerMode="popup"
+                compact
+                className="bg-white p-3 rounded-2xl border border-navy/5 shadow-md"
+                buttonClassName="w-full bg-transparent font-bold text-[14px] text-navy outline-none"
+              />
+              <NativeSafeTimeInput
+                value={timeInput}
+                onChange={setTimeInput}
+                label="시간"
+                labelClassName="text-[11px] font-bold text-navy/60"
+                stacked
+                pickerMode="popup"
+                className="bg-white p-3 rounded-2xl border border-navy/5 shadow-md"
+                inputClassName="font-bold text-[14px] text-navy"
+              />
             </div>
 
             <div className="space-y-3 bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
@@ -1263,11 +1289,27 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 <div className="flex gap-3">
                   <div className="space-y-2 flex-1">
                     <label className="text-[12px] font-bold text-navy/70">시작 날짜</label>
-                    <input id="export-start-date" type="date" defaultValue="2026-05-01" className="w-full border border-navy/5 rounded-lg p-2 text-[13px] font-bold text-navy outline-none focus:border-accent-red" disabled={isExporting} />
+                    <NativeSafeDateInput
+                      value={exportStartDate}
+                      onChange={setExportStartDate}
+                      disabled={isExporting}
+                      compact
+                      pickerMode="popup"
+                      popupAlign="left"
+                      buttonClassName="w-full border border-navy/5 rounded-lg p-2 text-[13px] font-bold text-navy outline-none focus:border-accent-red"
+                    />
                   </div>
                   <div className="space-y-2 flex-1">
                     <label className="text-[12px] font-bold text-navy/70">종료 날짜</label>
-                    <input id="export-end-date" type="date" defaultValue="2026-05-31" className="w-full border border-navy/5 rounded-lg p-2 text-[13px] font-bold text-navy outline-none focus:border-accent-red" disabled={isExporting} />
+                    <NativeSafeDateInput
+                      value={exportEndDate}
+                      onChange={setExportEndDate}
+                      disabled={isExporting}
+                      compact
+                      pickerMode="popup"
+                      popupAlign="right"
+                      buttonClassName="w-full border border-navy/5 rounded-lg p-2 text-[13px] font-bold text-navy outline-none focus:border-accent-red"
+                    />
                   </div>
                 </div>
 
@@ -1327,8 +1369,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const currentTheme = themesMap[selectedTheme] || themesMap.plain;
 
     // Get filtered records for export
-    const startObj = document.getElementById('export-start-date')?.value || '2026-05-01';
-    const endObj = document.getElementById('export-end-date')?.value || '2026-05-31';
+    const startObj = exportStartDate || '2026-05-01';
+    const endObj = exportEndDate || getLocalDateString();
     const filteredRecords = records.filter(r => r.isoDate >= startObj && r.isoDate <= endObj).sort((a,b) => new Date(a.isoDate) - new Date(b.isoDate));
 
     return (
@@ -1504,18 +1546,17 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
           
           <div className="w-10 flex justify-end z-10 mt-1">
             {activeTab === 'home' && (
-              <label className="relative flex items-center cursor-pointer">
-                <input 
-                  type="date" 
-                  value={searchDate}
-                  onChange={handleSearchDateChange}
-                  onInput={handleSearchDateChange}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                />
-                <span className="p-2 -mr-2 text-navy/50 hover:text-navy transition-colors">
-                  <CalendarDays size={20} strokeWidth={2.5} className="text-navy/70" />
-                </span>
-              </label>
+              <NativeSafeDateInput
+                value={searchDate}
+                onChange={handleSearchDateChange}
+                compact
+                iconOnly
+                pickerMode="popup"
+                popupAlign="right"
+                placeholder=""
+                className="w-[34px]"
+                buttonClassName="h-9 w-9 justify-center rounded-full p-0 text-navy/50 hover:bg-navy/5"
+              />
             )}
           </div>
         </header>
@@ -1588,6 +1629,15 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       {renderPdfExportModal()}
       {renderPhotoModal()}
       {renderPremiumPaywall()}
+      <NativeSafeConfirmDialog
+        open={Boolean(deleteRecordTargetId)}
+        title="기록 삭제"
+        message="정말 이 기록을 삭제하시겠습니까?"
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmDeleteRecord}
+        onCancel={() => setDeleteRecordTargetId(null)}
+      />
       {isExporting && renderHiddenPdfContent()}
     </div>
   );

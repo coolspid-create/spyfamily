@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CalendarDays, Plus, Save, Trash2, Edit2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { NativeSafeDateInput, NativeSafeSelect } from './NativeSafeControls';
 
 const TAB_LIKE_TRANSITION = { duration: 0.2, ease: "easeOut" };
 const TAB_LIKE_MOTION = {
@@ -178,18 +179,18 @@ export default function RouteMapTab() {
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">종류</label>
-                            <select value={manageMissionForm.type} onChange={e => {
+                            <NativeSafeSelect value={manageMissionForm.type} options={[
+                                { value: 'fund', label: '결제관리' },
+                                { value: 'event', label: '가족일정' },
+                            ]} onChange={type => {
                                 const today = new Date();
                                 setManageMissionForm({
                                     ...manageMissionForm,
-                                    type: e.target.value,
+                                    type,
                                     year: manageMissionForm.year || today.getFullYear(),
                                     month: manageMissionForm.month || (today.getMonth() + 1)
                                 });
-                            }} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all cursor-pointer text-navy">
-                                <option value="fund">결제관리</option>
-                                <option value="event">가족일정</option>
-                            </select>
+                            }} buttonClassName="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" />
                         </div>
                         {manageMissionForm.type === 'fund' ? (
                             <div>
@@ -199,12 +200,12 @@ export default function RouteMapTab() {
                         ) : (
                             <div>
                                 <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">날짜</label>
-                                <input type="date" value={manageMissionForm.year && manageMissionForm.month ? `${manageMissionForm.year}-${String(manageMissionForm.month).padStart(2, '0')}-${String(manageMissionForm.day).padStart(2, '0')}` : ''} onChange={e => {
-                                    if (e.target.value) {
-                                        const [y, m, d] = e.target.value.split('-');
+                                <NativeSafeDateInput value={manageMissionForm.year && manageMissionForm.month ? `${manageMissionForm.year}-${String(manageMissionForm.month).padStart(2, '0')}-${String(manageMissionForm.day).padStart(2, '0')}` : ''} onChange={dateValue => {
+                                    if (dateValue) {
+                                        const [y, m, d] = dateValue.split('-');
                                         setManageMissionForm({ ...manageMissionForm, year: Number(y), month: Number(m), day: Number(d) });
                                     }
-                                }} className="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold font-mono outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" />
+                                }} compact pickerMode="popup" popupAlign="left" buttonClassName="w-full border border-navy/15 rounded-xl p-2 text-[13px] font-semibold font-mono outline-none bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all text-navy" />
                             </div>
                         )}
                     </div>

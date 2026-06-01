@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { User, Baby, ShieldAlert, Clock, CheckSquare, Plus, Trash2, Edit2, Save, Bus, MapPin, School, Rocket, Phone, Copy, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { NativeSafeConfirmDialog, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
 
 const getAgentIcon = (agent) => {
     if (agent.includes('엄마')) return <Baby className="w-4 h-4 text-rose-500" />;
@@ -80,6 +81,7 @@ export default function HomeBoard() {
     const [showCopyPanel, setShowCopyPanel] = useState(false);
     const [copyTargets, setCopyTargets] = useState([]);
     const [copyMessage, setCopyMessage] = useState('');
+    const [deleteTargetId, setDeleteTargetId] = useState(null);
 
     const presetAgents = ['엄마', '아빠', '태권도', '학교', '자율'];
 
@@ -98,10 +100,14 @@ export default function HomeBoard() {
         setEditingId(null);
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('일정을 삭제하시겠습니까?')) {
-            await removeScheduleItem(id);
-        }
+    const handleDelete = (id) => {
+        setDeleteTargetId(id);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTargetId) return;
+        await removeScheduleItem(deleteTargetId);
+        setDeleteTargetId(null);
     };
 
     const handleAddSchedule = async () => {
@@ -475,12 +481,12 @@ export default function HomeBoard() {
                                 <div className="absolute -left-[4.5px] top-4 w-2 h-2 rounded-full border border-background bg-gray-400"></div>
 
                                 {/* Time */}
-                                <div className="font-mono text-[15px] font-black flex items-center gap-2 mb-1 text-gray-500">
+                                <div className="font-mono text-[14px] font-bold flex items-center gap-2 mb-1 text-gray-500">
                                     <span>{item.time}</span>
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-gray-50 border border-gray-200/50 p-4.5 rounded-2xl shadow-sm relative group transition-all duration-300 hover:grayscale-0 hover:bg-white hover:shadow-md ${editingId === item.id ? '' : 'h-[96px]'}`}>
+                                <div className={`bg-gray-50 border border-gray-200/50 p-4 rounded-2xl shadow-sm relative group transition-all duration-300 hover:grayscale-0 hover:bg-white hover:shadow-md ${editingId === item.id ? '' : 'h-[88px]'}`}>
                                     {editingId === item.id ? (
                                         <motion.div
                                             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -494,22 +500,22 @@ export default function HomeBoard() {
                                                 <div className="flex flex-col gap-2 border-b border-gray-200 pb-1.5">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-black w-12 text-gray-500 uppercase tracking-wider shrink-0">담당자</span>
-                                                        <select
+                                                        <NativeSafeSelect
                                                             value={isCustomAgentEdit ? '직접입력' : editForm.agent}
-                                                            onChange={(e) => {
-                                                                if (e.target.value === '직접입력') {
+                                                            options={[...presetAgents, '직접입력']}
+                                                            onChange={(value) => {
+                                                                if (value === '직접입력') {
                                                                     setIsCustomAgentEdit(true);
                                                                     setEditForm({ ...editForm, agent: '' });
                                                                 } else {
                                                                     setIsCustomAgentEdit(false);
-                                                                    setEditForm({ ...editForm, agent: e.target.value });
+                                                                    setEditForm({ ...editForm, agent: value });
                                                                 }
                                                             }}
-                                                            className="w-full text-[13px] font-semibold outline-none bg-transparent cursor-pointer text-gray-800"
-                                                        >
-                                                            {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
-                                                            <option value="직접입력">직접입력...</option>
-                                                        </select>
+                                                            className="w-full"
+                                                            buttonClassName="text-[13px] font-semibold text-gray-800"
+                                                            ariaLabel="담당자 선택"
+                                                        />
                                                     </div>
                                                     {isCustomAgentEdit && (
                                                         <div className="flex items-center gap-2 pl-14">
@@ -524,10 +530,15 @@ export default function HomeBoard() {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2 border-b border-gray-200 pb-1.5">
-                                                    <span className="text-[10px] font-black w-12 text-gray-500 uppercase tracking-wider shrink-0">시간</span>
-                                                    <input type="time" value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} className="w-full text-[13px] font-semibold outline-none bg-transparent text-gray-800" />
-                                                </div>
+                                                <NativeSafeTimeInput
+                                                    value={editForm.time}
+                                                    onChange={(time) => setEditForm({ ...editForm, time })}
+                                                    label="시간"
+                                                    labelClassName="text-[10px] font-black w-12 text-gray-500 uppercase tracking-wider shrink-0"
+                                                    pickerMode="popup"
+                                                    className="border-b border-gray-200 pb-1.5"
+                                                    inputClassName="text-[13px] font-semibold text-gray-800"
+                                                />
                                                 <div className="flex items-center gap-2 border-b border-gray-200 pb-1.5">
                                                     <span className="text-[10px] font-black w-12 text-gray-500 uppercase tracking-wider shrink-0">장소</span>
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full text-[13px] font-semibold outline-none bg-transparent text-gray-800" placeholder="장소" />
@@ -628,7 +639,7 @@ export default function HomeBoard() {
                                 }`}></div>
 
                                 {/* Time */}
-                                <div className="font-mono text-[15px] font-black flex items-center gap-2 mb-1">
+                                <div className="font-mono text-[14px] font-bold flex items-center gap-2 mb-1">
                                     <span className="text-navy">
                                         {item.time}
                                     </span>
@@ -640,8 +651,8 @@ export default function HomeBoard() {
                                 </div>
 
                                 {/* Card */}
-                                <div className={`bg-white border p-4.5 rounded-2xl shadow-sm relative group transition-all duration-300 hover:shadow-md hover:border-navy/10 ${
-                                    editingId === item.id ? '' : 'h-[96px]'
+                                <div className={`bg-white border p-4 rounded-2xl shadow-sm relative group transition-all duration-300 hover:shadow-md hover:border-navy/10 ${
+                                    editingId === item.id ? '' : 'h-[88px]'
                                 } ${
                                     isCurrentActive
                                         ? 'border-emerald-500/30 shadow-emerald-500/5 ring-4 ring-emerald-500/10'
@@ -660,22 +671,22 @@ export default function HomeBoard() {
                                                 <div className="flex flex-col gap-2 border-b border-navy/10 pb-1.5">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">담당자</span>
-                                                        <select
+                                                        <NativeSafeSelect
                                                             value={isCustomAgentEdit ? '직접입력' : editForm.agent}
-                                                            onChange={(e) => {
-                                                                if (e.target.value === '직접입력') {
+                                                            options={[...presetAgents, '직접입력']}
+                                                            onChange={(value) => {
+                                                                if (value === '직접입력') {
                                                                     setIsCustomAgentEdit(true);
                                                                     setEditForm({ ...editForm, agent: '' });
                                                                 } else {
                                                                     setIsCustomAgentEdit(false);
-                                                                    setEditForm({ ...editForm, agent: e.target.value });
+                                                                    setEditForm({ ...editForm, agent: value });
                                                                 }
                                                             }}
-                                                            className="w-full text-[13px] font-semibold outline-none bg-transparent cursor-pointer text-navy"
-                                                        >
-                                                            {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
-                                                            <option value="직접입력">직접입력...</option>
-                                                        </select>
+                                                            className="w-full"
+                                                            buttonClassName="text-[13px] font-semibold text-navy"
+                                                            ariaLabel="담당자 선택"
+                                                        />
                                                     </div>
                                                     {isCustomAgentEdit && (
                                                         <div className="flex items-center gap-2 pl-14">
@@ -690,10 +701,15 @@ export default function HomeBoard() {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2 border-b border-navy/10 pb-1.5">
-                                                    <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">시간</span>
-                                                    <input type="time" value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} className="w-full text-[13px] font-semibold outline-none bg-transparent text-navy" />
-                                                </div>
+                                                <NativeSafeTimeInput
+                                                    value={editForm.time}
+                                                    onChange={(time) => setEditForm({ ...editForm, time })}
+                                                    label="시간"
+                                                    labelClassName="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0"
+                                                    pickerMode="popup"
+                                                    className="border-b border-navy/10 pb-1.5"
+                                                    inputClassName="text-[13px] font-semibold text-navy"
+                                                />
                                                 <div className="flex items-center gap-2 border-b border-navy/10 pb-1.5">
                                                     <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">장소</span>
                                                     <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-full text-[13px] font-semibold outline-none bg-transparent text-navy" placeholder="장소" />
@@ -785,29 +801,34 @@ export default function HomeBoard() {
                                         <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">일정명</span>
                                         <input type="text" value={newSchedule.title} onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })} className="w-full font-sans font-black text-[15px] outline-none bg-transparent" placeholder="예) 피아노 학원" />
                                     </div>
-                                    <div className="flex items-center gap-2 border-b border-navy/10 pb-1.5">
-                                        <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">시간</span>
-                                        <input type="time" value={newSchedule.time} onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })} className="w-full text-[13px] font-semibold outline-none bg-transparent" />
-                                    </div>
+                                    <NativeSafeTimeInput
+                                        value={newSchedule.time}
+                                        onChange={(time) => setNewSchedule({ ...newSchedule, time })}
+                                        label="시간"
+                                        labelClassName="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0"
+                                        pickerMode="popup"
+                                        className="border-b border-navy/10 pb-1.5"
+                                        inputClassName="text-[13px] font-semibold text-navy"
+                                    />
                                     <div className="flex flex-col gap-2 border-b border-navy/10 pb-1.5">
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] font-black w-12 text-navy/40 uppercase tracking-wider shrink-0">담당자</span>
-                                            <select
+                                            <NativeSafeSelect
                                                 value={isCustomAgentAdd ? '직접입력' : newSchedule.agent}
-                                                onChange={(e) => {
-                                                    if (e.target.value === '직접입력') {
+                                                options={[...presetAgents, '직접입력']}
+                                                onChange={(value) => {
+                                                    if (value === '직접입력') {
                                                         setIsCustomAgentAdd(true);
                                                         setNewSchedule({ ...newSchedule, agent: '' });
                                                     } else {
                                                         setIsCustomAgentAdd(false);
-                                                        setNewSchedule({ ...newSchedule, agent: e.target.value });
+                                                        setNewSchedule({ ...newSchedule, agent: value });
                                                     }
                                                 }}
-                                                className="w-full text-[13px] font-semibold outline-none bg-transparent cursor-pointer text-navy"
-                                            >
-                                                {presetAgents.map(agent => <option key={agent} value={agent}>{agent}</option>)}
-                                                <option value="직접입력">직접입력...</option>
-                                            </select>
+                                                className="w-full"
+                                                buttonClassName="text-[13px] font-semibold text-navy"
+                                                ariaLabel="담당자 선택"
+                                            />
                                         </div>
                                         {isCustomAgentAdd && (
                                             <div className="flex items-center gap-2 pl-14">
@@ -873,6 +894,15 @@ export default function HomeBoard() {
             >
                 <ShieldAlert size={24} />
             </motion.button>
+            <NativeSafeConfirmDialog
+                open={Boolean(deleteTargetId)}
+                title="일정 삭제"
+                message="일정을 삭제하시겠습니까?"
+                confirmLabel="삭제"
+                destructive
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTargetId(null)}
+            />
         </div>
     );
 }

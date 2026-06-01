@@ -2,10 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, AlertCircle, Plus, Save, Trash2, Edit2, CreditCard, RotateCcw, History, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
-
-const getDateStampKey = (prefix, date) => (
-    `${prefix}_${date.getFullYear()}_${date.getMonth()}_${date.getDate()}`
-);
+import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect } from './NativeSafeControls';
 
 const TAB_LIKE_TRANSITION = { duration: 0.15 };
 const TAB_LIKE_MOTION = {
@@ -17,12 +14,6 @@ const TAB_LIKE_MOTION = {
 
 const PAYMENT_CARD_TRANSITION = TAB_LIKE_TRANSITION;
 
-const PAYMENT_STAMP_BANG_TRANSITION = {
-    duration: 0.34,
-    times: [0, 0.62, 1],
-    ease: 'easeOut'
-};
-
 const ACCORDION_MOTION = {
     initial: { height: 0, opacity: 0 },
     animate: { height: "auto", opacity: 1 },
@@ -30,17 +21,30 @@ const ACCORDION_MOTION = {
     transition: { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] }
 };
 
+const PAYMENT_METHOD_OPTIONS = ['지역사랑상품권', '아동수당', '신용카드', '지역사랑 + 카드', '스쿨뱅킹'];
+
+const getPaymentDayNumber = (value) => {
+    const parsed = parseInt(String(value || '').replace(/[^0-9]/g, ''), 10);
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.min(Math.max(parsed, 1), 31);
+};
+
+const getPaymentDayDateInput = (value) => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const day = Math.min(getPaymentDayNumber(value), lastDay);
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const createPaymentDayLabel = (dateValue) => {
+    const day = getPaymentDayNumber(dateValue.split('-')[2]);
+    return `${day}일`;
+};
+
 
 export default function PaymentTab() {
-    const paymentStampAnimationKey = getDateStampKey('paymentStampAnimatedDate', new Date());
-    const [paymentStampAnimatedToday, setPaymentStampAnimatedToday] = useState(() => {
-        try {
-            return localStorage.getItem(paymentStampAnimationKey) === 'true';
-        } catch {
-            return false;
-        }
-    });
-
     // Zustand
     const payments = useStore(state => state.payments);
     const processPayment = useStore(state => state.processPayment);
@@ -68,6 +72,8 @@ export default function PaymentTab() {
 
     const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(true);
     const [isArchiveExpanded, setIsArchiveExpanded] = useState(false);
+    const [deletePaymentId, setDeletePaymentId] = useState(null);
+    const [deleteHistoryId, setDeleteHistoryId] = useState(null);
 
 
     const handleSavePayment = () => {
@@ -76,9 +82,13 @@ export default function PaymentTab() {
     };
 
     const handleDeletePayment = (id) => {
-        if (window.confirm('이 결제 항목을 완전히 삭제(파기)하시겠습니까?')) {
-            removePayment(id);
-        }
+        setDeletePaymentId(id);
+    };
+
+    const confirmDeletePayment = () => {
+        if (!deletePaymentId) return;
+        removePayment(deletePaymentId);
+        setDeletePaymentId(null);
     };
 
     const toggleAddPaymentForm = () => {
@@ -135,9 +145,13 @@ export default function PaymentTab() {
     };
 
     const handleDeleteHistory = (id) => {
-        if (window.confirm('이 결제 기록을 삭제하시겠습니까?')) {
-            removeTransactionHistory(id);
-        }
+        setDeleteHistoryId(id);
+    };
+
+    const confirmDeleteHistory = () => {
+        if (!deleteHistoryId) return;
+        removeTransactionHistory(deleteHistoryId);
+        setDeleteHistoryId(null);
     };
 
     const toggleAddHistoryForm = () => {
@@ -149,17 +163,6 @@ export default function PaymentTab() {
             }
             return nextVal;
         });
-    };
-
-
-    const markPaymentStampAnimated = () => {
-        if (paymentStampAnimatedToday) return;
-        try {
-            localStorage.setItem(paymentStampAnimationKey, 'true');
-        } catch {
-            // Local storage can be unavailable in restricted browser modes.
-        }
-        setPaymentStampAnimatedToday(true);
     };
 
     const methodTotals = useMemo(() => payments.reduce((acc, p) => {
@@ -285,17 +288,25 @@ export default function PaymentTab() {
                                                         </div>
                                                         <div>
                                                             <label className="text-[9px] font-black text-navy/40 uppercase tracking-wider block mb-1">결제수단</label>
-                                                            <select value={newPaymentForm.method} onChange={e => setNewPaymentForm({ ...newPaymentForm, method: e.target.value })} className="w-full text-[12px] font-bold border border-navy/10 rounded-xl p-2 outline-none cursor-pointer bg-white focus:border-accent-red/20 focus:ring-4 focus:ring-accent-red/5 transition-all text-navy">
-                                                                <option>지역사랑상품권</option>
-                                                                <option>아동수당</option>
-                                                                <option>신용카드</option>
-                                                                <option>지역사랑 + 카드</option>
-                                                                <option>스쿨뱅킹</option>
-                                                            </select>
+                                                            <NativeSafeSelect
+                                                                value={newPaymentForm.method}
+                                                                options={PAYMENT_METHOD_OPTIONS}
+                                                                onChange={method => setNewPaymentForm({ ...newPaymentForm, method })}
+                                                                buttonClassName="text-[12px] font-bold border border-navy/10 rounded-xl p-2 bg-white text-navy"
+                                                                ariaLabel="결제수단 선택"
+                                                            />
                                                         </div>
                                                         <div>
                                                             <label className="text-[9px] font-black text-navy/40 uppercase tracking-wider block mb-1">결제일 / 주기</label>
-                                                            <input type="text" value={newPaymentForm.day} onChange={e => setNewPaymentForm({ ...newPaymentForm, day: e.target.value })} className="w-full text-[12px] font-bold border border-navy/10 rounded-xl p-2 outline-none bg-white focus:border-accent-red/20 focus:ring-4 focus:ring-accent-red/5 transition-all text-navy" placeholder="ex. 5일" />
+                                                            <NativeSafeDateInput
+                                                                value={getPaymentDayDateInput(newPaymentForm.day)}
+                                                                onChange={date => setNewPaymentForm({ ...newPaymentForm, day: createPaymentDayLabel(date) })}
+                                                                displayValue={newPaymentForm.day || '날짜 선택'}
+                                                                pickerMode="popup"
+                                                                popupAlign="right"
+                                                                buttonClassName="border border-navy/10 rounded-xl p-2 text-[12px] font-bold bg-white text-navy"
+                                                                placeholder="결제일"
+                                                            />
                                                         </div>
                                                     </div>
                                                     <div>
@@ -310,10 +321,7 @@ export default function PaymentTab() {
                                         )}
                                     </AnimatePresence>
 
-                                    {sortedPayments.map((payment) => {
-                                        const shouldBangStamp = payment.justCompleted && !paymentStampAnimatedToday;
-
-                                        return (
+                                    {sortedPayments.map((payment) => (
                                             <motion.div
                                                 key={payment.id}
                                                 initial={{ opacity: 0, y: 5 }}
@@ -324,25 +332,6 @@ export default function PaymentTab() {
                                                     payment.discount ? 'bg-amber-50/70 border-amber-300 shadow-sm hover:border-amber-400' : 'bg-white border-navy/5 shadow-sm hover:border-navy/10 hover:shadow-md'
                                                     }`}
                                             >
-                                                {/* The dramatically animated Stamp */}
-                                                <AnimatePresence>
-                                                    {payment.isCompleted && (
-                                                        <motion.div
-                                                            initial={shouldBangStamp ? { scale: 2.35, opacity: 0, rotate: -35, x: 0, y: "-50%" } : false}
-                                                            animate={shouldBangStamp
-                                                                ? { scale: [2.35, 0.94, 1], opacity: [0, 0.86, 0.8], rotate: [-35, -15, -15], x: 0, y: "-50%" }
-                                                                : { scale: 1, opacity: 0.8, rotate: -15, x: 0, y: "-50%" }
-                                                            }
-                                                            transition={shouldBangStamp ? PAYMENT_STAMP_BANG_TRANSITION : { duration: 0 }}
-                                                            onAnimationComplete={shouldBangStamp ? markPaymentStampAnimated : undefined}
-                                                            style={{ transformOrigin: 'center center', willChange: 'transform, opacity' }}
-                                                            className="absolute top-1/2 right-[30%] stamp text-[13px] whitespace-nowrap shadow-sm z-20 pointer-events-none"
-                                                        >
-                                                            결제 완료
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-
                                                 {editingPaymentId === payment.id ? (
                                                     <div className="space-y-3 relative z-10 bg-white/50 py-1">
                                                         <div className="flex justify-between items-center border-b border-navy/10 pb-1">
@@ -360,17 +349,25 @@ export default function PaymentTab() {
                                                             </div>
                                                             <div>
                                                                 <label className="text-[10px] font-bold text-navy/70 block">결제수단</label>
-                                                                <select value={paymentForm.method} onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })} className="w-full text-[13px] font-bold border border-navy/20 rounded p-1 outline-none cursor-pointer text-navy bg-white">
-                                                                    <option>지역사랑상품권</option>
-                                                                    <option>아동수당</option>
-                                                                    <option>신용카드</option>
-                                                                    <option>지역사랑 + 카드</option>
-                                                                    <option>스쿨뱅킹</option>
-                                                                </select>
+                                                                <NativeSafeSelect
+                                                                    value={paymentForm.method}
+                                                                    options={PAYMENT_METHOD_OPTIONS}
+                                                                    onChange={method => setPaymentForm({ ...paymentForm, method })}
+                                                                    buttonClassName="text-[13px] font-bold border border-navy/20 rounded p-1 text-navy bg-white"
+                                                                    ariaLabel="결제수단 선택"
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <label className="text-[10px] font-bold text-navy/70 block">결제일 / 주기</label>
-                                                                <input type="text" value={paymentForm.day} onChange={e => setPaymentForm({ ...paymentForm, day: e.target.value })} className="w-full text-[13px] font-bold border border-navy/20 rounded p-1 outline-none text-navy bg-white" placeholder="ex. 5일" />
+                                                                <NativeSafeDateInput
+                                                                    value={getPaymentDayDateInput(paymentForm.day)}
+                                                                    onChange={date => setPaymentForm({ ...paymentForm, day: createPaymentDayLabel(date) })}
+                                                                    displayValue={paymentForm.day || '날짜 선택'}
+                                                                    pickerMode="popup"
+                                                                    popupAlign="right"
+                                                                    buttonClassName="border border-navy/20 rounded p-1 text-[13px] font-bold bg-white text-navy"
+                                                                    placeholder="결제일"
+                                                                />
                                                             </div>
                                                         </div>
                                                         <div>
@@ -458,8 +455,7 @@ export default function PaymentTab() {
                                                     </>
                                                 )}
                                             </motion.div>
-                                        );
-                                    })}
+                                    ))}
                                 </div>
                             </motion.div>
                         )}
@@ -514,7 +510,14 @@ export default function PaymentTab() {
                                                     <div className="grid grid-cols-2 gap-2.5">
                                                         <div className="col-span-2">
                                                             <label className="text-[9px] font-black text-navy/40 uppercase tracking-wider block mb-1">결제 날짜</label>
-                                                            <input type="date" value={newHistoryForm.fullDate} onChange={e => setNewHistoryForm({ ...newHistoryForm, fullDate: e.target.value })} className="w-full text-[12px] font-bold border border-navy/10 rounded-xl p-2 outline-none font-mono bg-white text-navy focus:border-accent-red/20" />
+                                                            <NativeSafeDateInput
+                                                                value={newHistoryForm.fullDate}
+                                                                onChange={fullDate => setNewHistoryForm({ ...newHistoryForm, fullDate })}
+                                                                pickerMode="popup"
+                                                                popupAlign="left"
+                                                                buttonClassName="border border-navy/10 rounded-xl p-2 text-[12px] font-bold font-mono bg-white text-navy"
+                                                                placeholder="결제 날짜"
+                                                            />
                                                         </div>
                                                         <div>
                                                             <label className="text-[9px] font-black text-navy/40 uppercase tracking-wider block mb-1">결제처/내용</label>
@@ -526,13 +529,13 @@ export default function PaymentTab() {
                                                         </div>
                                                         <div className="col-span-2">
                                                             <label className="text-[9px] font-black text-navy/40 uppercase tracking-wider block mb-1">결제수단</label>
-                                                            <select value={newHistoryForm.method} onChange={e => setNewHistoryForm({ ...newHistoryForm, method: e.target.value })} className="w-full text-[12px] font-bold border border-navy/10 rounded-xl p-2 outline-none cursor-pointer bg-white text-navy focus:border-accent-red/20">
-                                                                <option>지역사랑상품권</option>
-                                                                <option>아동수당</option>
-                                                                <option>신용카드</option>
-                                                                <option>지역사랑 + 카드</option>
-                                                                <option>스쿨뱅킹</option>
-                                                            </select>
+                                                            <NativeSafeSelect
+                                                                value={newHistoryForm.method}
+                                                                options={PAYMENT_METHOD_OPTIONS}
+                                                                onChange={method => setNewHistoryForm({ ...newHistoryForm, method })}
+                                                                buttonClassName="text-[12px] font-bold border border-navy/10 rounded-xl p-2 bg-white text-navy"
+                                                                ariaLabel="결제수단 선택"
+                                                            />
                                                         </div>
                                                     </div>
                                                     <button onClick={handleAddHistory} className="w-full bg-accent-blue text-white text-[12px] font-bold py-2 rounded-xl mt-2 flex justify-center items-center gap-1 hover:bg-accent-blue/90 active:scale-95 transition-all shadow-md cursor-pointer">
@@ -586,7 +589,14 @@ export default function PaymentTab() {
                                                                                 <div className="grid grid-cols-2 gap-2">
                                                                                     <div className="col-span-2">
                                                                                         <label className="text-[9px] font-black text-navy/70 block">결제 날짜</label>
-                                                                                        <input type="date" value={historyForm.fullDate} onChange={e => setHistoryForm({ ...historyForm, fullDate: e.target.value })} className="w-full text-[12px] font-bold border border-navy/20 rounded p-1 outline-none font-mono bg-white text-navy" />
+                                                                                        <NativeSafeDateInput
+                                                                                            value={historyForm.fullDate}
+                                                                                            onChange={fullDate => setHistoryForm({ ...historyForm, fullDate })}
+                                                                                            pickerMode="popup"
+                                                                                            popupAlign="left"
+                                                                                            buttonClassName="border border-navy/20 rounded p-1 text-[12px] font-bold font-mono bg-white text-navy"
+                                                                                            placeholder="결제 날짜"
+                                                                                        />
                                                                                     </div>
                                                                                     <div>
                                                                                         <label className="text-[9px] font-black text-navy/70 block">결제처</label>
@@ -598,13 +608,13 @@ export default function PaymentTab() {
                                                                                     </div>
                                                                                     <div className="col-span-2">
                                                                                         <label className="text-[9px] font-black text-navy/70 block">결제수단</label>
-                                                                                        <select value={historyForm.method} onChange={e => setHistoryForm({ ...historyForm, method: e.target.value })} className="w-full text-[12px] font-bold border border-navy/20 rounded p-1 outline-none cursor-pointer bg-white text-navy">
-                                                                                            <option>지역사랑상품권</option>
-                                                                                            <option>아동수당</option>
-                                                                                            <option>신용카드</option>
-                                                                                            <option>지역사랑 + 카드</option>
-                                                                                            <option>스쿨뱅킹</option>
-                                                                                        </select>
+                                                                                        <NativeSafeSelect
+                                                                                            value={historyForm.method}
+                                                                                            options={PAYMENT_METHOD_OPTIONS}
+                                                                                            onChange={method => setHistoryForm({ ...historyForm, method })}
+                                                                                            buttonClassName="text-[12px] font-bold border border-navy/20 rounded p-1 bg-white text-navy"
+                                                                                            ariaLabel="결제수단 선택"
+                                                                                        />
                                                                                     </div>
                                                                                 </div>
                                                                                 <div className="flex justify-between items-center mt-2.5 pt-2 border-t border-navy/10">
@@ -645,6 +655,24 @@ export default function PaymentTab() {
                     </AnimatePresence>
                 </div>
             </div>
+            <NativeSafeConfirmDialog
+                open={Boolean(deletePaymentId)}
+                title="결제 항목 삭제"
+                message="이 결제 항목을 완전히 삭제하시겠습니까?"
+                confirmLabel="삭제"
+                destructive
+                onConfirm={confirmDeletePayment}
+                onCancel={() => setDeletePaymentId(null)}
+            />
+            <NativeSafeConfirmDialog
+                open={Boolean(deleteHistoryId)}
+                title="결제 기록 삭제"
+                message="이 결제 기록을 삭제하시겠습니까?"
+                confirmLabel="삭제"
+                destructive
+                onConfirm={confirmDeleteHistory}
+                onCancel={() => setDeleteHistoryId(null)}
+            />
         </div>
     );
 }

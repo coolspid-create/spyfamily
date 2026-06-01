@@ -14,6 +14,7 @@
   html {
     height: 100%;
     font-size: 15px;
+    color-scheme: light;
     overflow-x: hidden;
     overflow-y: hidden;
   }
@@ -30,7 +31,23 @@
 
   #root {
     height: 100%;
+    color-scheme: light;
     overflow-x: hidden;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    color-scheme: light;
+  }
+
+  input[type="date"],
+  input[type="time"],
+  select {
+    background-color: #ffffff;
+    color: var(--color-navy);
+    accent-color: #0f766e;
   }
 }
 
@@ -142,4 +159,3 @@
 @utility soft-glow {
   box-shadow: 0 0 20px 0px rgba(211, 47, 47, 0.15);
 }
-

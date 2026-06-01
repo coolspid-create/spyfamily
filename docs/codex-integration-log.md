@@ -1,6 +1,552 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-01 - Debug app weight and reduce PWA precache
+
+Source handoff:
+Direct user request in Codex asking to debug the app and check whether there are heavy parts.
+
+Integrated:
+- Ran lint/build diagnostics and checked generated bundle, public assets, Capacitor assets, and APK artifact sizes.
+- Confirmed the JavaScript/CSS production bundle is modest, while copied `public` assets dominate the web asset and Android asset footprint.
+- Confirmed seven sample PDFs total about 15.68 MiB and public images total about 4.30 MiB; these are copied into `dist` and Capacitor Android assets.
+- Confirmed app code references only the small book preview JPG files from those diary sample assets; larger sample PDFs/PNGs are not referenced from current source.
+- Reduced the PWA Workbox precache from broad `png` inclusion to only app launcher icons, dropping precache from 4,991.19 KiB to 1,118.09 KiB.
+
+Intentionally left out:
+- Public/release assets were not deleted or moved because that should be a separate product decision.
+- Auth, payment/Supabase behavior, calendar sync behavior, Android packaging, release signing, and app icons were not changed.
+
+Files changed:
+- `app/vite.config.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Public/dist/Capacitor asset size scans with PowerShell
+- Source pattern scans with `rg`
+
+Open follow-ups:
+- To reduce APK size meaningfully, move unused sample PDFs and large unused PNGs out of `app/public` or serve them remotely/on demand. This should remove most of the roughly 20 MiB static web asset payload from Android assets.
+- Browser runtime console/performance inspection could not be completed because the in-app browser blocked local URL inspection under its URL policy.
+
+Previous integration:
+2026-06-01 - Resize circular time picker and refresh app icons
+
+Source handoff:
+Direct user request in Codex after confirming the app-rendered circular time picker fixed the Android WebView native picker issue, asking to slightly reduce the picker size and update the app logo/icon by removing test branding and making the calendar logo fill more of the icon.
+
+Integrated:
+- Reduced the app-rendered circular time picker width, estimated height, clock face size, and clock radius.
+- Removed the debug build `applicationIdSuffix ".test"` and `versionNameSuffix "-test"` so debug APKs no longer install under a `.test` package/version label.
+- Updated debug resource strings so package/custom URL scheme no longer use the `.test` suffix.
+- Regenerated PWA and Android launcher icon PNGs from a tighter crop of the existing calendar logo, making the calendar fill more of the icon and reducing the visible top blue margin.
+- Built a fresh debug APK and copied it to `artifacts/FamilyScheduler-debug-20260601-161535.apk`.
+
+Intentionally left out:
+- Auth, payment/Supabase behavior, calendar sync behavior, release signing, Play Store/AAB packaging, and store metadata were not changed.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `app/android/app/build.gradle`
+- `app/android/app/src/debug/res/values/strings.xml`
+- `app/public/app-icon-192.png`
+- `app/public/app-icon-512.png`
+- `app/public/pwa-icon.png`
+- `app/android/app/src/main/res/mipmap-mdpi/ic_launcher.png`
+- `app/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png`
+- `app/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png`
+- `app/android/app/src/main/res/mipmap-hdpi/ic_launcher.png`
+- `app/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png`
+- `app/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png`
+- `app/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png`
+- `app/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png`
+- `app/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png`
+- `app/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png`
+- `app/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png`
+- `app/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png`
+- `app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`
+- `app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png`
+- `app/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png`
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-20260601-161535.apk`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the new APK and confirm the launcher icon crop looks full enough on the target Android launcher mask.
+
+Previous integration:
+2026-06-01 - Replace Android native time picker with app circular clock
+
+Source handoff:
+Direct user report in Codex with an installed-APK screenshot showing Android WebView's native `input[type="time"]` picker rendering as a large red/navy dialog after prior edge-to-edge/theme work, while the web view looked normal.
+
+Integrated:
+- Identified the problematic surface as Android WebView's native time picker, not the app-rendered calendar/time UI.
+- Reworked `NativeSafeTimeInput` popup mode into an app-rendered circular clock picker with AM/PM controls, hour/minute display toggles, a round dial, 5-minute minute selection, and +/- 1 minute adjustment.
+- Kept the full-row/full-card time touch target for weekly schedule add/edit rows and the diary composer time card.
+- Pointed weekly schedule and diary composer time controls back to the app-rendered circular picker, avoiding Android WebView's native time dialog and its theme/edge-to-edge rendering quirks.
+- Built a fresh debug APK and copied it to `artifacts/FamilyScheduler-debug-20260601-160335.apk`.
+
+Intentionally left out:
+- Android edge-to-edge settings, app theme colors, auth/payment/Supabase behavior, calendar sync behavior, release signing, Play Store/AAB packaging, app icons, and release metadata were not changed.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-20260601-160335.apk`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the new debug APK and confirm the app-rendered circular clock appears instead of Android WebView's native red/navy time picker.
+
+Previous integration:
+2026-06-01 - Rebuild debug APK after picker fixes
+
+Source handoff:
+Direct user request in Codex to generate a new APK after the payment calendar clipping fix and native clock time picker restoration.
+
+Integrated:
+- Built the current Vite web bundle.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Generated a fresh debug APK with Gradle.
+- Copied the generated APK to `artifacts/FamilyScheduler-debug-20260601-153531.apk` for easier phone transfer.
+
+Intentionally left out:
+- No release signing, Play Store/AAB packaging, auth/payment/Supabase behavior, calendar sync behavior, app icons, or release metadata were changed.
+
+Files changed:
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-20260601-153531.apk`
+
+Commands run:
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the debug APK on an Android phone and confirm the payment calendar is not clipped and time fields open the native circular clock picker.
+
+Previous integration:
+2026-06-01 - Unclip payment calendar and restore native clock time pickers
+
+Source handoff:
+Direct user request in Codex with a screenshot showing the payment due-day calendar clipped inside the payment form card, plus a request to make time setting controls use the previous circular clock style because it is faster for recording times.
+
+Integrated:
+- Changed the app-rendered `NativeSafeDateInput` popup to render through a body-level portal with fixed positioning, so it is no longer clipped by payment cards or accordion containers with `overflow-hidden`.
+- Kept the date popup visually aligned to its triggering field and constrained within the mobile app shell.
+- Switched weekly schedule add/edit time controls and the diary composer time card back to the native `type="time"` path, preserving the full-row/full-card touch target while letting Android WebView show the native circular clock picker.
+
+Intentionally left out:
+- No auth, payment processing, Supabase schema, calendar sync, Android packaging, app icons, or release metadata were changed.
+- A new APK was not rebuilt in this step.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser check on `http://127.0.0.1:5175/payment` confirmed the payment date picker is mounted under `body`, not inside the clipped payment card, and no native date/time input is mounted for that date popup.
+- Browser check on `http://127.0.0.1:5175/diary` confirmed the diary composer uses a native `input[type="time"]` surface again and no app-rendered time picker popup is mounted.
+
+Open follow-ups:
+- Rebuild the debug APK when the user is ready to test this native circular time picker behavior on a phone.
+
+Previous integration:
+2026-06-01 - Build phone-test debug APK
+
+Source handoff:
+Direct user request in Codex to convert the current app into an APK for testing on a phone.
+
+Integrated:
+- Built the current Vite web bundle.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Generated a debug APK with Gradle for local phone testing.
+- Copied the generated APK to `artifacts/FamilyScheduler-debug-20260601-151537.apk` for easier access.
+
+Intentionally left out:
+- No release signing, Play Store/AAB packaging, auth/payment/Supabase behavior, calendar sync behavior, app icons, or release metadata were changed.
+
+Files changed:
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-20260601-151537.apk`
+
+Commands run:
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the debug APK on an Android phone and confirm the date/time popup behavior in the real WebView.
+
+Previous integration:
+2026-06-01 - Align shared date and time picker popups
+
+Source handoff:
+Direct user request in Codex with screenshots showing the diary date search, family schedule deadline date, weekly schedule time, and payment due-day controls still surfacing browser/native picker panels instead of the diary composer-style app popup.
+
+Integrated:
+- Added popup alignment options to `NativeSafeDateInput` and `NativeSafeTimeInput` so app-rendered picker panels can stay inside the narrow mobile app viewport from both left and right column fields.
+- Switched the diary date search controls, diary export date range controls, family schedule `기한/실행일` fields, weekly schedule add/edit `시간` rows, payment `결제일 / 주기` fields, payment history date fields, and monthly event date field to the app-rendered popup picker mode.
+- Kept the existing stored value shapes intact: schedule times stay as `HH:mm`, family/monthly dates stay as ISO dates, and payment due days still save as labels such as `1일`.
+
+Intentionally left out:
+- Auth, payment processing behavior, Supabase schema, calendar sync, Android packaging, app icons, and release assets were not changed.
+- A new APK was not rebuilt in this step.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/SpecialOpsTab.jsx`
+- `app/src/components/PaymentTab.jsx`
+- `app/src/components/RouteMapTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+- Browser check on `http://127.0.0.1:5175/diary` confirmed the diary date search opens the app-rendered date popup with no native date/time inputs mounted.
+- Browser check on `http://127.0.0.1:5175/payment` confirmed the payment `결제일` control opens the app-rendered date popup with no native date/time inputs mounted.
+- Browser automation for opening the hidden family/weekly add forms did not reliably activate those add buttons, so those two paths were verified by source inspection plus lint/build rather than a completed click-through.
+
+Open follow-ups:
+- Manual tap confirmation on the in-app browser or Android WebView is still useful for the family schedule add form and weekly schedule add form because the browser automation could not open those forms reliably in this run.
+
+Previous integration:
+2026-06-01 - Expand picker touch targets and unclipped header logo
+
+Source handoff:
+Direct user requests in Codex with screenshots showing the schedule/diary time picker only opened from a small part of the time field, the header logo still clipping, and the payment scheduled day field needing the calendar popup.
+
+Integrated:
+- Expanded `NativeSafeTimeInput` so the hidden native `type="time"` input covers the full styled label/card area.
+- Refined `NativeSafeTimeInput` again so the visible row/card handles the click and calls the native picker, while the real input is kept as a tiny fallback target instead of a full transparent overlay.
+- Added app-rendered popup picker modes for date and time, used by the diary composer so the panels open below their cards instead of overlaying the cards.
+- Ensured opening the diary date picker closes the time picker and opening the time picker closes the date picker.
+- Hid the diary composer scrollbars while preserving vertical scroll.
+- Updated weekly schedule add/edit time rows so tapping anywhere in the `시간` row opens the time picker.
+- Updated the diary composer time card so tapping anywhere in that card opens the time picker.
+- Changed payment scheduled `결제일 / 주기` add/edit fields from text inputs to date-picker controls; the selected date's day is stored as the existing monthly day label such as `5일`.
+- Relaxed the header title side padding and slightly reduced the logo text so `Family × Scheduler` renders fully between the left child selector and right local badge.
+
+Intentionally left out:
+- Auth, payment processing behavior, Supabase schema, calendar sync, Android packaging, app icons, and release assets were not changed.
+- A new APK was not rebuilt in this step.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/PaymentTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser check on `http://127.0.0.1:5175/` confirmed the header title is not clipped and the weekly schedule time input covers the full time row.
+- Browser check on `http://127.0.0.1:5175/payment` confirmed the scheduled payment day field renders as a hidden native `type="date"` picker while showing `1일`.
+- Browser check on `http://127.0.0.1:5175/diary` confirmed the diary composer time input covers the full time card.
+- Follow-up browser check on `http://127.0.0.1:5175/diary` confirmed the visible diary time card receives hit tests and the hidden time input is no longer a full-card transparent overlay.
+- Follow-up browser check on `http://127.0.0.1:5175/diary` confirmed the diary date popup opens below the date card, the time popup opens below the time card, only one picker stays open, and the composer scrollbar width is 0.
+
+Open follow-ups:
+- Physical Android confirmation is still useful because native picker surfaces are controlled by the device WebView/OS.
+
+Previous integration:
+2026-06-01 - Restore native date and time pickers
+
+Source handoff:
+Direct user request in Codex after screenshots showed weekly schedule time entry opening a numeric keyboard instead of the previous circular time picker, with date picking expected to remain popup-style.
+
+Integrated:
+- Changed `NativeSafeTimeInput` back to a native `type="time"` control under the existing styled surface, so mobile WebView/browser opens the native circular time picker instead of a numeric keyboard.
+- Changed `NativeSafeDateInput` back to a native `type="date"` control under the existing styled surface, preserving the app's visible date label while restoring system calendar popup behavior.
+- Kept the existing reusable control API so weekly schedule, family schedule, payment, monthly event date, and diary date/time call sites do not need broad source rewrites.
+
+Intentionally left out:
+- Auth, payment behavior, Supabase schema, calendar sync, Android packaging, app icons, and release assets were not changed.
+- A new APK was not rebuilt in this step.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Started local dev server on `http://127.0.0.1:5175/`
+- Browser DOM checks confirmed the weekly schedule time field renders as `type="time"` and family/diary date controls render as `type="date"`.
+
+Open follow-ups:
+- Physical Android confirmation is still useful because the exact native picker surface is controlled by the device WebView/OS.
+
+Previous integration:
+2026-05-31 - Disable Android dark inversion and fix header clipping
+
+Source handoff:
+Direct user report in Codex that installed Android app still shows inverted/dark native picker dialogs and clips the `Family × Scheduler` header while the web version is normal.
+
+Integrated:
+- Changed Android app themes from `DayNight` to explicit light themes.
+- Disabled Android force-dark on the application, activity theme, dialogs, and splash/post-splash themes.
+- Added light dialog styling for Android alert, date picker, and time picker surfaces.
+- Disabled WebView force-dark and algorithmic darkening in `MainActivity`.
+- Adjusted the header title container and font size so `Family × Scheduler` has more horizontal room and no longer clips at the edges in the app.
+- Rebuilt and replaced `artifacts/FamilyScheduler-1.1.6-test-debug.apk`.
+
+Intentionally left out:
+- Feature behavior, data, auth, payment behavior, Supabase schema, calendar sync, package id, and version number were not changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/android/app/src/main/AndroidManifest.xml`
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `app/android/app/src/main/res/values/styles.xml`
+- `artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `gradlew.bat assembleDebug`
+- `aapt dump badging artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `apksigner verify --verbose artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `Get-FileHash artifacts/FamilyScheduler-1.1.6-test-debug.apk -Algorithm SHA256`
+
+Open follow-ups:
+- Physical-device confirmation is still needed because the reported issue occurs inside Android WebView/native picker surfaces rather than the desktop browser.
+
+Previous integration:
+2026-05-31 - Build test APK for device install
+
+Source handoff:
+Direct user request in Codex to create an APK for phone testing.
+
+Integrated:
+- Rebuilt the web app.
+- Synced the latest web assets into the Capacitor Android project.
+- Built a debug/test APK using the separated test package id.
+- Copied the installable APK to `artifacts/FamilyScheduler-1.1.6-test-debug.apk`.
+
+Intentionally left out:
+- No new feature code, auth, payment behavior, Supabase schema, calendar sync, or release signing changes were made in this step.
+
+Files changed:
+- `app/android/app/src/main/assets/**` via Capacitor sync
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `gradlew.bat assembleDebug`
+- `aapt dump badging artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `apksigner verify --verbose artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `Get-FileHash artifacts/FamilyScheduler-1.1.6-test-debug.apk -Algorithm SHA256`
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-05-31 - Android native popup color regression fix
+
+Source handoff:
+Direct user request in Codex after APK screenshots showed Android-native date/time/select/confirm popups with inverted colors.
+
+Integrated:
+- Replaced active app `date`, `time`, `select`, `confirm`, and rename `prompt` usage with app-rendered controls so Android WebView no longer opens the system-styled dark navy popups in schedule, family, monthly, payment, diary, and app profile flows.
+- Added reusable `NativeSafeControls` components for date picker, time input, select menu, confirm dialog, and text dialog.
+- Tightened the main header title sizing and reserved side-control space so `Family × Scheduler` does not sit under the child selector or local-mode pill in the Android viewport.
+- Rebuilt the synced Android debug APK at `artifacts/FamilyScheduler-1.1.6-test-debug.apk`.
+
+Intentionally left out:
+- The PWA install prompt still uses the browser install API because it is a platform prompt, not one of the app form controls causing this regression.
+- `app/src/original_backup` was not modified.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/SpecialOpsTab.jsx`
+- `app/src/components/PaymentTab.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/RouteMapTab.jsx`
+- `app/android/app/src/main/AndroidManifest.xml`
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `app/android/app/src/main/res/values/styles.xml`
+- `app/android/app/src/main/assets/public/**`
+- `artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `rg -n 'type="date"|type="time"|<select|window\.confirm|prompt\(' app/src --glob '!**/original_backup/**'`
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `aapt dump badging artifacts\FamilyScheduler-1.1.6-test-debug.apk`
+- `apksigner verify --verbose artifacts\FamilyScheduler-1.1.6-test-debug.apk`
+- Browser check on `http://127.0.0.1:5175/` for active native control counts and header bounds
+
+Open follow-ups:
+- Physical Android install should be checked once more because the original regression only appeared in the installed APK, but the app no longer contains the native form/dialog triggers that produced those screenshots.
+
+Previous integration:
+2026-05-31 - Rebuild 1.1.6 test APK
+
+Source handoff:
+Direct user request in Codex.
+
+Integrated:
+- Rebuilt the current web app and synced it into the Android Capacitor project.
+- Regenerated the test debug APK at `artifacts/FamilyScheduler-1.1.6-test-debug.apk`.
+
+Intentionally left out:
+- No source behavior changes were made in this rebuild-only step.
+
+Files changed:
+- `app/android/app/src/main/assets/public/**`
+- `artifacts/FamilyScheduler-1.1.6-test-debug.apk`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `aapt dump badging artifacts\FamilyScheduler-1.1.6-test-debug.apk`
+- `apksigner verify --verbose artifacts\FamilyScheduler-1.1.6-test-debug.apk`
+- `Get-FileHash artifacts\FamilyScheduler-1.1.6-test-debug.apk -Algorithm SHA256`
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-05-31 - Refresh app launcher icon and installed name
+
+Source handoff:
+Direct user request in Codex to create a simple app icon matching the current app design and set the installed app name to `가족일정`.
+
+Integrated:
+- Generated a new text-free launcher icon with a navy background, cream calendar tile, family mark, red check, and small accent sparkle.
+- Rebuilt PWA icons at `192px` and `512px`, plus the browser favicon and Apple touch icon.
+- Rebuilt Android launcher, round, and adaptive foreground icons for all density buckets.
+- Rebuilt debug/test launcher icons from the same artwork with a red `TEST` badge while keeping the debug package id separated.
+- Updated main and debug Android display strings so the installed app label is `가족일정`.
+- Aligned launcher background color to the app navy tone.
+
+Intentionally left out:
+- Package ids, version numbers, auth, payment behavior, Supabase schema, calendar sync, and Play Store release metadata were not changed.
+- The previously created debug/test package separation was preserved.
+
+Files changed:
+- `app/index.html`
+- `app/public/app-icon-192.png`
+- `app/public/app-icon-512.png`
+- `app/public/pwa-icon.png`
+- `app/android/app/src/main/res/**/ic_launcher*.png`
+- `app/android/app/src/debug/res/**/ic_launcher*.png`
+- `app/android/app/src/main/res/values/strings.xml`
+- `app/android/app/src/debug/res/values/strings.xml`
+- `app/android/app/src/main/res/values/ic_launcher_background.xml`
+- `app/android/app/src/debug/res/values/ic_launcher_background.xml`
+- `app/android/app/src/main/res/drawable/ic_launcher_background.xml`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `gradlew.bat assembleDebug`
+- `aapt dump badging app-debug.apk` confirmed package `com.coolspid.familyxscheduler.test` and application label `가족일정`.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-05-31 - Weekly schedule card compact sizing
+
+Source handoff:
+Direct user request in Codex to slightly reduce weekly schedule card height and set the time text to 14px bold.
+
+Integrated:
+- Reduced non-editing weekly schedule card height from 96px to 88px.
+- Reduced card padding from 4.5 to 4 for both past and active/future weekly schedule cards.
+- Changed weekly schedule time labels to 14px bold in both past and active/future sections.
+
+Intentionally left out:
+- Weekly schedule edit forms, data behavior, animations, auth, payment, Supabase schema, calendar sync, Android packaging, and release assets were not changed.
+
+Files changed:
+- `app/src/components/HomeBoard.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser check on `http://127.0.0.1:5175/` confirmed weekly schedule cards render at 88px height and time labels render at 14px / font-weight 700 on days with existing schedules.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-05-31 - Header and picker visual cleanup
+
+Source handoff:
+Direct user request in Codex with screenshots showing header overlap, Android picker styling, and crowded completed payment cards.
+
+Integrated:
+- Reduced and constrained the `Family × Scheduler` header title so it stays between the child selector and right-side controls.
+- Forced light color-scheme handling for native form controls to avoid dark Android date/time picker surfaces bleeding into the app.
+- Replaced the family schedule priority native select with an in-app three-button priority picker.
+- Removed the large diagonal completed-payment stamp that could cover card contents; completed payments now rely on the compact status row already in the card.
+
+Intentionally left out:
+- Android packaging, app icons, auth, Supabase schema, calendar sync, and payment data behavior were not changed.
+- Existing local data was not edited.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/index.css`
+- `app/src/components/SpecialOpsTab.jsx`
+- `app/src/components/PaymentTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser check on `http://127.0.0.1:5175/family` confirmed the header title no longer overlaps side controls and the family priority picker renders as in-app buttons with no native select.
+- Browser check on `http://127.0.0.1:5175/payment` confirmed the header title no longer overlaps side controls and the large completed-payment stamp element is absent.
+
+Open follow-ups:
+- Android native date/time picker color is now forced to light via CSS; final appearance should still be checked on the physical test APK because OS picker rendering is device-controlled.
+
+Previous integration:
 2026-05-31 - Limit and delete family checklist items
 
 Source handoff:

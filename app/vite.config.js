@@ -13,7 +13,11 @@ export default defineConfig({
       injectRegister: 'auto',
       manifest: false, // We already use public/manifest.json statically
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        globPatterns: [
+          '**/*.{js,css,html,ico,svg,json}',
+          'app-icon-192.png',
+          'app-icon-512.png',
+        ],
         cleanupOutdatedCaches: true,
       },
       devOptions: {

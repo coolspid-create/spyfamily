@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Star, FileSignature, Users, Target, Plus, Save, Trash2, Edit2, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { NativeSafeConfirmDialog, NativeSafeDateInput } from './NativeSafeControls';
 
 const TAB_LIKE_TRANSITION = { duration: 0.2, ease: "easeOut" };
 const TAB_LIKE_MOTION = {
@@ -18,6 +19,35 @@ const EXPAND_COLLAPSE_MOTION = {
     transition: EXPAND_COLLAPSE_TRANSITION,
 };
 const CHECKLIST_TASK_MAX_LENGTH = 30;
+const PRIORITY_OPTIONS = [
+    { value: 'NORMAL', label: '보통' },
+    { value: 'MEDIUM', label: '중간' },
+    { value: 'HIGH', label: '중요' },
+];
+
+function PriorityPicker({ value, onChange }) {
+    return (
+        <div className="grid grid-cols-3 gap-1 rounded-xl border border-navy/10 bg-navy/5 p-1">
+            {PRIORITY_OPTIONS.map(option => {
+                const selected = value === option.value;
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => onChange(option.value)}
+                        aria-pressed={selected}
+                        className={`h-9 rounded-lg text-[12px] font-black transition-all duration-200 ${selected
+                            ? 'bg-navy text-white shadow-sm shadow-navy/10'
+                            : 'text-navy/55 hover:bg-white/70 hover:text-navy'
+                            }`}
+                    >
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function SpecialOpsTab() {
     const ops = useStore(state => state.opsData);
@@ -31,6 +61,7 @@ export default function SpecialOpsTab() {
     const [editingOpId, setEditingOpId] = useState(null);
     const [newOp, setNewOp] = useState({ title: '', date: '', description: '', priority: 'MEDIUM' });
     const [newTaskInputs, setNewTaskInputs] = useState({});
+    const [deleteTargetId, setDeleteTargetId] = useState(null);
     const sortedOps = useMemo(
         () => [...ops].sort((a, b) => new Date(b.date.replace(/\./g, '/')) - new Date(a.date.replace(/\./g, '/'))),
         [ops]
@@ -46,10 +77,14 @@ export default function SpecialOpsTab() {
     };
 
     const handleDeleteOp = (opsId) => {
-        if (window.confirm('이 할 일을 완전히 삭제하시겠습니까?')) {
-            removeOp(opsId);
-            if (expandedOpId === opsId) setExpandedOpId(null);
-        }
+        setDeleteTargetId(opsId);
+    };
+
+    const confirmDeleteOp = () => {
+        if (!deleteTargetId) return;
+        removeOp(deleteTargetId);
+        if (expandedOpId === deleteTargetId) setExpandedOpId(null);
+        setDeleteTargetId(null);
     };
 
     const handleAddOp = () => {
@@ -368,24 +403,21 @@ export default function SpecialOpsTab() {
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">기한/실행일</label>
-                                                    <input
-                                                        type="date"
+                                                    <NativeSafeDateInput
                                                         value={newOp.date}
-                                                        onChange={(e) => setNewOp({ ...newOp, date: e.target.value })}
-                                                        className="w-full border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold outline-none font-mono bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all"
+                                                        onChange={(date) => setNewOp({ ...newOp, date })}
+                                                        pickerMode="popup"
+                                                        popupAlign="left"
+                                                        buttonClassName="border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold font-mono bg-white text-navy"
+                                                        placeholder="날짜 선택"
                                                     />
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">중요도</label>
-                                                    <select
+                                                    <PriorityPicker
                                                         value={newOp.priority}
-                                                        onChange={(e) => setNewOp({ ...newOp, priority: e.target.value })}
-                                                        className="w-full border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold outline-none cursor-pointer bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all"
-                                                    >
-                                                        <option value="NORMAL">보통</option>
-                                                        <option value="MEDIUM">중간</option>
-                                                        <option value="HIGH">중요</option>
-                                                    </select>
+                                                        onChange={(priority) => setNewOp({ ...newOp, priority })}
+                                                    />
                                                 </div>
                                             </div>
                                             <div>
@@ -446,24 +478,21 @@ export default function SpecialOpsTab() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">기한/실행일</label>
-                                    <input
-                                        type="date"
+                                    <NativeSafeDateInput
                                         value={newOp.date}
-                                        onChange={(e) => setNewOp({ ...newOp, date: e.target.value })}
-                                        className="w-full border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold outline-none font-mono bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all"
+                                        onChange={(date) => setNewOp({ ...newOp, date })}
+                                        pickerMode="popup"
+                                        popupAlign="left"
+                                        buttonClassName="border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold font-mono bg-white text-navy"
+                                        placeholder="날짜 선택"
                                     />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-navy/40 uppercase tracking-wider block mb-1">중요도</label>
-                                    <select
+                                    <PriorityPicker
                                         value={newOp.priority}
-                                        onChange={(e) => setNewOp({ ...newOp, priority: e.target.value })}
-                                        className="w-full border border-navy/15 rounded-xl p-2.5 text-[13px] font-semibold outline-none cursor-pointer bg-white focus:border-navy focus:ring-2 focus:ring-navy/5 transition-all"
-                                    >
-                                        <option value="NORMAL">보통</option>
-                                        <option value="MEDIUM">중간</option>
-                                        <option value="HIGH">중요</option>
-                                    </select>
+                                        onChange={(priority) => setNewOp({ ...newOp, priority })}
+                                    />
                                 </div>
                             </div>
                             <div>
@@ -494,6 +523,15 @@ export default function SpecialOpsTab() {
                     </motion.button>
                 )}
             </AnimatePresence>
+            <NativeSafeConfirmDialog
+                open={Boolean(deleteTargetId)}
+                title="가족일정 삭제"
+                message="이 할 일을 완전히 삭제하시겠습니까?"
+                confirmLabel="삭제"
+                destructive
+                onConfirm={confirmDeleteOp}
+                onCancel={() => setDeleteTargetId(null)}
+            />
         </div>
     );
 }

@@ -11,6 +11,7 @@ import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './components/NativeSafeControls';
 
 const FAMILY_SHARING_ENABLED = import.meta.env.VITE_ENABLE_FAMILY_SHARING === 'true';
 const MAIN_TAB_TRANSITION = { duration: 0.15 };
@@ -108,6 +109,10 @@ function App() {
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [tourReplayKey, setTourReplayKey] = useState(0);
   const [isTourReady, setIsTourReady] = useState(false);
+  const [childDeleteTargetId, setChildDeleteTargetId] = useState(null);
+  const [renameChildTargetId, setRenameChildTargetId] = useState(null);
+  const [renameChildValue, setRenameChildValue] = useState('');
+  const [cloudSyncPromptOpen, setCloudSyncPromptOpen] = useState(false);
   const isSupportEnabled = import.meta.env.VITE_ENABLE_SUPPORT === 'true';
 
   const localTooltipRef = useRef(null);
@@ -158,19 +163,31 @@ function App() {
 
   const handleRemoveChild = (e, childId) => {
     e.stopPropagation();
-    if (window.confirm(`${childProfiles[childId]} 프로필을 삭제하시겠습니까?\n(삭제 후 복구할 수 없습니다)`)) {
-      removeChildProfile();
-      setIsDropdownOpen(false);
-    }
+    setChildDeleteTargetId(childId);
+  };
+
+  const confirmRemoveChild = () => {
+    if (!childDeleteTargetId) return;
+    removeChildProfile();
+    setChildDeleteTargetId(null);
+    setIsDropdownOpen(false);
   };
 
   const handleRenameChild = (e, childId) => {
     e.stopPropagation();
-    const currentName = childProfiles[childId];
-    const newName = prompt('대상 이름을 입력하세요:', currentName);
-    if (newName && newName.trim() !== '' && newName.trim() !== currentName) {
-      updateChildName(childId, newName.trim());
+    setRenameChildTargetId(childId);
+    setRenameChildValue(childProfiles[childId] || '');
+  };
+
+  const confirmRenameChild = () => {
+    if (!renameChildTargetId) return;
+    const currentName = childProfiles[renameChildTargetId];
+    const nextName = renameChildValue.trim();
+    if (nextName && nextName !== currentName) {
+      updateChildName(renameChildTargetId, nextName);
     }
+    setRenameChildTargetId(null);
+    setRenameChildValue('');
   };
 
   const handleAddChild = () => {
@@ -216,15 +233,11 @@ function App() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session && event === 'SIGNED_IN') {
-        const { currentChild, syncGuestDataToCloud } = useStore.getState();
+        const { currentChild } = useStore.getState();
         const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
         const lastSyncedGuestData = localStorage.getItem(`spy_guestDataLastSynced_${currentChild}`);
         if (guestDataStr && guestDataStr !== lastSyncedGuestData) {
-          if (window.confirm("이 기기에 저장된 데이터를 가족 공유 계정으로 동기화하시겠습니까?")) {
-            await syncGuestDataToCloud();
-          } else {
-            fetchDataFromDB();
-          }
+          setCloudSyncPromptOpen(true);
         } else {
           fetchDataFromDB();
         }
@@ -236,6 +249,19 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, [setSession, fetchDataFromDB]);
+
+  const confirmGuestCloudSync = async () => {
+    const { syncGuestDataToCloud } = useStore.getState();
+    await syncGuestDataToCloud();
+    setCloudSyncPromptOpen(false);
+    setIsShareAuthOpen(false);
+  };
+
+  const cancelGuestCloudSync = () => {
+    fetchDataFromDB();
+    setCloudSyncPromptOpen(false);
+    setIsShareAuthOpen(false);
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setIsTourReady(true), 300);
@@ -442,11 +468,11 @@ function App() {
         </div>
 
         {/* Header Title Space */}
-        <div className="relative pt-2 pb-1 text-center flex flex-col items-center justify-center">
-          <h1 data-tour="app-title" className="font-serif font-black italic text-[21px] tracking-tight text-navy flex items-center justify-center leading-none">
-            Family <span className="text-rose-500 font-sans font-normal not-italic mx-1.5 text-[16px] font-black">×</span> Scheduler
+        <div className="relative min-h-[48px] pt-2 pb-1 px-[84px] text-center flex flex-col items-center justify-center">
+          <h1 data-tour="app-title" className="font-serif font-black italic text-[12px] text-navy flex max-w-full items-center justify-center leading-none whitespace-nowrap overflow-hidden">
+            Family <span className="text-rose-500 font-sans not-italic mx-0.5 text-[9px] font-black">×</span> Scheduler
           </h1>
-          <p className="text-center text-[11px] font-bold text-navy/40 mt-1">
+          <p className="text-center text-[10px] font-bold text-navy/40 mt-1 w-full whitespace-nowrap overflow-hidden text-ellipsis">
             우리 가족의 소중한 일정 관리
           </p>
         </div>
@@ -585,6 +611,36 @@ function App() {
           />
         </Suspense>
       )}
+      <NativeSafeConfirmDialog
+        open={Boolean(childDeleteTargetId)}
+        title="프로필 삭제"
+        message={`${childProfiles[childDeleteTargetId] || '선택한'} 프로필을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.`}
+        confirmLabel="삭제"
+        destructive
+        onConfirm={confirmRemoveChild}
+        onCancel={() => setChildDeleteTargetId(null)}
+      />
+      <NativeSafeTextDialog
+        open={Boolean(renameChildTargetId)}
+        title="대상 이름 수정"
+        value={renameChildValue}
+        maxLength={12}
+        placeholder="이름"
+        onChange={setRenameChildValue}
+        onConfirm={confirmRenameChild}
+        onCancel={() => {
+          setRenameChildTargetId(null);
+          setRenameChildValue('');
+        }}
+      />
+      <NativeSafeConfirmDialog
+        open={cloudSyncPromptOpen}
+        title="가족 공유 동기화"
+        message="이 기기에 저장된 데이터를 가족 공유 계정으로 동기화하시겠습니까?"
+        confirmLabel="동기화"
+        onConfirm={confirmGuestCloudSync}
+        onCancel={cancelGuestCloudSync}
+      />
     </div>
   );
 }
