@@ -925,7 +925,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         <div className="bg-white p-5 rounded-2xl border border-navy/5 shadow-md flex flex-col">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-navy/5/10">
             <h4 className="font-black text-navy text-[15px] flex items-center gap-1.5">
-              <Lock size={16} className="text-accent-red" /> 이달의 다이어리 만들기</h4>
+              <Lock size={16} className="text-accent-red" /> 이달의 사진첩 만들기</h4>
             <span className="text-[10px] font-black text-accent-red bg-accent-red/10 border border-accent-red/20 px-2 py-0.5 rounded-full">
               PREMIUM
             </span>
@@ -1292,8 +1292,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-2xl border border-navy/5 overflow-hidden">
               <div className="bg-navy px-4 py-3 flex items-center justify-between">
-                <h2 className="font-bold text-[15px] text-white">기록책 제작</h2>
-                <button onClick={() => !isExporting && setPdfExportOpen(false)} aria-label="기록책 제작 닫기" className="text-white/70 hover:text-white"><X size={20} /></button>
+                <h2 className="font-bold text-[15px] text-white">사진첩 제작</h2>
+                <button onClick={() => !isExporting && setPdfExportOpen(false)} aria-label="사진첩 제작 닫기" className="text-white/70 hover:text-white"><X size={20} /></button>
               </div>
               
               <div className="p-5 space-y-5">
@@ -1510,7 +1510,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               <p className="text-[15px] font-medium text-navy/60 text-center mb-6 break-keep">
                 {isBookNotice ? (
                   <>
-                    기록책 제작은 향후 업데이트에서 제공될 예정입니다.<br/>
+                    사진첩 제작은 향후 업데이트에서 제공될 예정입니다.<br/>
                     지금은 다이어리 기록과 사진 모음을 먼저 이용해주세요.
                   </>
                 ) : (

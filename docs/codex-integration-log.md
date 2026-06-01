@@ -1,6 +1,31 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-01 - Rename diary photo album creation labels
+
+Source handoff:
+Direct user request in Codex asking to rename the diary creation labels from diary/record-book wording to photo-album wording.
+
+Integrated:
+- Changed the timeline premium action from `이달의 다이어리 만들기` to `이달의 사진첩 만들기`.
+- Changed the creation modal title and close label from `기록책 제작` to `사진첩 제작`.
+- Updated the premium coming-soon notice to use `사진첩 제작`.
+
+Intentionally left out:
+- The `제작하기` button label, premium lock behavior, PDF/export logic, Android packaging, auth/payment/Supabase behavior, and calendar sync behavior were not changed.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- None.
+
+Previous integration:
 2026-06-01 - Enlarge main header logo and subtitle
 
 Source handoff:
