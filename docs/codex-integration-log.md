@@ -1,6 +1,38 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-01 - Pre-update local data preservation audit
+
+Source handoff:
+Direct user request in Codex asking to commit the current work and debug before updating the main app, with local schedules and other saved local data preserved.
+
+Integrated:
+- Audited local persistence keys for guest schedules, payments, family events, daily tasks, child profiles, diary records, onboarding state, and Supabase auth session storage.
+- Confirmed the source app does not call `localStorage.clear`, `localStorage.removeItem`, `sessionStorage.clear`, `sessionStorage.removeItem`, or `indexedDB.deleteDatabase` for the app storage keys.
+- Confirmed Android release identity remains `com.coolspid.familyxscheduler` with versionCode `17`, versionName `1.1.6`, and label `가족일정`.
+- Built and verified signed release APK/AAB packaging after syncing current web assets to Android.
+
+Intentionally left out:
+- No storage schema migration, Supabase schema/data changes, Android package identity changes, release asset changes, or app behavior changes were made.
+- Antigravity-owned `docs/antigravity-out.md` and existing untracked scratch/artifact files were not changed.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat :app:assembleRelease`
+- `aapt dump badging app-release.apk`
+- `apksigner verify --verbose --print-certs app-release.apk`
+- `./gradlew.bat :app:bundleRelease`
+
+Open follow-ups:
+- For a real installed-device update test, install over the existing production app without uninstalling or clearing app data, then verify stored schedules after launch.
+- If updating a Play-installed app by sideloading an APK, confirm the signing certificate matches the installed app; otherwise Android will reject the update before app data is touched.
+
+Previous integration:
 2026-06-01 - Rename diary photo album creation labels
 
 Source handoff:
