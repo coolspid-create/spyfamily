@@ -716,6 +716,8 @@ export function NativeSafeTextDialog({
     cancelLabel = '취소',
     placeholder = '',
     maxLength,
+    destructive = false,
+    confirmDisabled = false,
     onConfirm,
     onCancel,
 }) {
@@ -759,7 +761,8 @@ export function NativeSafeTextDialog({
                             <button
                                 type="button"
                                 onClick={onConfirm}
-                                className="flex-1 rounded-xl bg-navy py-2.5 text-[13px] font-black text-white shadow-md"
+                                disabled={confirmDisabled}
+                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed disabled:opacity-45 ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
                             >
                                 {confirmLabel}
                             </button>

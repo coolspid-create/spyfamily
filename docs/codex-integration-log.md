@@ -1,6 +1,133 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-02 - Remove heavy app shell side borders
+
+Source handoff:
+Direct user request in Codex after reviewing the desktop/in-app browser app frame.
+
+Integrated:
+- Removed the thick navy left/right borders from the main app shell in `App.jsx`.
+- Kept the mobile-width app container and replaced the hard frame with a subtle soft shadow so the app sits more naturally on the textured background.
+
+Intentionally left out:
+- Did not change internal card borders or tab/button styling.
+- Did not alter Android safe-area or packaging settings.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- `npm run lint`
+- `npm run build`
+- In-app browser smoke check on `http://127.0.0.1:5175/`: computed app shell left/right borders are `0px`, with 0 console errors.
+
+Previous integration:
+2026-06-02 - Account login modal visual cleanup
+
+Source handoff:
+Direct user request in Codex after reviewing the login/signup modal screenshots.
+
+Integrated:
+- Refined the logged-out account modal in `Login.jsx` to better match the app's calmer scheduler UI.
+- Removed the heavy navy border, remote paper texture background, oversized icon treatment, and high-contrast toggle copy.
+- Added a compact segmented login/signup switch, softer white card surface, quieter icon sizing, consistent rounded inputs, and calmer shadow/border treatment.
+- Preserved the existing auth behavior, policy links, signup/login switching, validation, and Supabase actions.
+
+Intentionally left out:
+- Did not change the logged-in family sharing settings layout in this pass.
+- Did not alter auth, Supabase schema, or account deletion behavior.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- `npm run lint`
+- `npm run build`
+- In-app browser smoke check on `http://127.0.0.1:5175/`: opened the account modal and confirmed login/signup/email/policy elements with 0 console errors.
+
+Previous integration:
+2026-06-02 - In-app account deletion RPC and confirmation flow
+
+Source handoff:
+Direct user request in Codex.
+
+Integrated:
+- Added `public.delete_user_account()` Supabase RPC in `app/migration_delete_user_account.sql` and applied it to the remote project.
+- The RPC uses `SECURITY DEFINER` with an empty `search_path`, blocks unauthenticated callers, deletes single-member family data, removes the current user's authored records, then deletes the current `auth.users` row.
+- Revoked `EXECUTE` from `PUBLIC` and `anon`; only `authenticated` can call the account deletion RPC.
+- Added `deleteAccount` to the Zustand store. It removes known diary photo Storage paths through the Storage API before calling the RPC, signs out, and clears local account/cache data.
+- Added a two-step in-app member withdrawal flow in the logged-in family sharing modal: warning dialog, then typed `탈퇴` confirmation.
+- Extended `NativeSafeTextDialog` to support destructive/disabled confirm buttons.
+
+Intentionally left out:
+- No Edge Function was added because the requested implementation was Supabase RPC based.
+- No real existing user account was deleted during verification.
+
+Files changed:
+- `app/migration_delete_user_account.sql`
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- Supabase MCP `execute_sql` to apply `app/migration_delete_user_account.sql`
+- Supabase MCP `execute_sql` to verify function `SECURITY DEFINER`, empty `search_path`, and `anon/public/authenticated` execution privileges
+- Supabase MCP `get_advisors` security/performance checks
+- `npm run lint`
+- `npm run build`
+- `Invoke-WebRequest http://127.0.0.1:5175/` returned HTTP 200
+- In-app browser smoke check on `http://127.0.0.1:5175/` loaded the app with 0 console errors
+
+Open follow-ups:
+- Supabase advisor intentionally warns that `public.delete_user_account()` is a `SECURITY DEFINER` function executable by `authenticated`; this is expected for an app-callable self-delete RPC and is constrained by the function body and explicit grants.
+- The full end-to-end destructive path should only be tested with a disposable account created for that purpose.
+
+Previous integration:
+2026-06-01 - Family sharing, RLS handoff integration
+
+Source handoff:
+- Direct user request plus Antigravity handoff in `docs/antigravity-out.md`.
+
+Integrated:
+- Reworked `app/migration_family_share_v2.sql` into a non-destructive family sharing/RLS migration with `families`, `family_members`, `diary`, `diary_comments`, private helper functions, `join_family_by_code`, private `diary-photos` Storage policies, and Realtime publication setup.
+- Added family context state/actions to `useStore.js`: create/join/leave family, invite code/member loading, cloud-scoped diary CRUD, and explicit `family_id` scoping for existing cloud CRUD paths.
+- Moved the diary tab to store-backed records, private Storage uploads under `{family_id}/{diary_id}/...`, and short-lived signed URL rendering for diary/gallery/photo viewer images.
+- Added local diary migration into cloud families using `local_id`, including private Storage upload for existing base64 photos without deleting the local fallback.
+- Added family setup UI after login so a signed-in user can create a family, join by invite code, copy the invite code, view members, or leave the family.
+- Added Realtime subscriptions for `diary`, `schedule`, and `dailytasks`, with cleanup on family/session changes.
+- Updated the Antigravity task tracker with completed code phases and blocked DB/cross-tenant verification status.
+
+Intentionally left out:
+- The remote Supabase migration was not applied because this local environment has no Supabase CLI, no direct DB connection string, and no SQL execution MCP tool available.
+- Cross-family RLS and private Storage access tests were not run because the migration has not been applied to the remote project and test accounts were not available.
+- `docs/antigravity-out.md` remains Antigravity-owned and was not edited.
+
+Files changed:
+- `app/migration_family_share_v2.sql`
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/store/useStore.js`
+- `C:\Users\KPSA\.gemini\antigravity-ide\brain\c6a8e03e-5d51-4d8f-8191-add1d8464f82\task.md`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `supabase --version` (failed: CLI not installed)
+- environment scan for Supabase/DB variables
+- `npm run lint`
+- `npm run build`
+- Browser smoke check on `http://127.0.0.1:5175/diary`, including composer open/close, reload, and console error check
+
+Open follow-ups:
+- Apply `app/migration_family_share_v2.sql` in Supabase SQL Editor or provide a DB execution path.
+- After DB apply, create two test families and verify RLS isolation plus Storage signed URL access denial across families.
+- Re-run a logged-in browser smoke test against the applied DB.
+
+Previous integration:
 2026-06-01 - Pre-update local data preservation audit
 
 Source handoff:
@@ -1731,6 +1858,87 @@ Commands run:
 Open follow-ups:
 - Large vendor chunk and circular manual chunk warnings still appear during build; existing behavior, not introduced by this integration.
 - Consider removing now-unused standalone diary shell branches from `FamilyDiaryTab` after the unified app settles.
+
+2026-06-01 - Supabase migration remote verification
+
+Source handoff:
+Direct user SQL Editor execution confirmation in Supabase dashboard.
+
+Integrated:
+- Confirmed the remote Supabase project now exposes the expected family-sharing schema objects: `families`, `family_members`, `diary`, `diary_comments`, `schedule`, `payment`, `asset`, `ops`, `notice`, and `dailytasks`.
+- Confirmed the private `diary-photos` Storage bucket exists with `public = false`.
+- Verified REST API schema visibility for `families`, `family_members`, `diary`, `schedule`, `payment`, and `dailytasks`; all returned HTTP 200.
+- Reopened local dev server at `http://127.0.0.1:5175/` and verified the app renders with the sharing/login modal available.
+- Checked the login/signup modal transition in the in-app browser with no console errors.
+- Updated the external Antigravity task tracker to mark remote DB application complete.
+
+Commands run:
+- PowerShell REST smoke check against `https://nsuxjflmexbfjsmbmlax.supabase.co/rest/v1`
+- `npm run lint`
+- `npm run build`
+- In-app browser smoke check on `http://127.0.0.1:5175/`
+
+Open follow-ups:
+- Run two-account family A/family B RLS isolation testing.
+- Verify signed URL access for diary photos with one allowed account and one blocked account.
+
+Verification update:
+- Created two temporary Supabase Auth users through the server-side admin API with confirmed emails for deterministic testing.
+- Created separate families A/B, inserted one diary and one weekly schedule into each family, and verified each account could read only its own family rows.
+- Confirmed cross-family diary insert is blocked by RLS with `new row violates row-level security policy for table "diary"`.
+- Uploaded a private `diary-photos` object under family A, verified family A can create a signed URL, and family B cannot create a signed URL for the same path.
+- Removed the temporary Storage object, family rows with cascaded child data, and temporary Auth users after the test.
+- Confirmed no leftover `Codex%` test families, diary rows, schedule rows, or Codex test Auth users remain.
+
+Open follow-ups:
+- Rotate the Supabase server-side secret key after this local verification session because it was shared in chat for setup.
+
+2026-06-01 - Supabase MCP and Agent Skills setup
+
+Source handoff:
+Direct user request in Codex.
+
+Integrated:
+- Added global Codex MCP server `supabase` with URL `https://mcp.supabase.com/mcp?project_ref=nsuxjflmexbfjsmbmlax`.
+- Completed OAuth login for the Supabase MCP server.
+- Verified the server with `codex mcp list` and `codex mcp get supabase`; status is `enabled` and auth is `OAuth`.
+- Installed Supabase Agent Skills into `.agents/skills/supabase` and `.agents/skills/supabase-postgres-best-practices`.
+
+Commands run:
+- `codex mcp add supabase --url https://mcp.supabase.com/mcp?project_ref=nsuxjflmexbfjsmbmlax`
+- `codex mcp login supabase`
+- `codex mcp list`
+- `codex mcp get supabase`
+- `npx skills add supabase/agent-skills`
+
+Open follow-ups:
+- Reload or start a new Codex session if the newly added Supabase MCP tools do not appear in the current tool list immediately.
+
+2026-06-01 - Supabase MCP post-auth verification and advisor cleanup
+
+Source handoff:
+Direct user request in Codex after reauthorizing the Supabase MCP OAuth flow with the correct organization.
+
+Integrated:
+- Verified Supabase MCP project access with `get_project_url`; project URL is `https://nsuxjflmexbfjsmbmlax.supabase.co`.
+- Verified `list_edge_functions`; no Edge Functions are currently deployed.
+- Verified expected schema objects via MCP `execute_sql`: `families`, `family_members`, `diary`, `diary_comments`, `schedule`, `payment`, `asset`, `ops`, `notice`, and `dailytasks` all exist.
+- Verified the `diary-photos` Storage bucket remains private with `public = false`.
+- Ran Supabase security/performance advisors through MCP.
+- Tightened `public.join_family_by_code(text)` permissions by revoking `EXECUTE` from `PUBLIC` and `anon`, leaving `authenticated`, `postgres`, and `service_role`.
+- Updated `app/migration_family_share_v2.sql` so future replays also revoke `anon` execution on `join_family_by_code`.
+
+Commands/checks run:
+- Supabase MCP `get_project_url`
+- Supabase MCP `list_edge_functions`
+- Supabase MCP `execute_sql` schema and bucket check
+- Supabase MCP `get_advisors` security/performance checks
+- Supabase MCP `execute_sql` permission update and verification
+
+Open follow-ups:
+- Supabase MCP `list_branches` still fails with `Project reference is missing when validating permissions`; the current tool schema does not expose a `project_ref` argument, while other project-scoped MCP calls succeed.
+- One advisor warning remains intentionally: `public.join_family_by_code(text)` is a `SECURITY DEFINER` function executable by `authenticated`. This is required for invite-code joins, and the function body checks `auth.uid()`.
+- Performance advisor reports informational missing foreign-key covering indexes; revisit before larger production data volume.
 
 Previous integration:
 2026-05-28 - Revert main app soft design pass

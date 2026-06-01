@@ -96,6 +96,9 @@ function App() {
   const setSession = useStore(state => state.setSession);
   const signOut = useStore(state => state.signOut);
   const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
+  const fetchFamilyContext = useStore(state => state.fetchFamilyContext);
+  const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
+  const currentFamilyId = useStore(state => state.currentFamilyId);
   const currentChild = useStore(state => state.currentChild);
   const setCurrentChild = useStore(state => state.setCurrentChild);
   const childCount = useStore(state => state.childCount);
@@ -223,8 +226,18 @@ function App() {
       return undefined;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        const familyId = await fetchFamilyContext();
+        await fetchDataFromDB();
+        if (familyId) {
+          await fetchDiariesFromDB();
+        } else {
+          setIsShareAuthOpen(true);
+        }
+        return;
+      }
       fetchDataFromDB();
     });
 
@@ -233,26 +246,58 @@ function App() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session && event === 'SIGNED_IN') {
+        const familyId = await useStore.getState().fetchFamilyContext();
         const { currentChild } = useStore.getState();
         const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
         const lastSyncedGuestData = localStorage.getItem(`spy_guestDataLastSynced_${currentChild}`);
-        if (guestDataStr && guestDataStr !== lastSyncedGuestData) {
+        if (familyId && guestDataStr && guestDataStr !== lastSyncedGuestData) {
           setCloudSyncPromptOpen(true);
         } else {
-          fetchDataFromDB();
+          await fetchDataFromDB();
+          if (familyId) await fetchDiariesFromDB();
         }
-        setIsShareAuthOpen(false);
+        setIsShareAuthOpen(!familyId);
       } else if (!session) {
         fetchDataFromDB();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchDataFromDB]);
+  }, [setSession, fetchFamilyContext, fetchDataFromDB, fetchDiariesFromDB]);
+
+  useEffect(() => {
+    if (!FAMILY_SHARING_ENABLED || !isSupabaseConfigured || !supabase || !session || !currentFamilyId) {
+      return undefined;
+    }
+
+    const channel = supabase
+      .channel(`family-context-${currentFamilyId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'diary', filter: `family_id=eq.${currentFamilyId}` },
+        () => fetchDiariesFromDB()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'schedule', filter: `family_id=eq.${currentFamilyId}` },
+        () => fetchDataFromDB()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dailytasks', filter: `family_id=eq.${currentFamilyId}` },
+        () => fetchDataFromDB()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, currentFamilyId, fetchDataFromDB, fetchDiariesFromDB]);
 
   const confirmGuestCloudSync = async () => {
-    const { syncGuestDataToCloud } = useStore.getState();
+    const { syncGuestDataToCloud, fetchDiariesFromDB } = useStore.getState();
     await syncGuestDataToCloud();
+    await fetchDiariesFromDB();
     setCloudSyncPromptOpen(false);
     setIsShareAuthOpen(false);
   };
@@ -294,7 +339,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell max-w-[420px] mx-auto h-[100dvh] min-h-[100dvh] flex flex-col overflow-hidden border-x-[3px] border-navy shadow-2xl relative bg-background">
+    <div className="app-shell mx-auto flex h-[100dvh] min-h-[100dvh] w-full max-w-[420px] flex-col overflow-hidden bg-background shadow-[0_16px_46px_rgba(26,35,126,0.12)] relative">
       {/* PWA Update Notification */}
       <AnimatePresence>
         {needRefresh && (
@@ -382,14 +427,20 @@ function App() {
         {/* Absolute Right Control */}
         <div className="absolute top-2.5 right-2.5 z-[100] flex flex-col items-end gap-1.5">
           {FAMILY_SHARING_ENABLED && session ? (
-            <span
+            <button
+              type="button"
               data-tour="local-status"
-              className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-emerald-200/50 bg-emerald-50 px-2.5 text-[9px] font-black text-emerald-600 shadow-sm"
-              title="가족 공유 중"
+              onClick={openShareAuth}
+              className={`inline-flex h-[26px] items-center gap-1.5 rounded-full border px-2.5 text-[9px] font-black shadow-sm transition-colors active:scale-95 ${
+                currentFamilyId
+                  ? 'border-emerald-200/50 bg-emerald-50 text-emerald-600'
+                  : 'border-amber-200/60 bg-amber-50 text-amber-600'
+              }`}
+              title={currentFamilyId ? '가족 공유 설정' : '가족 그룹 설정 필요'}
             >
               <Users size={10} className="stroke-[2.5px]" />
-              공유
-            </span>
+              {currentFamilyId ? '공유' : '설정'}
+            </button>
           ) : (
             <div className="relative" ref={localTooltipRef}>
               <button
@@ -591,7 +642,7 @@ function App() {
         </button>
       </nav>
       <AnimatePresence>
-        {FAMILY_SHARING_ENABLED && isShareAuthOpen && !session && (
+        {FAMILY_SHARING_ENABLED && isShareAuthOpen && (
           <Suspense fallback={null}>
             <Login onClose={() => setIsShareAuthOpen(false)} />
           </Suspense>

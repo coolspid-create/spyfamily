@@ -2,6 +2,8 @@ import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallba
 import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronLeft, ChevronRight, MoreHorizontal, X, Camera, CalendarHeart, Video, Trash2, Edit2, MessageCircle, Heart, Smile, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
+import { supabase } from '../lib/supabase';
+import { useStore } from '../store/useStore';
 
 // Initial Mock Data
 const INITIAL_RECORDS = [];
@@ -17,6 +19,7 @@ const DIARY_TEXT_COLLAPSED_HEIGHT = 68;
 const VIEWER_TEXT_COLLAPSED_HEIGHT = 73;
 const DIARY_TEXT_EXPAND_TRANSITION = { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] };
 const DIARY_TOGGLE_LABEL_TRANSITION = { duration: 0.16, ease: 'easeOut' };
+const DIARY_PHOTO_BUCKET = 'diary-photos';
 const HIDDEN_SCROLLBAR_STYLE = {
   scrollbarWidth: 'none',
   msOverflowStyle: 'none'
@@ -81,6 +84,157 @@ const limitText = (value, maxLength) => toSafeString(value).slice(0, maxLength);
 const shouldCollapseDiaryText = (value) => {
   const text = toSafeString(value).trim();
   return text.length > DIARY_COLLAPSE_TEXT_LENGTH || text.split(/\r\n|\r|\n/).length > 3;
+};
+
+const isDirectImageSource = (value) => /^(data:image\/|blob:|https?:\/\/|\/)/i.test(toSafeString(value).trim());
+
+const isStorageImagePath = (value) => {
+  const raw = toSafeString(value).trim();
+  return Boolean(raw) && !isDirectImageSource(raw);
+};
+
+const getRecordImagePaths = (record) => {
+  const imagePaths = Array.isArray(record?.imagePaths) ? record.imagePaths : [];
+  const imageUrls = Array.isArray(record?.imageUrls) ? record.imageUrls : [];
+  return [...new Set([...imagePaths, ...imageUrls.filter(isStorageImagePath)])];
+};
+
+const createClientDiaryId = () => (
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+
+const dataUrlToBlob = async (imageSource) => {
+  const response = await fetch(imageSource);
+  if (!response.ok) throw new Error('이미지 파일을 읽을 수 없습니다.');
+  return response.blob();
+};
+
+const getBlobExtension = (blob) => {
+  const mime = toSafeString(blob?.type, 'image/jpeg').toLowerCase();
+  if (mime.includes('png')) return 'png';
+  if (mime.includes('webp')) return 'webp';
+  return 'jpg';
+};
+
+const uploadDiaryImagesToStorage = async ({ images, familyId, diaryId }) => {
+  if (!supabase || !familyId || !diaryId) {
+    return {
+      imagePaths: images.filter(isStorageImagePath),
+      displayImages: images,
+      uploadedPaths: []
+    };
+  }
+
+  const imagePaths = [];
+  const uploadedPaths = [];
+
+  for (const [index, imageSource] of images.entries()) {
+    if (isStorageImagePath(imageSource)) {
+      imagePaths.push(imageSource);
+      continue;
+    }
+
+    if (!toSafeString(imageSource).startsWith('data:image/') && !toSafeString(imageSource).startsWith('blob:')) {
+      continue;
+    }
+
+    const blob = await dataUrlToBlob(imageSource);
+    const extension = getBlobExtension(blob);
+    const randomName = `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.${extension}`;
+    const storagePath = `${familyId}/${diaryId}/${randomName}`;
+    const { error } = await supabase.storage
+      .from(DIARY_PHOTO_BUCKET)
+      .upload(storagePath, blob, {
+        cacheControl: '3600',
+        contentType: blob.type || 'image/jpeg',
+        upsert: false
+      });
+
+    if (error) throw error;
+    imagePaths.push(storagePath);
+    uploadedPaths.push(storagePath);
+  }
+
+  return {
+    imagePaths,
+    displayImages: imagePaths,
+    uploadedPaths
+  };
+};
+
+function useSignedUrl(imagePath) {
+  const [signedUrl, setSignedUrl] = useState(() => (
+    isDirectImageSource(imagePath) ? imagePath : ''
+  ));
+
+  useEffect(() => {
+    let isMounted = true;
+    const path = toSafeString(imagePath).trim();
+    const applySignedUrl = (nextUrl) => {
+      queueMicrotask(() => {
+        if (isMounted) setSignedUrl(nextUrl);
+      });
+    };
+
+    if (!path) {
+      applySignedUrl('');
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    if (isDirectImageSource(path) || !supabase) {
+      applySignedUrl(path);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    applySignedUrl('');
+    supabase.storage
+      .from(DIARY_PHOTO_BUCKET)
+      .createSignedUrl(path, 1800)
+      .then(({ data, error }) => {
+        if (!isMounted) return;
+        if (error) {
+          console.warn('Signed URL 발급 실패:', error);
+          setSignedUrl('');
+          return;
+        }
+        setSignedUrl(data?.signedUrl || '');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [imagePath]);
+
+  return signedUrl;
+}
+
+const DiaryImage = ({ src, alt, className = '', onClick }) => {
+  const resolvedSrc = useSignedUrl(src);
+
+  if (!resolvedSrc) {
+    return (
+      <div className={`flex items-center justify-center bg-navy/5 text-navy/25 ${className}`}>
+        <Camera size={24} strokeWidth={1.5} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={resolvedSrc}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onClick={onClick}
+      className={className}
+    />
+  );
 };
 
 const CollapsibleDiaryText = ({
@@ -209,32 +363,18 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallMode, setPaywallMode] = useState('default');
   const [isPremium, setIsPremium] = useState(false);
-  const didHydrateRecordsRef = useRef(false);
-  
-  // CRUD States
-  const [records, setRecords] = useState(() => {
-    try {
-      const saved = localStorage.getItem(DIARY_RECORDS_STORAGE_KEY) || localStorage.getItem(LEGACY_DIARY_RECORDS_STORAGE_KEY);
-      if (saved) return normalizeDiaryRecords(JSON.parse(saved));
-    } catch (e) {
-      console.error('Failed to parse records from localStorage', e);
-    }
-    return INITIAL_RECORDS;
-  });
+  const records = useStore(state => state.diaries);
+  const session = useStore(state => state.session);
+  const currentFamilyId = useStore(state => state.currentFamilyId);
+  const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
+  const addDiary = useStore(state => state.addDiary);
+  const updateDiary = useStore(state => state.updateDiary);
+  const removeDiary = useStore(state => state.removeDiary);
+  const addDiaryComment = useStore(state => state.addDiaryComment);
 
   useEffect(() => {
-    if (!didHydrateRecordsRef.current) {
-      didHydrateRecordsRef.current = true;
-      return;
-    }
-
-    try {
-      localStorage.setItem(DIARY_RECORDS_STORAGE_KEY, JSON.stringify(records));
-    } catch (error) {
-      console.error('Storage quota exceeded', error);
-      alert('브라우저 저장 공간이 부족합니다. 이미지가 너무 많습니다. 불필요한 기록을 삭제해주세요.');
-    }
-  }, [records]);
+    fetchDiariesFromDB();
+  }, [fetchDiariesFromDB, session, currentFamilyId]);
   const [searchDate, setSearchDate] = useState('');
   
   // Composer States
@@ -353,14 +493,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       setTextInput(limitText(record.text, DIARY_TEXT_MAX_LENGTH));
       setSelectedMood(record.mood);
       
-      // Parse "5월 27일" back to "YYYY-MM-DD"
-      try {
-        const month = record.date.split('월')[0].trim().padStart(2, '0');
-        const day = record.date.split('월')[1].replace('일', '').trim().padStart(2, '0');
-        setDateInput(`2026-${month}-${day}`);
-      } catch {
-        setDateInput('2026-05-01');
-      }
+      setDateInput(record.isoDate || getDiaryRecordIsoDate(record));
 
       // Parse "오후 1:30" back to "HH:MM"
       try {
@@ -382,7 +515,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       setDateInput(now.toISOString().split('T')[0]);
       setTimeInput(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
     }
-    setSelectedImages(record?.imageUrls || (record?.imageUrl ? [record.imageUrl] : []));
+    setSelectedImages(record?.imageUrls?.length ? record.imageUrls : (record?.imageUrl ? [record.imageUrl] : []));
     setComposerOpen(true);
     setActiveMenuId(null);
   };
@@ -458,7 +591,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSaveRecord = () => {
+  const handleSaveRecord = async () => {
     const safeTitle = limitText(titleInput, DIARY_TITLE_MAX_LENGTH).trim();
     const safeText = limitText(textInput, DIARY_TEXT_MAX_LENGTH);
 
@@ -466,41 +599,70 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     
     const displayDate = dateInput ? getFormattedDate(dateInput) : '날짜 미상';
     const displayTime = timeInput ? getFormattedTime(timeInput) : '';
+    const diaryId = editingRecordId || createClientDiaryId();
+    const existingRecord = editingRecordId ? records.find(record => record.id === editingRecordId) : null;
+    let uploadedPaths = [];
 
-    if (editingRecordId) {
-      // Update
-      setRecords(prev => prev.map(r => r.id === editingRecordId ? {
-        ...r,
+    try {
+      const {
+        imagePaths,
+        displayImages,
+        uploadedPaths: nextUploadedPaths
+      } = session && currentFamilyId
+        ? await uploadDiaryImagesToStorage({
+            images: selectedImages,
+            familyId: currentFamilyId,
+            diaryId
+          })
+        : {
+            imagePaths: selectedImages.filter(isStorageImagePath),
+            displayImages: selectedImages,
+            uploadedPaths: []
+          };
+
+      uploadedPaths = nextUploadedPaths;
+
+      const nextRecord = {
+        ...(existingRecord || {}),
+        id: diaryId,
+        child: existingRecord?.child || '아이1',
         title: safeTitle,
         text: safeText,
         mood: selectedMood,
         date: displayDate,
         isoDate: dateInput,
         time: displayTime,
-        hasMedia: selectedImages.length > 0,
-        imageUrl: selectedImages.length > 0 ? selectedImages[0] : null,
-        imageUrls: selectedImages
-      } : r));
-    } else {
-      const newRecord = {
-        id: Date.now().toString(),
-        child: '아이1',
-        date: displayDate,
-        isoDate: dateInput,
-        time: displayTime,
-        mood: selectedMood,
-        title: safeTitle,
-        text: safeText,
-        hasMedia: selectedImages.length > 0,
-        imageUrl: selectedImages.length > 0 ? selectedImages[0] : null,
-        imageUrls: selectedImages,
-        linked: '',
-        reactions: [],
-        comments: []
+        hasMedia: displayImages.length > 0,
+        imageUrl: displayImages.length > 0 ? displayImages[0] : null,
+        imageUrls: displayImages,
+        imagePaths,
+        linked: existingRecord?.linked || '',
+        reactions: existingRecord?.reactions || [],
+        comments: existingRecord?.comments || []
       };
-      setRecords(prev => [newRecord, ...prev]);
+
+      if (editingRecordId) {
+        await updateDiary(nextRecord);
+      } else {
+        await addDiary(nextRecord);
+      }
+
+      if (editingRecordId && supabase && session && currentFamilyId) {
+        const removedPaths = getRecordImagePaths(existingRecord).filter(path => !imagePaths.includes(path));
+        if (removedPaths.length > 0) {
+          await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(removedPaths);
+        }
+      }
+
+      setComposerOpen(false);
+      setSelectedImages([]);
+    } catch (error) {
+      if (uploadedPaths.length > 0 && supabase) {
+        await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(uploadedPaths);
+      }
+      console.error('Diary save failed:', error);
+      alert('다이어리 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
     }
-    setComposerOpen(false);
   };
 
   const handleDeleteRecord = (id) => {
@@ -508,54 +670,64 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     setActiveMenuId(null);
   };
 
-  const confirmDeleteRecord = () => {
+  const confirmDeleteRecord = async () => {
     if (!deleteRecordTargetId) return;
-    setRecords(prev => prev.filter(r => r.id !== deleteRecordTargetId));
-    setDeleteRecordTargetId(null);
+    const targetRecord = records.find(record => record.id === deleteRecordTargetId);
+    try {
+      await removeDiary(deleteRecordTargetId);
+      const imagePaths = getRecordImagePaths(targetRecord);
+      if (imagePaths.length > 0 && supabase && session && currentFamilyId) {
+        await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(imagePaths);
+      }
+      setDeleteRecordTargetId(null);
+    } catch (error) {
+      console.error('Diary delete failed:', error);
+      alert('기록 삭제에 실패했습니다.');
+    }
   };
 
   const handleAddReaction = (recordId, emoji) => {
-    setRecords(prev => prev.map(r => {
-      if (r.id === recordId) {
-        const existing = r.reactions || [];
-        return { ...r, reactions: [...existing, emoji] };
-      }
-      return r;
-    }));
+    const targetRecord = records.find(record => record.id === recordId);
+    if (targetRecord) {
+      updateDiary({
+        ...targetRecord,
+        reactions: [...(targetRecord.reactions || []), emoji]
+      }).catch(error => {
+        console.error('Diary reaction update failed:', error);
+        alert('반응 저장에 실패했습니다.');
+      });
+    }
     setActiveReactionMenu(null);
   };
 
-  const handleAddComment = (recordId) => {
+  const handleAddComment = async (recordId) => {
     const text = limitText(commentInputs[recordId], DIARY_COMMENT_MAX_LENGTH).trim();
     if (!text) return;
-    
-    setRecords(prev => prev.map(r => {
-      if (r.id === recordId) {
-        const existing = r.comments || [];
-        let authorName = commentAuthors[recordId] || '아빠';
-        if (authorName === '직접입력') {
-          authorName = customAuthors[recordId]?.trim() || '익명';
-        }
 
-        const now = new Date();
-        const mm = now.getMonth() + 1;
-        const dd = now.getDate();
-        const hh = now.getHours().toString().padStart(2, '0');
-        const min = now.getMinutes().toString().padStart(2, '0');
-        const timeStr = getFormattedTime(`${hh}:${min}`);
+    let authorName = commentAuthors[recordId] || '아빠';
+    if (authorName === '직접입력') {
+      authorName = customAuthors[recordId]?.trim() || '익명';
+    }
 
-        const newComment = {
-          id: Date.now().toString(),
-          author: authorName,
-          text,
-          time: `${mm}월 ${dd}일 ${timeStr}`
-        };
-        return { ...r, comments: [...existing, newComment] };
-      }
-      return r;
-    }));
-    
-    setCommentInputs(prev => ({ ...prev, [recordId]: '' }));
+    const now = new Date();
+    const mm = now.getMonth() + 1;
+    const dd = now.getDate();
+    const hh = now.getHours().toString().padStart(2, '0');
+    const min = now.getMinutes().toString().padStart(2, '0');
+    const timeStr = getFormattedTime(`${hh}:${min}`);
+
+    try {
+      await addDiaryComment(recordId, {
+        id: `comment-${Date.now()}`,
+        author: authorName,
+        text,
+        time: `${mm}월 ${dd}일 ${timeStr}`
+      });
+      setCommentInputs(prev => ({ ...prev, [recordId]: '' }));
+    } catch (error) {
+      console.error('Diary comment save failed:', error);
+      alert('댓글 저장에 실패했습니다.');
+    }
   };
 
   const handleCommentInputChange = (recordId, value) => {
@@ -695,11 +867,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   record.imageUrls && record.imageUrls.length > 0 ? (
                     <div className={`mb-4 flex ${record.imageUrls.length === 1 ? '' : 'overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden'}`} style={{ scrollbarWidth: 'none' }}>
                       {record.imageUrls.map((imgUrl, idx) => (
-                        <img key={idx} src={imgUrl} alt={`Attached ${idx+1}`} loading="lazy" decoding="async" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
+                        <DiaryImage key={idx} src={imgUrl} alt={`Attached ${idx+1}`} onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
                       ))}
                     </div>
                   ) : record.imageUrl ? (
-                    <img src={record.imageUrl} alt="Attached" loading="lazy" decoding="async" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
+                    <DiaryImage src={record.imageUrl} alt="Attached" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
                   ) : (
                     <div className="mb-4 aspect-video bg-navy/5 border-2 border-dashed border-navy/20 rounded-lg flex items-center justify-center text-navy/30">
                       <Camera size={32} strokeWidth={1.5} />
@@ -1015,7 +1187,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                       onClick={() => setViewingPhoto({ ...photo, viewerSource: 'gallery' })}
                       className={`${isSinglePhoto ? 'h-40 w-40' : 'aspect-square'} bg-background border border-navy/10 rounded-xl flex items-center justify-center relative group overflow-hidden cursor-pointer`}
                     >
-                      <img src={photo.imageUrl} alt={photo.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <DiaryImage src={photo.imageUrl} alt={photo.title} className="w-full h-full object-cover" />
                       
                       {/* Hover/Tap Info */}
                       <div className="absolute inset-0 bg-navy/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-1 text-center">
@@ -1084,7 +1256,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
           <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} style={HIDDEN_SCROLLBAR_STYLE} className="w-full max-w-[340px] max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden px-1 py-2 flex flex-col items-center gap-4 relative z-[205]">
             <div className={`w-full bg-white p-3 rounded-2xl border-[3px] border-white relative ${photoCardShadowClass}`}>
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-white/90 backdrop-blur-md shadow-md -rotate-2 rounded-[2px]"></div>
-              <img src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
+              <DiaryImage src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
             </div>
             {isGalleryPhotoViewer ? (
               <p className="relative z-[206] text-accent-red font-black text-[17px] leading-none tracking-tight">{viewingPhoto.date}</p>
@@ -1216,7 +1388,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   <div className="flex overflow-x-auto gap-2 pb-2 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }}>
                     {selectedImages.map((img, idx) => (
                       <div key={idx} className="relative w-32 h-32 shrink-0 rounded-lg overflow-hidden border border-navy/5">
-                        <img src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
+                        <DiaryImage src={img} alt={`Preview ${idx}`} className="w-full h-full object-cover" />
                         <button onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} aria-label={`첨부 사진 ${idx + 1} 삭제`} className="absolute top-1 right-1 bg-navy/80 text-white p-1 rounded-full hover:bg-navy shadow-md">
                           <X size={14} />
                         </button>
