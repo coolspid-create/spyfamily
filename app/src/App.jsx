@@ -468,11 +468,11 @@ function App() {
         </div>
 
         {/* Header Title Space */}
-        <div className="relative min-h-[48px] pt-2 pb-1 px-[84px] text-center flex flex-col items-center justify-center">
-          <h1 data-tour="app-title" className="font-serif font-black italic text-[12px] text-navy flex max-w-full items-center justify-center leading-none whitespace-nowrap overflow-hidden">
-            Family <span className="text-rose-500 font-sans not-italic mx-0.5 text-[9px] font-black">×</span> Scheduler
+        <div className="relative min-h-[52px] pt-2.5 pb-1.5 px-[84px] text-center flex flex-col items-center justify-center">
+          <h1 data-tour="app-title" className="font-serif font-black italic text-[17px] text-navy flex max-w-full items-center justify-center leading-[1.15] whitespace-nowrap overflow-visible px-1 py-0.5">
+            Family <span className="text-rose-500 font-sans not-italic mx-0.5 text-[13px] font-black">×</span> Scheduler
           </h1>
-          <p className="text-center text-[10px] font-bold text-navy/40 mt-1 w-full whitespace-nowrap overflow-hidden text-ellipsis">
+          <p className="text-center text-[11px] font-bold text-navy/40 mt-1.5 w-full whitespace-nowrap overflow-hidden text-ellipsis">
             우리 가족의 소중한 일정 관리
           </p>
         </div>

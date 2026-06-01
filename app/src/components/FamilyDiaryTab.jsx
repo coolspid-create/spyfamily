@@ -207,6 +207,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   }, [isEmbedded, onEmbeddedTabChange]);
   const [pdfExportOpen, setPdfExportOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallMode, setPaywallMode] = useState('default');
   const [isPremium, setIsPremium] = useState(false);
   const didHydrateRecordsRef = useRef(false);
   
@@ -281,6 +282,16 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   });
   const [exportEndDate, setExportEndDate] = useState(() => getLocalDateString());
+
+  const openPaywall = useCallback((mode = 'default') => {
+    setPaywallMode(mode);
+    setPaywallOpen(true);
+  }, []);
+
+  const closePaywall = useCallback(() => {
+    setPaywallOpen(false);
+    setPaywallMode('default');
+  }, []);
 
   // Gallery Scroll Observer & Indicator Logic
   useEffect(() => {
@@ -404,7 +415,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     
     if (selectedImages.length + files.length > maxPhotos) {
       if (!isPremium) {
-        setPaywallOpen(true);
+        openPaywall();
       } else {
         alert(`사진은 최대 ${maxPhotos}장까지 첨부할 수 있습니다.`);
       }
@@ -1334,7 +1345,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 </div>
                 
                 <button 
-                  onClick={() => setPaywallOpen(true)}
+                  onClick={() => openPaywall('book')}
                   disabled={isExporting}
                   className="w-full bg-accent-red text-white font-bold py-3.5 rounded-2xl border border-navy/5 flex justify-center items-center gap-2 mt-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
@@ -1478,12 +1489,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const renderPremiumPaywall = () => {
+    const isBookNotice = paywallMode === 'book';
+
     return (
       <AnimatePresence>
         {paywallOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[300] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-3xl border border-navy/5 overflow-hidden flex flex-col items-center p-6 relative">
-              <button onClick={() => setPaywallOpen(false)} aria-label="프리미엄 안내 닫기" className="absolute top-4 right-4 text-navy/40 hover:text-navy/70 transition-colors">
+              <button onClick={closePaywall} aria-label="프리미엄 안내 닫기" className="absolute top-4 right-4 text-navy/40 hover:text-navy/70 transition-colors">
                 <X size={24} />
               </button>
               
@@ -1491,38 +1504,53 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 <Lock size={32} className="text-accent-red" />
               </div>
               
-              <h2 className="text-xl font-black text-navy mb-2 text-center">프리미엄 기능 안내</h2>
+              <h2 className="text-xl font-black text-navy mb-2 text-center">
+                {isBookNotice ? '프리미엄 기능으로 준비중입니다.' : '프리미엄 기능 안내'}
+              </h2>
               <p className="text-[15px] font-medium text-navy/60 text-center mb-6 break-keep">
-                우리 가족의 추억을 더 풍성하게 기록하세요.<br/>(무제한 사진 및 PDF 내보내기)
+                {isBookNotice ? (
+                  <>
+                    기록책 제작은 향후 업데이트에서 제공될 예정입니다.<br/>
+                    지금은 다이어리 기록과 사진 모음을 먼저 이용해주세요.
+                  </>
+                ) : (
+                  <>
+                    우리 가족의 추억을 더 풍성하게 기록하세요.<br/>(무제한 사진 및 PDF 내보내기)
+                  </>
+                )}
               </p>
               
-              <div className="w-full space-y-3 mb-6 bg-navy/5 p-4 rounded-2xl">
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
-                    <span className="text-white text-[10px] font-bold">✓</span>
+              {!isBookNotice && (
+                <div className="w-full space-y-3 mb-6 bg-navy/5 p-4 rounded-2xl">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
+                      <span className="text-white text-[10px] font-bold">✓</span>
+                    </div>
+                    <p className="text-[13px] font-bold text-navy break-keep">다이어리당 사진 최대 20장 첨부 가능</p>
                   </div>
-                  <p className="text-[13px] font-bold text-navy break-keep">다이어리당 사진 최대 20장 첨부 가능</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
-                    <span className="text-white text-[10px] font-bold">✓</span>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
+                      <span className="text-white text-[10px] font-bold">✓</span>
+                    </div>
+                    <p className="text-[13px] font-bold text-navy break-keep">원하는 날짜 전체 기간 PDF 무제한 내보내기</p>
                   </div>
-                  <p className="text-[13px] font-bold text-navy break-keep">원하는 날짜 전체 기간 PDF 무제한 내보내기</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
-                    <span className="text-white text-[10px] font-bold">✓</span>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-4 h-4 rounded-full bg-accent-red flex items-center justify-center shrink-0">
+                      <span className="text-white text-[10px] font-bold">✓</span>
+                    </div>
+                    <p className="text-[13px] font-bold text-navy break-keep">워터마크 없는 고화질 저장 및 프리미엄 테마</p>
                   </div>
-                  <p className="text-[13px] font-bold text-navy break-keep">워터마크 없는 고화질 저장 및 프리미엄 테마</p>
                 </div>
-              </div>
+              )}
               
-              <button onClick={() => setPaywallOpen(false)} className="w-full bg-gradient-to-r from-accent-red to-[#ff5252] text-white font-black py-4 rounded-2xl shadow-lg shadow-accent-red/20 transform transition active:scale-95 mb-3">
-                월 4,900원 시작하기
+              <button onClick={closePaywall} className={`w-full text-white font-black py-4 rounded-2xl shadow-lg transform transition active:scale-95 ${isBookNotice ? 'bg-navy shadow-navy/10' : 'bg-gradient-to-r from-accent-red to-[#ff5252] shadow-accent-red/20 mb-3'}`}>
+                {isBookNotice ? '확인' : '월 4,900원 시작하기'}
               </button>
-              <button onClick={() => setPaywallOpen(false)} className="text-[13px] font-bold text-navy/40 hover:text-navy/70 underline underline-offset-4">
-                나중에 하기
-              </button>
+              {!isBookNotice && (
+                <button onClick={closePaywall} className="text-[13px] font-bold text-navy/40 hover:text-navy/70 underline underline-offset-4">
+                  나중에 하기
+                </button>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -1593,7 +1621,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         >
           <button
             type="button"
-            onClick={() => setPaywallOpen(true)}
+            onClick={() => openPaywall()}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-full px-3 text-left text-navy transition-all hover:bg-navy/5 active:scale-[0.98]"
             aria-label="프리미엄 기능 알아보기"
           >

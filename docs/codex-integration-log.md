@@ -1,6 +1,201 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-01 - Enlarge main header logo and subtitle
+
+Source handoff:
+Direct user request in Codex asking to make the main header logo 2px larger and the subtitle 1px larger.
+
+Integrated:
+- Increased the main header logo from 15px to 17px.
+- Increased the center `×` mark from 11px to 13px.
+- Increased the subtitle from 10px to 11px.
+
+Intentionally left out:
+- Header box spacing, side controls, diary internal header, Android packaging, release assets, auth/payment/Supabase behavior, and calendar sync behavior were not changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- In-app browser check on `http://127.0.0.1:5175/` confirmed logo font-size 17px, subtitle font-size 11px, no side overlap, and no subtitle overlap.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-01 - Unclip main header logo box
+
+Source handoff:
+Direct user request in Codex noting that the enlarged main header logo still looked clipped inside an invisible box, asking to check whether a containing box exists and slightly expand it.
+
+Integrated:
+- Confirmed the main logo `h1` had `leading-none` and `overflow-hidden`, which could clip the bold italic text bounds.
+- Increased the centered header title wrapper from `min-h-[48px]` to `min-h-[52px]` and added slightly more top/bottom padding.
+- Changed the logo line-height from `leading-none` to `leading-[1.15]`.
+- Changed the logo overflow from hidden to visible and added small internal padding.
+
+Intentionally left out:
+- Header logo size, side controls, diary internal header, Android packaging, release assets, auth/payment/Supabase behavior, and calendar sync behavior were not changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- In-app browser check on `http://127.0.0.1:5175/` confirmed logo overflow is visible, wrapper overflow is visible, no side overlap, and no subtitle overlap.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-01 - Lower main header subtitle spacing
+
+Source handoff:
+Direct user request in Codex noting that the enlarged main header logo and `우리 가족의 소중한 일정 관리` subtitle looked slightly overlapped, asking to move the subtitle down just a little.
+
+Integrated:
+- Increased the subtitle top margin from `mt-1` to `mt-1.5` below the `Family × Scheduler` logo.
+- Kept the header logo size and protected side padding unchanged.
+
+Intentionally left out:
+- Header logo size, side controls, diary internal header, Android packaging, release assets, auth/payment/Supabase behavior, and calendar sync behavior were not changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- In-app browser spacing check on `http://127.0.0.1:5175/` confirmed no vertical overlap and a 6px gap between logo and subtitle.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-01 - Increase main header logo size
+
+Source handoff:
+Direct user request in Codex asking to make the main header `Family × Scheduler` logo a little larger without overlapping the left child selector or right local status box.
+
+Integrated:
+- Increased the main app header logo text from 12px to 15px.
+- Increased the center `×` mark from 9px to 11px so the logo scales together.
+- Kept the existing protected side padding around the centered title so it does not overlap the absolute left/right header controls.
+
+Intentionally left out:
+- Diary internal header, Android packaging, release assets, auth/payment/Supabase behavior, and calendar sync behavior were not changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- In-app browser bounds check on `http://127.0.0.1:5175/` confirmed no overlap: title bounds `102-248`, child selector `12-78`, local badge `285-337`.
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-01 - Block diary record-book creation behind coming-soon notice
+
+Source handoff:
+Direct user request in Codex with a screenshot of the diary `기록책 제작` modal, asking that pressing `제작하기` shows `프리미엄 기능으로 준비중입니다.` and prevents creation because the feature will be updated later.
+
+Integrated:
+- Added a premium notice mode to the diary paywall modal.
+- Kept the existing premium 안내 modal for photo-limit and general premium entry points.
+- Changed only the `기록책 제작` modal's `제작하기` button to open the coming-soon notice instead of the general subscription prompt.
+- Kept PDF export generation blocked from that button path.
+
+Intentionally left out:
+- The hidden PDF export renderer and export helper were left in place for future updates.
+- Auth/payment/Supabase behavior, calendar sync behavior, Android packaging, release signing, app icons, and APK generation were not changed in this step.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser verification attempt was blocked by the in-app browser local URL policy, so final verification relied on source inspection plus lint/build.
+
+Open follow-ups:
+- When the record-book premium feature is ready, reconnect the `제작하기` path to the PDF export flow and replace the coming-soon copy.
+
+Previous integration:
+2026-06-01 - Build isolated debug APK after install conflict
+
+Source handoff:
+Direct user report in Codex that the latest APK showed an update-style install flow and then failed at the final install step, even after deleting existing downloaded files.
+
+Integrated:
+- Verified the previously generated APK was structurally valid and signed correctly.
+- Identified the likely issue as Android treating the APK as an update for the same package id, which can fail when an existing package remains installed for another user/profile or was signed with a different certificate.
+- Added a debug-only package suffix so test APKs install as `com.coolspid.familyxscheduler.debug` while keeping the visible app label as `가족일정`.
+- Updated debug resource package/custom URL strings to match the debug package id.
+- Built a new isolated debug APK and copied it to `artifacts/FamilyScheduler-debug-isolated-20260601-164825.apk`.
+- Verified APK metadata: application id `com.coolspid.familyxscheduler.debug`, version name `1.1.6`, version code `17`.
+
+Intentionally left out:
+- Release package id, release signing, auth/payment/Supabase behavior, calendar sync behavior, app icon artwork, and Play Store/AAB packaging were not changed.
+
+Files changed:
+- `app/android/app/build.gradle`
+- `app/android/app/src/debug/res/values/strings.xml`
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-isolated-20260601-164825.apk`
+
+Commands run:
+- `apksigner verify --verbose --print-certs ...`
+- `aapt dump badging ...`
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the isolated debug APK on the phone. If Android still refuses it, check whether Android blocks unknown apps from the file manager, whether there is a work profile/Secure Folder copy, or capture the exact installer reason through ADB `adb install`.
+
+Previous integration:
+2026-06-01 - Build debug APK for phone testing after picker/package updates
+
+Source handoff:
+Direct user request in Codex to generate an APK for testing on a phone.
+
+Integrated:
+- Built the current Vite web bundle.
+- Synced the latest web assets into the Capacitor Android project.
+- Generated a debug APK with Gradle.
+- Copied the generated APK to `artifacts/FamilyScheduler-debug-20260601-163808.apk`.
+- Verified APK metadata: application id `com.coolspid.familyxscheduler`, version name `1.1.6`, version code `17`.
+
+Intentionally left out:
+- No source behavior, auth/payment/Supabase schema, calendar sync, release signing, Play Store/AAB packaging, or app icon changes were made.
+
+Files changed:
+- `docs/codex-integration-log.md`
+- Generated APK artifact: `artifacts/FamilyScheduler-debug-20260601-163808.apk`
+
+Commands run:
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- `Get-FileHash ... -Algorithm SHA256`
+
+Open follow-ups:
+- Install the debug APK on an Android phone and confirm the picker sizing, app icon crop, and app-rendered clock behavior in the real WebView.
+
+Previous integration:
 2026-06-01 - Debug app weight and reduce PWA precache
 
 Source handoff:
