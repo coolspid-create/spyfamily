@@ -5,7 +5,7 @@ import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import FamilyDiaryTab from './components/FamilyDiaryTab';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon, ShieldCheck } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
@@ -98,6 +98,7 @@ function App() {
   const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
   const fetchFamilyContext = useStore(state => state.fetchFamilyContext);
   const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
+  const hasUnsyncedLocalData = useStore(state => state.hasUnsyncedLocalData);
   const currentFamilyId = useStore(state => state.currentFamilyId);
   const currentChild = useStore(state => state.currentChild);
   const setCurrentChild = useStore(state => state.setCurrentChild);
@@ -147,6 +148,25 @@ function App() {
     const handlePopState = () => setActiveTab(getTabFromPath());
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const isTextControl = (target) => (
+      target instanceof HTMLElement &&
+      Boolean(target.closest('input, textarea'))
+    );
+    const preventNativeTextMenu = (event) => {
+      if (isTextControl(event.target)) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', preventNativeTextMenu, true);
+    document.addEventListener('selectstart', preventNativeTextMenu, true);
+    return () => {
+      document.removeEventListener('contextmenu', preventNativeTextMenu, true);
+      document.removeEventListener('selectstart', preventNativeTextMenu, true);
+    };
   }, []);
 
   const {
@@ -226,7 +246,14 @@ function App() {
       return undefined;
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        console.warn('Supabase session restore failed, falling back to local mode:', error);
+        setSession(null);
+        fetchDataFromDB();
+        return;
+      }
+
       setSession(session);
       if (session) {
         const familyId = await fetchFamilyContext();
@@ -239,6 +266,10 @@ function App() {
         return;
       }
       fetchDataFromDB();
+    }).catch((error) => {
+      console.warn('Supabase session restore failed, falling back to local mode:', error);
+      setSession(null);
+      fetchDataFromDB();
     });
 
     const {
@@ -247,10 +278,7 @@ function App() {
       setSession(session);
       if (session && event === 'SIGNED_IN') {
         const familyId = await useStore.getState().fetchFamilyContext();
-        const { currentChild } = useStore.getState();
-        const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
-        const lastSyncedGuestData = localStorage.getItem(`spy_guestDataLastSynced_${currentChild}`);
-        if (familyId && guestDataStr && guestDataStr !== lastSyncedGuestData) {
+        if (familyId && useStore.getState().hasUnsyncedLocalData()) {
           setCloudSyncPromptOpen(true);
         } else {
           await fetchDataFromDB();
@@ -263,7 +291,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchFamilyContext, fetchDataFromDB, fetchDiariesFromDB]);
+  }, [setSession, fetchFamilyContext, fetchDataFromDB, fetchDiariesFromDB, hasUnsyncedLocalData]);
 
   useEffect(() => {
     if (!FAMILY_SHARING_ENABLED || !isSupabaseConfigured || !supabase || !session || !currentFamilyId) {
@@ -296,7 +324,8 @@ function App() {
 
   const confirmGuestCloudSync = async () => {
     const { syncGuestDataToCloud, fetchDiariesFromDB } = useStore.getState();
-    await syncGuestDataToCloud();
+    const result = await syncGuestDataToCloud();
+    if (!result?.ok) return;
     await fetchDiariesFromDB();
     setCloudSyncPromptOpen(false);
     setIsShareAuthOpen(false);
@@ -442,36 +471,17 @@ function App() {
               {currentFamilyId ? '공유' : '설정'}
             </button>
           ) : (
-            <div className="relative" ref={localTooltipRef}>
+            FAMILY_SHARING_ENABLED ? (
               <button
                 type="button"
-                data-tour="local-status"
-                onClick={() => setShowLocalTooltip(!showLocalTooltip)}
-                className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-navy/10 bg-navy/5 px-2.5 text-[9px] font-black text-navy/40 shadow-sm hover:bg-navy/10 transition-colors cursor-pointer"
-                title="로컬 저장 안내 보기"
+                onClick={openShareAuth}
+                className="inline-flex h-[26px] items-center gap-1.5 rounded-full border border-navy/10 bg-white px-2.5 text-[9px] font-black text-navy shadow-sm transition-all hover:bg-navy hover:text-white active:scale-95"
+                title="계정 연결로 일정과 다이어리 안전 보관"
               >
-                <HardDrive size={10} />
-                로컬
+                <ShieldCheck size={10} className="stroke-[2.6px]" />
+                계정 연결
               </button>
-
-              <AnimatePresence>
-                {showLocalTooltip && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 5 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: 5 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-md border border-navy/10 rounded-xl p-2.5 shadow-xl z-50 text-[9px] text-navy/70 leading-relaxed font-semibold"
-                  >
-                    <div className="absolute -top-1 right-5 w-2 h-2 bg-white border-t border-l border-navy/10 rotate-45" />
-                    <p className="text-[10px] font-black text-navy mb-1 flex items-center gap-1">
-                      <HardDrive size={11} className="text-navy" /> 로컬 모드 안내
-                    </p>
-                    현재 등록하는 일정 및 정보는 <span className="text-rose-500 font-bold">이 기기에만</span> 안전하게 임시 저장됩니다. 가족 공유 로그인을 하기 전까지는 기기를 변경하면 일정이 연동되지 않습니다.
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            ) : null
           )}
           
           <div className="flex items-center gap-1.5">
@@ -486,13 +496,7 @@ function App() {
                     <LogOut size={11} className="ml-0.5" />
                   </button>
                 ) : (
-                  <button
-                    onClick={openShareAuth}
-                    className="text-navy/40 hover:text-navy hover:bg-navy/10 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 transition-transform active:scale-95 cursor-pointer"
-                    title="다른 보호자와 공유하기"
-                  >
-                    <Users size={11} />
-                  </button>
+                  null
                 )}
               </div>
             )}
@@ -504,6 +508,38 @@ function App() {
               >
                 <Coffee size={11} />
               </button>
+            )}
+            {!session && (
+              <div className="relative" ref={localTooltipRef}>
+                <button
+                  type="button"
+                  data-tour="local-status"
+                  onClick={() => setShowLocalTooltip(!showLocalTooltip)}
+                  className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-full border border-navy/10 bg-navy/5 text-navy/40 shadow-sm transition-colors hover:bg-navy/10 cursor-pointer"
+                  title="로컬 저장 안내 보기"
+                  aria-label="로컬 저장 안내 보기"
+                >
+                  <HardDrive size={10} />
+                </button>
+
+                <AnimatePresence>
+                  {showLocalTooltip && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 5 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-md border border-navy/10 rounded-xl p-2.5 shadow-xl z-50 text-[9px] text-navy/70 leading-relaxed font-semibold"
+                    >
+                      <div className="absolute -top-1 right-5 w-2 h-2 bg-white border-t border-l border-navy/10 rotate-45" />
+                      <p className="text-[10px] font-black text-navy mb-1 flex items-center gap-1">
+                        <HardDrive size={11} className="text-navy" /> 이 기기에 저장 중
+                      </p>
+                      현재 등록하는 일정 및 정보는 <span className="text-rose-500 font-bold">이 기기에만</span> 안전하게 임시 저장됩니다. 가족 공유 로그인을 하기 전까지는 기기를 변경하면 일정이 연동되지 않습니다.
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
             <button
               type="button"

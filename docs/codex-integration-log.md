@@ -1,6 +1,487 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-02 - Diary calendar navigation and storage image recovery pass
+
+Source handoff:
+Direct user request in Codex to fix diary month navigation, remove Android text focus handles, add invite-code paste affordance, and repair diary photo/comment display.
+
+Applied:
+- Added previous/next month controls to the diary record calendar and initialized the calendar to the current local month.
+- Fixed the embedded diary tab rendering so the floating "기록달력" tab immediately renders the calendar page instead of leaving the timeline content mounted.
+- Added a paste icon button to the family invite-code input and prevented native input context menus/selection handles for app text controls.
+- Normalized diary Storage image values so relative paths, bucket-prefixed paths, and Supabase signed/public object URLs resolve back to `diary-photos` relative paths before signed URL creation.
+- Added lazy image error fallback so missing Storage objects show the app's photo placeholder instead of a broken image.
+- Shortened diary comment timestamps from raw ISO strings to compact Korean date/time labels.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Browser check on `http://127.0.0.1:5175/diary` confirmed the diary calendar now opens at `2026년 6월 다이어리`.
+- Browser check confirmed previous/next month buttons move from June to May and back to June.
+- Supabase check confirmed `diary-photos` is private, Storage object policies exist for authenticated users, and current `diary.image_paths` values are relative paths.
+- Supabase check found 2 diary image path references but only 1 matching Storage object, so one existing image reference is already orphaned and will display the placeholder until re-uploaded.
+- Local Node sample confirmed URL, bucket-prefixed, and relative Storage image values normalize to the same relative path.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/index.css`
+- `app/src/lib/diaryStorage.js`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Existing orphaned diary image reference should be replaced by re-uploading that diary photo or cleaned from the affected diary record.
+- Android native text selection handles are browser/WebView dependent; CSS and event prevention were added, but final confirmation should be done on the installed APK.
+
+Previous integration:
+2026-06-02 - Build debug APK after icon refresh
+
+Source handoff:
+Direct user request in Codex to create a test APK from the current worktree.
+
+Built:
+- Generated a fresh Vite production build.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Built an Android debug APK.
+- Copied the APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-133506.apk`.
+
+Verification:
+- `npm run build` completed successfully.
+- `npx cap sync android` completed successfully.
+- `./gradlew.bat :app:assembleDebug` completed successfully.
+- `aapt dump badging` confirmed package `com.coolspid.familyxscheduler.debug`, versionName `1.1.6`, versionCode `17`, and label `가족일정`.
+- `apksigner verify --verbose` confirmed APK Signature Scheme v2 verification.
+- APK size is 5.41 MB, SHA256 `47A061029580C7AB7CFD7974F3013952EE566B566BE7720AC2E8C4ED792435D0`.
+
+Intentionally left out:
+- No release signing, Play Store bundle, version bump, or source behavior change was made.
+
+Files changed:
+- `app/dist/`
+- `app/android/app/src/main/assets/public/`
+- `app/android/app/src/main/assets/capacitor.config.json`
+- `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-133506.apk`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-02 - Remove debug icon badge and cream-fill launcher icon
+
+Source handoff:
+Direct user request in Codex to remove the visible blue padding from the app launcher icon and remove the old red test-version text/badge from the lower part of the icon.
+
+Applied:
+- Rebuilt the web/PWA launcher icons from the existing calendar artwork, replacing only the outer connected navy background with the app's light cream surface and scaling the calendar art slightly larger.
+- Regenerated Android `main` launcher, round, and adaptive foreground PNGs for all density buckets.
+- Regenerated Android `debug` launcher, round, and adaptive foreground PNGs from the same no-text artwork, removing the old red `TEST` badge.
+- Changed Android adaptive icon background color from navy to cream so launcher masks cannot reveal a blue rim outside the foreground art.
+- Updated the Capacitor Android bundled public icon copies to match the new web icons.
+
+Verification:
+- Visually inspected the refreshed 512px web icon and debug Android launcher/foreground icons.
+- Checked representative icon corner pixels; all were cream and reported `blue_corner=False`.
+- Ran `npm run build`.
+- Ran `./gradlew.bat :app:assembleDebug`.
+
+Intentionally left out:
+- No APK was copied to `artifacts` in this pass because the request was to update the icon assets, not build a distributable test APK.
+- Play Store listing graphics were not changed; this pass focused on installed app/PWA/Android launcher assets.
+
+Files changed:
+- `app/public/app-icon-192.png`
+- `app/public/app-icon-512.png`
+- `app/public/pwa-icon.png`
+- `app/android/app/src/main/assets/public/app-icon-192.png`
+- `app/android/app/src/main/assets/public/app-icon-512.png`
+- `app/android/app/src/main/assets/public/pwa-icon.png`
+- `app/android/app/src/main/res/mipmap-*/ic_launcher*.png`
+- `app/android/app/src/debug/res/mipmap-*/ic_launcher*.png`
+- `app/android/app/src/main/res/values/ic_launcher_background.xml`
+- `app/android/app/src/debug/res/values/ic_launcher_background.xml`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-02 - Manual app E2E pass and auth cache cleanup
+
+Source handoff:
+Direct user request in Codex to manually click, write, save, and inspect the app broadly for errors or awkward behavior.
+
+Verified:
+- Weekly schedule: opened the add form, filled title/place/contact fields, opened the app-rendered circular time picker, saved a test schedule, confirmed it appeared in completed schedules because the selected time was earlier than the current time, then deleted it through the in-app confirmation dialog.
+- Today tasks: added a task, confirmed the add button enables only after text input, toggled completion to 100%, then deleted the task.
+- Payment management: opened scheduled payment add form, filled source/amount, opened the app-rendered due-date calendar, saved the item, confirmed total amount updates, then deleted it through the in-app confirmation dialog.
+- Family schedule: opened the add form, filled title/detail, opened the app-rendered date picker, saved the item, confirmed it appears in the family list and monthly calendar source, then deleted it.
+- Monthly calendar: verified previous/next month navigation and return to June 2026.
+- Diary: opened date search calendar, opened diary writer, filled title/body, opened circular time picker and date picker, saved the diary, confirmed it appears in the filtered result, then deleted it through the item menu and in-app confirmation dialog.
+- Account/family sharing: opened account modal, switched to signup, confirmed password confirmation field exists, created a temporary auto-confirmed account, created a family group, skipped local-data cloud sync, confirmed family leave uses the in-app dialog, confirmed join button is disabled with an empty code and enabled after entering a code, then completed two-step account deletion.
+- Supabase cleanup: confirmed the temporary Auth user and family membership were removed; removed the leftover temporary `Codex 테스트 가족` family row and rechecked all three counts as 0.
+
+Fixed during verification:
+- Added stale Supabase session restore handling in `App.jsx` so failed session recovery falls back to local mode instead of leaving the app in an ambiguous auth-check state.
+- Added Supabase auth localStorage cleanup in `useStore.js` for sign-out, account deletion, and `setSession(null)` paths.
+- Removed the redundant second `clearLocalAccountData()` call in account deletion.
+- Avoided calling Supabase `signOut` after `delete_user_account`; the user is already deleted at that point, so a second network logout only creates a `user_not_found` server log.
+
+Commands/checks run:
+- Browser-driven manual UI checks on `http://127.0.0.1:5175/`
+- Temporary isolated Vite server check on `http://127.0.0.1:5176/`, then stopped after testing
+- Supabase MCP `execute_sql` cleanup verification for temporary user/family rows
+- Supabase MCP `get_logs` for Auth/API context
+- `npm run lint`
+- `npm run build`
+
+Observed follow-ups:
+- The date picker `오늘` action updates the value but does not always close the popup immediately in diary date search/family schedule date fields. Saving or pressing Escape closes it, but this can feel slightly sticky.
+- Initial tab changes can show the previous tab for about 1-2 seconds while the target tab finishes loading.
+- Browser automation could not reliably exercise native file selection for diary image upload in this pass; previous Storage helper and Supabase image-path tests still cover the cloud side, but a physical Android image attach check remains useful.
+- Browser console tooling continued to show a prior `Invalid Refresh Token` entry in the same automation session even after cleanup changes; app UI returned to `계정 연결` and lint/build passed.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-02 - Family sharing input focus and action-state fix
+
+Source handoff:
+Direct user request in Codex with Android WebView screenshots showing a red input caret/handle over the family-name field, plus reports that family create/join controls looked disabled.
+
+Applied:
+- Removed the forced red caret styling from the family-name and invite-code inputs in the family sharing setup panel.
+- Softened the no-family input focus state so tapping the family-name field no longer draws a strong navy/red focus artifact in the Android WebView.
+- Added a local `familyAction` state for create, join, and leave actions so the no-family create/join buttons are no longer disabled by broad or stale global family loading.
+- Kept the join button disabled only while joining or while the invite-code field is empty.
+
+Verification:
+- Searched `app/src` for remaining forced caret/selection styling and found no remaining `caretColor`, `caret-*`, or explicit selection styling.
+- Verified the Supabase family create/join backend path with temporary owner/joiner accounts: created a family, joined by invite code, confirmed two members, then removed the temporary family and Auth users.
+- Ran `npm run lint`.
+- Ran `npm run build`.
+
+Intentionally left out:
+- The invite-code sharing model was not redesigned in this pass.
+- No Supabase schema or Android packaging changes were made.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Confirm once in the installed Android WebView that the platform text-selection handle no longer appears as a distracting red marker while editing the family-name field.
+
+Previous integration:
+2026-06-02 - Debug APK build after family sharing auth fixes
+
+Source handoff:
+Direct user request in Codex to create a phone-testable APK from the current worktree.
+
+Built:
+- Generated a fresh Vite production build.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Ran a clean Android debug build.
+- Copied the debug APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-120220.apk`.
+
+Verification:
+- `npm run build` completed successfully.
+- `npx cap sync android` completed successfully.
+- `.\gradlew.bat clean assembleDebug` completed successfully.
+- APK size is 5.14 MB, SHA256 `A6DC25C9EE7B5798B36DCED254CA055E037EB03A19D9E09F2713FD26B41F5AF0`.
+
+Intentionally left out:
+- No release signing, Play Store bundle, version bump, source behavior change, or Android config change was made.
+
+Files changed:
+- `app/dist/`
+- `app/android/app/src/main/assets/public/`
+- `app/android/app/src/main/assets/capacitor.config.json`
+- `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-120220.apk`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Install this debug APK on the phone and retest the family sharing settings, logout, and account deletion dialogs in the real Android WebView.
+
+Previous integration:
+2026-06-02 - Family sharing auth controls cleanup
+
+Source handoff:
+Direct user request in Codex with Android WebView screenshots showing a blue native family-leave confirmation popup, a blue focus box on the family-name input, and reports that logout/account deletion did not work.
+
+Applied:
+- Replaced the family leave native `confirm()` flow with the app's `NativeSafeConfirmDialog`.
+- Removed remaining native `alert()` calls from family create/join/sync failure paths in the family-sharing store flow so WebView does not render blue system alert surfaces there.
+- Softened the family-name and invite-code input focus styling so the focused input no longer shows a heavy navy box, while keeping a visible app-tone focus state and red caret.
+- Added a logout button to the logged-in/no-family state, so users who have an account but no active family group can still leave the account modal cleanly.
+- Decoupled logout and the account-delete entry point from broad family-loading state.
+- Changed app logout to Supabase local sign-out with a short timeout, then always clears the app session locally so a slow auth response cannot leave the UI stuck.
+- Added `confirmDisabled` support to `NativeSafeConfirmDialog` and used a local `isDeletingAccount` flag for the final account deletion confirmation.
+- Adjusted family leave success to return to local storage mode immediately instead of re-fetching cloud data after membership removal.
+
+Verification:
+- Confirmed the hosted `delete_user_account` RPC exists, is `SECURITY DEFINER`, is executable by `authenticated`, and not executable by `anon`.
+- Created a temporary Supabase public signup, called `delete_user_account`, confirmed immediate login with the same credentials fails, and cleaned up.
+- In the in-app browser, created a temporary UI account, created a family group, skipped local sync, opened family leave, and confirmed the leave confirmation is an in-app white dialog instead of a native blue OK/CANCEL popup.
+- Confirmed family leave moves the account to the no-family state.
+- Confirmed visible logout from the no-family state returns the header to `계정 연결` and shows the normal login form with no console errors.
+- Removed the temporary UI test Auth user from Supabase.
+- Removed the empty temporary UI test family row that remained after the membership/user cleanup.
+- Ran `npm run lint`.
+- Ran `npm run build`.
+
+Intentionally left out:
+- The family invite-code model was not removed in this pass. Current recommendation is to keep separate guardian accounts for security and accountability, but hide invite-code details behind a clearer `다른 보호자와 공유하기` style UI in a later UX pass.
+- No Supabase schema changes were made.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Test the full two-step account deletion UI once on the physical APK/WebView after packaging, because browser automation could verify the RPC and dialog code paths but text input automation was unreliable in this session.
+- Consider replacing the visible `가족 초대 코드` label with a less technical `다른 보호자와 공유하기` entry point while keeping the underlying invite-code mechanism.
+
+Previous integration:
+2026-06-02 - Supabase signup autoconfirm config
+
+Source handoff:
+Direct user request in Codex after providing a temporary Supabase Management API token for the `nsuxjflmexbfjsmbmlax` project.
+
+Applied:
+- Patched the hosted Supabase Auth configuration through the Management API so email/password signups are auto-confirmed.
+- Verified `mailer_autoconfirm` changed from `false` to `true`.
+- Confirmed signups remain enabled with `disable_signup = false`.
+
+Verification:
+- Created one temporary `codex-autoconfirm-*` public signup through the normal publishable-key client path.
+- Confirmed the signup response returned an authenticated session immediately.
+- Confirmed the created user had `email_confirmed_at`.
+- Confirmed immediate password login returned a session.
+- Deleted the temporary Auth user after the check.
+
+Intentionally left out:
+- No app source behavior, RLS policy, schema, Storage setting, rate-limit setting, CAPTCHA setting, or SMTP setting was changed in this step.
+- The temporary Management API token was not written to any project file.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- Supabase Management API `GET /v1/projects/nsuxjflmexbfjsmbmlax/config/auth`
+- Supabase Management API `PATCH /v1/projects/nsuxjflmexbfjsmbmlax/config/auth`
+- Supabase public auth signup/signin smoke test with cleanup through the admin client.
+
+Open follow-ups:
+- Revoke/delete the temporary Supabase Management API token from the Supabase Account Tokens page after this session.
+- Consider CAPTCHA or tighter auth rate-limit settings before wider public distribution, because email confirmation is now disabled for signups.
+
+Previous integration:
+2026-06-02 - Signup modal native alert cleanup
+
+Source handoff:
+Direct user request in Codex with Android APK screenshots showing a broken native signup popup and an unconfirmed-email login failure.
+
+Integrated:
+- Replaced the signup success native `alert()` in `Login.jsx` with an in-app status message so Android WebView does not show the edge-to-edge themed system alert surface.
+- Added Korean auth error normalization for common Supabase messages, including `Email not confirmed`.
+- Added a required password confirmation field in signup mode and blocks signup before Supabase calls when the two password fields differ.
+- Updated signup handling so projects with email confirmation disabled can continue directly from the returned Supabase session, while projects that still require confirmation show an in-app explanatory message.
+- Removed the account deletion completion native `alert()` from the login modal path as the same Android WebView alert surface can be affected.
+
+Context checked:
+- Previous picker fixes in this log showed Android WebView native date/time/alert surfaces being affected by theme and edge-to-edge behavior, so this signup popup was treated the same way: avoid native system popups and keep the message inside the React app surface.
+
+Intentionally left out:
+- Supabase hosted Auth email confirmation was not changed from code because it is a project Auth Providers setting / Management API setting, not a client-side `signUp` option. The app is now ready for immediate sessions once that project setting is disabled.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- Supabase docs check through MCP for password auth and email confirmation behavior.
+- `npm run lint`
+- `npm run build`
+- In-app browser check on `http://127.0.0.1:5175/diary`: opened the account modal, switched to signup, confirmed the second password field appears, submitted mismatched passwords, confirmed the in-app error message appears with no native `OK` popup and no console errors.
+
+Open follow-ups:
+- To remove confirmation emails for real signups, disable email confirmation in Supabase Dashboard `Authentication > Providers > Email`, or patch `PATCH /v1/projects/{ref}/config/auth` with a Supabase Management API access token. Consider adding CAPTCHA/rate-limit protections if email confirmation is disabled.
+
+Previous integration:
+2026-06-02 - Debug APK build for device testing
+
+Source handoff:
+Direct user request in Codex.
+
+Built:
+- Generated a fresh web production build.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Built a debug APK for phone testing.
+- Copied the APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-102816.apk`.
+- Rechecked the package after user-reported size concerns and confirmed heavy PDF/JPG/WEBP diary sample assets are not present in the APK.
+- Rebuilt with `.\gradlew.bat clean assembleDebug` to remove stale incremental APK packaging bytes; the clean debug APK is `artifacts/apk/FamilyScheduler-v1.1.6-debug-clean-20260602-103621.apk` at 5.14 MB.
+
+Intentionally left out:
+- No release signing, Play Store bundle, version bump, or Android config change was made.
+
+Files changed:
+- `app/android/app/src/main/assets/public/`
+- `app/android/app/src/main/assets/capacitor.config.json`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- `npm run build`
+- `npx cap sync android`
+- `.\gradlew.bat assembleDebug`
+- APK copied from `app/android/app/build/outputs/apk/debug/app-debug.apk`
+- APK content inspection: `app/dist` and Android web assets are 1.42 MB; no PDF/JPG/WEBP or `book_`/`sample`/`diary-samples` assets remain in the APK.
+- `.\gradlew.bat clean assembleDebug`
+- Clean APK copied from `app/android/app/build/outputs/apk/debug/app-debug.apk`; SHA256 `42F4D401E7AEB09B73D691B74621A2C7AB863A55A71B1FA9B2D4B025CE37AE0E`.
+
+Open follow-ups:
+- For Play Store upload later, build a signed release AAB/APK instead of this debug APK.
+
+Previous integration:
+2026-06-02 - Diary Storage helper refactor
+
+Source handoff:
+Direct user request in Codex.
+
+Integrated:
+- Extracted shared diary image Storage behavior into `app/src/lib/diaryStorage.js`.
+- Moved the `diary-photos` bucket name, direct-image detection, Storage-path detection, image upload, chunked removal, and Signed URL creation into one focused module.
+- Updated `FamilyDiaryTab.jsx` to use the shared helpers for composer image upload, edit cleanup, delete cleanup, and Signed URL rendering.
+- Updated `useStore.js` to reuse the same diary Storage upload/removal helpers during local-to-cloud diary sync.
+
+Intentionally left out:
+- No UI behavior, Supabase schema, RLS policy, auth setting, or Storage bucket setting was changed.
+- Existing broader local-first/cloud-sync work remains intact.
+
+Files changed:
+- `app/src/lib/diaryStorage.js`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- `npm run lint`
+- `npm run build`
+- Direct `diaryStorage.js` helper smoke test: uploaded one temporary image to `diary-photos`, fetched it through a Signed URL with HTTP 200, removed it, and verified zero leftovers.
+- In-app browser check on `http://127.0.0.1:5175/diary`: diary page renders, writer opens with date/time/save controls, restored back to diary page, and console error count is 0.
+
+Open follow-ups:
+- Continue the same style of low-risk extraction around other duplicated date/time picker helpers if you want the codebase cleaned further.
+
+Previous integration:
+2026-06-02 - Diary cloud image E2E verification
+
+Source handoff:
+Direct user request in Codex.
+
+Verified:
+- Reconfirmed the current diary write path: local mode stores diary records in localStorage, while `session + currentFamilyId` stores diary rows in Supabase and image paths in the private `diary-photos` bucket.
+- Created two temporary `codex-diary-e2e-*` Auth users through the Supabase Admin API to check repeated test account creation without public signup throttling.
+- Signed in as the owner user, created a family and `family_members` owner row through the authenticated client path, uploaded a synthetic image to `diary-photos`, inserted a `diary` row with the Storage path, fetched it back, created and fetched a Signed URL, updated the diary row, and refetched the update.
+- Signed in as the unrelated second user and verified RLS returned zero diary rows for the first user's diary.
+- Cleaned up the Storage object, family row, cascaded diary data, and temporary Auth users.
+- Checked Auth/API/Storage logs for the test run; the run completed with 200/201/204 responses. Older public signup experiments still show an email send rate-limit warning, so automated repeated test accounts should continue to use the Admin API unless auth settings are intentionally changed.
+
+Intentionally left out:
+- Did not disable production signup/rate-limit protections. Public app signup rate-limit/email confirmation settings should be changed only as a separate explicit auth configuration decision.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- Supabase MCP `execute_sql` for schema, private bucket, and leftover checks
+- Supabase MCP `get_logs` for Auth/API/Storage
+- Node E2E script using `@supabase/supabase-js`
+
+Open follow-ups:
+- If app-side public signup testing is repeatedly blocked, review Supabase Auth email confirmation/rate-limit settings in the dashboard separately instead of loosening protections during data E2E tests.
+
+Previous integration:
+2026-06-02 - Local-first storage mode and safe cloud sync gate
+
+Source handoff:
+Direct user request in Codex with local-first/cloud-after-family-linking architecture notes.
+
+Integrated:
+- Added explicit storage lifecycle state to `useStore.js`: `storageMode`, `syncStatus`, `lastSyncAt`, and `pendingMutations`.
+- Defined cloud readiness as `session + currentFamilyId + supabase`; CRUD paths now use local storage unless all three are present.
+- Hardened `scopeFamilyQuery()` so Supabase family-scoped queries cannot silently run without a `family_id` filter.
+- Removed automatic local-to-cloud upload from `createFamily` and `joinFamily`; family creation/join now marks sync as awaiting confirmation when local data exists.
+- Added local snapshot backup before cloud sync, including child profile metadata, per-child guest data, and local diary records.
+- Expanded guest sync to scan all child local snapshots instead of only the currently selected child.
+- Added local diary sync signature tracking to avoid repeatedly prompting for unchanged diary records.
+- Updated `App.jsx` and `Login.jsx` so existing local data is uploaded only after the user confirms the sync prompt.
+- Added `app/migration_local_first_sync_v3.sql` with `family_children`, local-first sync metadata columns, idempotent `(family_id, local_id)` constraints, updated-at triggers, and the `sync_guest_snapshot(jsonb)` RPC.
+- Updated sync to prefer `sync_guest_snapshot` when available, while retaining a guarded client-side fallback for projects that have not applied the new migration yet.
+- Added `family_children` read/write integration for child profile sharing, with `user_metadata` retained only as a compatibility fallback.
+- Tightened child profile sync so logged-in users without a family group remain local-first and do not write profile changes to Supabase until `currentFamilyId` exists.
+- Added a local pending mutation queue for failed diary cloud writes so failed saves remain locally recoverable instead of disappearing.
+- Surfaced local pending mutation count, error text, and retry controls in the logged-in family sharing settings panel.
+- Extended the pending mutation retry path beyond diary records to core scheduler domains: weekly schedule add/update/delete, payment add/update/delete, family ops add/update/delete, daily task add/toggle/delete, notice add/toggle/delete, fund updates, and transaction history add/update/delete.
+- Added cloud-write fallback behavior for those domains so failed Supabase writes update the local UI, save a local snapshot, queue the failed mutation, and can be retried later without applying duplicate local changes during replay.
+- Finished pending replay coverage for compound flows: monthly mission add/update/delete, payment completion, payment undo, and weekly schedule copy now preserve local UI state and queue stable replay payloads when Supabase writes fail.
+- Added family/child-scoped cloud data cache and family-scoped cloud diary cache so cloud fetch failures can fall back to the last successful local cache without mixing shared account data into guest local mode.
+- Added `local_id` generation to new schedule, payment, ops, daily task, notice, and transaction rows, with insert fallback when the remote schema has not been upgraded yet.
+- Added `app/src/lib/storageRepository.js` as the first shared local/Supabase storage boundary for local keys, backups, pending queue persistence, family-scoped queries, and safe local-id insert fallback.
+- Fixed `fetchDataFromDB()` so login alone no longer clears the screen to an empty cloud state; if no family group is available, the current child's local snapshot stays visible and editable.
+- Kept the logged-out header connection affordance compact: `계정 연결` remains the primary text action, and the local storage 안내 icon now sits below it immediately to the left of the quick-guide button.
+- Completed a live Supabase E2E verification against project `nsuxjflmexbfjsmbmlax` using temporary CodexE2E accounts/families: local guest snapshot RPC sync, family A/B RLS isolation, private diary Storage upload, own-family signed URL creation, cross-family signed URL denial, and cross-family diary insert denial all passed.
+- Recorded the E2E evidence in `artifacts/supabase-local-first-e2e.md`; the script removed temporary Storage objects, family rows, and Auth users in its cleanup block.
+- Ran a broader app debugging pass across build/lint, dependency audit, browser routes, diary writer/photo book modals, Supabase API/Storage logs, and heavy asset weight.
+- Uploaded diary sample PDF/image assets to Supabase Storage bucket `app-assets` under `diary-samples/`, using ASCII object names.
+- Updated the diary photo book preview to load its three preview JPGs from Supabase Storage instead of local `public` files.
+- Moved heavy sample PDFs/PNGs/JPGs out of `app/public` into `artifacts/app-public-heavy-assets/`, reducing the built `dist` size from 20.83 MB to 1.42 MB.
+- Recorded the debugging evidence in `artifacts/full-debug-2026-06-02.md` and the upload mapping in `artifacts/supabase-app-assets-upload.json`.
+
+Intentionally left out:
+- Repository extraction remains focused on the shared storage boundary and safety helpers; not every domain-specific action has been fully moved into separate adapter modules yet.
+- Advisor still reports expected authenticated `SECURITY DEFINER` warnings for `delete_user_account()` and `join_family_by_code(text)`; both are deliberate authenticated RPC entrypoints with `auth.uid()` checks, and `anon` execution is revoked.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/Login.jsx`
+- `app/src/App.jsx`
+- `app/src/lib/storageRepository.js`
+- `app/migration_local_first_sync_v3.sql`
+- `artifacts/supabase-v3-schema-check.md`
+- `artifacts/supabase-v3-advisors.md`
+- `artifacts/supabase-local-first-e2e.md`
+- `artifacts/supabase-app-assets-upload.json`
+- `artifacts/full-debug-2026-06-02.md`
+- `artifacts/app-public-heavy-assets/`
+- `docs/codex-integration-log.md`
+
+Commands/checks run:
+- `npm run lint`
+- `npm run build`
+- Supabase MCP read-only schema check: `family_children`, `sync_guest_snapshot(jsonb)`, local-first metadata columns, unique constraints, and private `diary-photos` bucket were verified on project `nsuxjflmexbfjsmbmlax`.
+- Supabase MCP advisors: no security/performance `ERROR`; no performance `WARN`; security `WARN` only for the two deliberate authenticated `SECURITY DEFINER` RPC functions.
+- In-app browser smoke check on `http://127.0.0.1:5175/`: main screen loads, auth entry opens without console errors, and console error count is 0.
+- In-app browser header check on `http://127.0.0.1:5175/`: local storage 안내 icon is below `계정 연결`, immediately left of the quick-guide button, with no large account banner and 0 console errors.
+- In-app browser local-first check on `http://127.0.0.1:5175/`: logged-out local view renders the existing schedule data with `계정 연결`, no `공유` cloud badge, and 0 console errors.
+- In-app browser smoke check after pending expansion: app title, schedule area, account connection affordance, and bottom navigation all render with 0 console errors.
+- In-app browser smoke check after compound pending and cache fallback: app title, schedule area, account connection affordance, payment/diary navigation all render with 0 console errors.
+- Supabase local-first E2E script: temporary family A could sync/read `schedule`, `payment`, `asset`, `ops`, `dailytasks`, `transactionhistory`, `notice`, `family_children`, and `diary`; temporary family B saw 0 cross-family rows, could not run `sync_guest_snapshot` for family A, could not create a signed URL for family A's private diary photo, and could not insert a diary row into family A.
+- `npm run lint`
+- `npm run build`
+- In-app browser smoke check after E2E on `http://127.0.0.1:5175/`: logo, account connection affordance, schedule area, payment navigation, and diary navigation render with 0 console errors.
+- Full debugging pass: `npm audit --omit=dev` returned 0 vulnerabilities.
+- Supabase Storage URL check: `book-cover.jpg`, `book-page1.jpg`, and `book-page2.jpg` returned HTTP 200 from `app-assets/diary-samples/`.
+- In-app browser route/modals check: home, daily, monthly, payment, family, diary, diary writer, diary record calendar, photo book modal, and premium-preparing notice showed 0 console errors.
+- Build size check after moving heavy public assets: `app/dist` is 1.42 MB with 19 files.
+
+Open follow-ups:
+- Consider hiding or pausing the global diary floating tab bar while diary modals are open. It is visually covered, but still present behind modal layers.
+- If photo book generation is enabled later, prefer generated files in Supabase Storage or server-side generation rather than bundling sample/template PDFs into the app package.
+
+Previous integration:
 2026-06-02 - Remove heavy app shell side borders
 
 Source handoff:

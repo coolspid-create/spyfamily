@@ -662,6 +662,7 @@ export function NativeSafeConfirmDialog({
     confirmLabel = '확인',
     cancelLabel = '취소',
     destructive = false,
+    confirmDisabled = false,
     onConfirm,
     onCancel,
 }) {
@@ -694,7 +695,8 @@ export function NativeSafeConfirmDialog({
                             <button
                                 type="button"
                                 onClick={onConfirm}
-                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
+                                disabled={confirmDisabled}
+                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed disabled:opacity-45 ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
                             >
                                 {confirmLabel}
                             </button>

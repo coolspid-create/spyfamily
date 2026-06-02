@@ -3,6 +3,14 @@ import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronL
 import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
 import { supabase } from '../lib/supabase';
+import {
+  createDiaryImageSignedUrl,
+  getDiaryStoragePath,
+  isDirectImageSource,
+  isStorageImagePath,
+  removeDiaryImagesFromStorage,
+  uploadDiaryImagesToStorage
+} from '../lib/diaryStorage';
 import { useStore } from '../store/useStore';
 
 // Initial Mock Data
@@ -19,7 +27,13 @@ const DIARY_TEXT_COLLAPSED_HEIGHT = 68;
 const VIEWER_TEXT_COLLAPSED_HEIGHT = 73;
 const DIARY_TEXT_EXPAND_TRANSITION = { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] };
 const DIARY_TOGGLE_LABEL_TRANSITION = { duration: 0.16, ease: 'easeOut' };
-const DIARY_PHOTO_BUCKET = 'diary-photos';
+const APP_ASSET_SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://nsuxjflmexbfjsmbmlax.supabase.co').replace(/\/$/, '');
+const APP_ASSET_BASE_URL = `${APP_ASSET_SUPABASE_URL}/storage/v1/object/public/app-assets/diary-samples`;
+const DIARY_BOOK_PREVIEW_IMAGES = [
+  { src: `${APP_ASSET_BASE_URL}/book-cover.jpg`, alt: 'Book Cover' },
+  { src: `${APP_ASSET_BASE_URL}/book-page1.jpg`, alt: 'First Page' },
+  { src: `${APP_ASSET_BASE_URL}/book-page2.jpg`, alt: 'Second Page' }
+];
 const HIDDEN_SCROLLBAR_STYLE = {
   scrollbarWidth: 'none',
   msOverflowStyle: 'none'
@@ -79,18 +93,26 @@ const normalizeDiaryTime = (value) => {
   return `${ampm} ${hour}:${minute}`;
 };
 
+const formatDiaryCommentTime = (value) => {
+  const raw = toSafeString(value).trim();
+  if (!raw) return '';
+  if (/^\d{1,2}월\s*\d{1,2}일/.test(raw)) return raw;
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const hour24 = date.getHours();
+  const ampm = hour24 >= 12 ? '오후' : '오전';
+  const hour12 = hour24 % 12 || 12;
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${ampm} ${hour12}:${minute}`;
+};
+
 const limitText = (value, maxLength) => toSafeString(value).slice(0, maxLength);
 
 const shouldCollapseDiaryText = (value) => {
   const text = toSafeString(value).trim();
   return text.length > DIARY_COLLAPSE_TEXT_LENGTH || text.split(/\r\n|\r|\n/).length > 3;
-};
-
-const isDirectImageSource = (value) => /^(data:image\/|blob:|https?:\/\/|\/)/i.test(toSafeString(value).trim());
-
-const isStorageImagePath = (value) => {
-  const raw = toSafeString(value).trim();
-  return Boolean(raw) && !isDirectImageSource(raw);
 };
 
 const getRecordImagePaths = (record) => {
@@ -105,68 +127,9 @@ const createClientDiaryId = () => (
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 );
 
-const dataUrlToBlob = async (imageSource) => {
-  const response = await fetch(imageSource);
-  if (!response.ok) throw new Error('이미지 파일을 읽을 수 없습니다.');
-  return response.blob();
-};
-
-const getBlobExtension = (blob) => {
-  const mime = toSafeString(blob?.type, 'image/jpeg').toLowerCase();
-  if (mime.includes('png')) return 'png';
-  if (mime.includes('webp')) return 'webp';
-  return 'jpg';
-};
-
-const uploadDiaryImagesToStorage = async ({ images, familyId, diaryId }) => {
-  if (!supabase || !familyId || !diaryId) {
-    return {
-      imagePaths: images.filter(isStorageImagePath),
-      displayImages: images,
-      uploadedPaths: []
-    };
-  }
-
-  const imagePaths = [];
-  const uploadedPaths = [];
-
-  for (const [index, imageSource] of images.entries()) {
-    if (isStorageImagePath(imageSource)) {
-      imagePaths.push(imageSource);
-      continue;
-    }
-
-    if (!toSafeString(imageSource).startsWith('data:image/') && !toSafeString(imageSource).startsWith('blob:')) {
-      continue;
-    }
-
-    const blob = await dataUrlToBlob(imageSource);
-    const extension = getBlobExtension(blob);
-    const randomName = `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.${extension}`;
-    const storagePath = `${familyId}/${diaryId}/${randomName}`;
-    const { error } = await supabase.storage
-      .from(DIARY_PHOTO_BUCKET)
-      .upload(storagePath, blob, {
-        cacheControl: '3600',
-        contentType: blob.type || 'image/jpeg',
-        upsert: false
-      });
-
-    if (error) throw error;
-    imagePaths.push(storagePath);
-    uploadedPaths.push(storagePath);
-  }
-
-  return {
-    imagePaths,
-    displayImages: imagePaths,
-    uploadedPaths
-  };
-};
-
 function useSignedUrl(imagePath) {
   const [signedUrl, setSignedUrl] = useState(() => (
-    isDirectImageSource(imagePath) ? imagePath : ''
+    isDirectImageSource(imagePath) && !getDiaryStoragePath(imagePath) ? imagePath : ''
   ));
 
   useEffect(() => {
@@ -185,7 +148,9 @@ function useSignedUrl(imagePath) {
       };
     }
 
-    if (isDirectImageSource(path) || !supabase) {
+    const storagePath = getDiaryStoragePath(path);
+
+    if ((isDirectImageSource(path) && !storagePath) || !supabase) {
       applySignedUrl(path);
       return () => {
         isMounted = false;
@@ -193,17 +158,15 @@ function useSignedUrl(imagePath) {
     }
 
     applySignedUrl('');
-    supabase.storage
-      .from(DIARY_PHOTO_BUCKET)
-      .createSignedUrl(path, 1800)
-      .then(({ data, error }) => {
+    createDiaryImageSignedUrl({ client: supabase, path: storagePath || path, expiresIn: 1800 })
+      .then((nextSignedUrl) => {
         if (!isMounted) return;
-        if (error) {
-          console.warn('Signed URL 발급 실패:', error);
-          setSignedUrl('');
-          return;
-        }
-        setSignedUrl(data?.signedUrl || '');
+        setSignedUrl(nextSignedUrl);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        console.warn('Signed URL 발급 실패:', error);
+        setSignedUrl('');
       });
 
     return () => {
@@ -216,8 +179,10 @@ function useSignedUrl(imagePath) {
 
 const DiaryImage = ({ src, alt, className = '', onClick }) => {
   const resolvedSrc = useSignedUrl(src);
+  const [failedSrc, setFailedSrc] = useState('');
+  const imageFailed = Boolean(resolvedSrc && failedSrc === resolvedSrc);
 
-  if (!resolvedSrc) {
+  if (!resolvedSrc || imageFailed) {
     return (
       <div className={`flex items-center justify-center bg-navy/5 text-navy/25 ${className}`}>
         <Camera size={24} strokeWidth={1.5} />
@@ -232,6 +197,7 @@ const DiaryImage = ({ src, alt, className = '', onClick }) => {
       loading="lazy"
       decoding="async"
       onClick={onClick}
+      onError={() => setFailedSrc(resolvedSrc)}
       className={className}
     />
   );
@@ -310,8 +276,15 @@ const normalizeDiaryRecords = (records) => (
   const imageUrls = Array.isArray(record?.imageUrls)
     ? record.imageUrls.filter(url => typeof url === 'string' && url)
     : [];
+  const imagePaths = Array.isArray(record?.imagePaths)
+    ? record.imagePaths.filter(path => typeof path === 'string' && path)
+    : [];
   const imageUrl = toSafeString(record?.imageUrl || imageUrls[0] || '');
-  const allImageUrls = imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+  const allImageUrls = [...new Set([
+    ...imageUrls,
+    ...imagePaths,
+    ...(imageUrl ? [imageUrl] : [])
+  ])];
 
   return {
     id: toSafeString(record?.id) || `diary-${isoDate}-${index}`,
@@ -325,13 +298,14 @@ const normalizeDiaryRecords = (records) => (
     hasMedia: Boolean(record?.hasMedia || allImageUrls.length > 0),
     imageUrl: imageUrl || null,
     imageUrls: allImageUrls,
+    imagePaths,
     linked: toSafeString(record?.linked),
     reactions: Array.isArray(record?.reactions) ? record.reactions.filter(item => typeof item === 'string') : [],
     comments: Array.isArray(record?.comments) ? record.comments.map((comment, commentIndex) => ({
       id: toSafeString(comment?.id) || `comment-${index}-${commentIndex}`,
       author: toSafeString(comment?.author, '가족') || '가족',
       text: limitText(comment?.text, DIARY_COMMENT_MAX_LENGTH),
-      time: toSafeString(comment?.time)
+      time: formatDiaryCommentTime(comment?.time ?? comment?.created_at)
     })) : []
   };
 });
@@ -407,7 +381,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const fileInputRef = useRef(null);
 
   // Calendar Page States
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [calendarMonthDate, setCalendarMonthDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
 
   // Gallery Page States
   const [visibleMonth, setVisibleMonth] = useState('');
@@ -608,17 +586,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         imagePaths,
         displayImages,
         uploadedPaths: nextUploadedPaths
-      } = session && currentFamilyId
-        ? await uploadDiaryImagesToStorage({
-            images: selectedImages,
-            familyId: currentFamilyId,
-            diaryId
-          })
-        : {
-            imagePaths: selectedImages.filter(isStorageImagePath),
-            displayImages: selectedImages,
-            uploadedPaths: []
-          };
+      } = await uploadDiaryImagesToStorage({
+        client: session && currentFamilyId ? supabase : null,
+        images: selectedImages,
+        familyId: currentFamilyId,
+        diaryId
+      });
 
       uploadedPaths = nextUploadedPaths;
 
@@ -649,17 +622,13 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
 
       if (editingRecordId && supabase && session && currentFamilyId) {
         const removedPaths = getRecordImagePaths(existingRecord).filter(path => !imagePaths.includes(path));
-        if (removedPaths.length > 0) {
-          await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(removedPaths);
-        }
+        await removeDiaryImagesFromStorage({ client: supabase, paths: removedPaths });
       }
 
       setComposerOpen(false);
       setSelectedImages([]);
     } catch (error) {
-      if (uploadedPaths.length > 0 && supabase) {
-        await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(uploadedPaths);
-      }
+      await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths });
       console.error('Diary save failed:', error);
       alert('다이어리 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
     }
@@ -677,7 +646,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       await removeDiary(deleteRecordTargetId);
       const imagePaths = getRecordImagePaths(targetRecord);
       if (imagePaths.length > 0 && supabase && session && currentFamilyId) {
-        await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(imagePaths);
+        await removeDiaryImagesFromStorage({ client: supabase, paths: imagePaths });
       }
       setDeleteRecordTargetId(null);
     } catch (error) {
@@ -740,6 +709,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const handleSearchDateChange = (valueOrEvent) => {
     const nextValue = typeof valueOrEvent === 'string' ? valueOrEvent : valueOrEvent.target.value;
     setSearchDate(nextValue ? normalizeIsoDate(nextValue) : '');
+  };
+
+  const handleMoveCalendarMonth = (offset) => {
+    setCalendarMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
+    setSelectedDate(null);
   };
 
   // --- Pages ---
@@ -974,33 +948,58 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const renderCalendarPage = () => {
-    const selectedRecords = selectedDate ? records.filter(r => r.date === `5월 ${selectedDate}일`) : [];
+    const calendarYear = calendarMonthDate.getFullYear();
+    const calendarMonth = calendarMonthDate.getMonth();
+    const calendarMonthNumber = calendarMonth + 1;
+    const firstDayOffset = new Date(calendarYear, calendarMonth, 1).getDay();
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const selectedDay = selectedDate ? parseInt(selectedDate.split('-')[2], 10) : null;
+    const selectedDateLabel = selectedDate ? createDateLabelFromIso(selectedDate) : '';
+    const selectedRecords = selectedDate
+      ? records.filter(r => normalizeIsoDate(r.isoDate) === selectedDate)
+      : [];
 
     return (
       <div className="flex flex-col gap-4 pb-6 w-full">
         {/* Calendar View */}
         <div className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
-          <div className="flex items-center justify-center mb-5 border-b border-navy/5 pb-3">
-            <h3 className="font-bold text-navy text-lg">2026년 5월 다이어리</h3>
+          <div className="mb-5 flex items-center justify-between border-b border-navy/5 pb-3">
+            <button
+              type="button"
+              onClick={() => handleMoveCalendarMonth(-1)}
+              aria-label="이전 달 다이어리 보기"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-navy/5 text-navy transition-colors hover:bg-navy/10 active:scale-95"
+            >
+              <ChevronLeft size={18} strokeWidth={2.5} />
+            </button>
+            <h3 className="font-bold text-navy text-lg">{calendarYear}년 {calendarMonthNumber}월 다이어리</h3>
+            <button
+              type="button"
+              onClick={() => handleMoveCalendarMonth(1)}
+              aria-label="다음 달 다이어리 보기"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-navy/5 text-navy transition-colors hover:bg-navy/10 active:scale-95"
+            >
+              <ChevronRight size={18} strokeWidth={2.5} />
+            </button>
           </div>
           <div className="grid grid-cols-7 gap-y-3 gap-x-2 text-center text-[11px] font-bold text-navy/50 mb-2">
             {['일','월','화','수','목','금','토'].map(d => <div key={d}>{d}</div>)}
           </div>
           <div className="grid grid-cols-7 gap-y-3 gap-x-2 text-center text-[13px] font-bold text-navy">
-            {/* May 2026 starts on Friday (index 5: Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5) */}
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: firstDayOffset }).map((_, i) => (
               <div key={`empty-${i}`} />
             ))}
-            {Array.from({length: 31}, (_, i) => {
+            {Array.from({length: daysInMonth}, (_, i) => {
               const day = i + 1;
-              const dayRecords = records.filter(r => r.date === `5월 ${day}일`);
+              const dayIsoDate = `${calendarYear}-${String(calendarMonthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const dayRecords = records.filter(r => normalizeIsoDate(r.isoDate) === dayIsoDate);
               const hasRecord = dayRecords.length > 0;
-              const isSelected = selectedDate === day;
+              const isSelected = selectedDate === dayIsoDate;
               
               return (
                 <button 
                   key={day} 
-                  onClick={() => setSelectedDate(isSelected ? null : day)}
+                  onClick={() => setSelectedDate(isSelected ? null : dayIsoDate)}
                   className="flex justify-center relative py-1 focus:outline-none"
                 >
                   <span className={`flex items-center justify-center w-7 h-7 rounded-full z-10 transition-colors ${
@@ -1085,7 +1084,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   }}
                   className="bg-white/50 p-4 rounded-2xl border-2 border-dashed border-navy/20 flex flex-col items-center justify-center py-6"
                 >
-                  <p className="text-[13px] font-bold text-navy/40">5월 {selectedDate}일의 기록이 없습니다.</p>
+                  <p className="text-[13px] font-bold text-navy/40">{selectedDateLabel || `${calendarMonthNumber}월 ${selectedDay}일`}의 기록이 없습니다.</p>
                 </motion.div>
               )}
               </div>
@@ -1103,20 +1102,13 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             </span>
           </div>
           
-          {/* Real PDF Thumbnails Preview */}
+          {/* Remote PDF thumbnail preview assets live in Supabase Storage to keep the app package light. */}
           <div className="flex bg-navy/5 border border-navy/5 rounded-lg p-3 gap-2 mb-5 relative overflow-hidden h-44 justify-center items-center">
-            {/* Cover Thumbnail */}
-            <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_cover.jpg" alt="Book Cover" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
-            </div>
-            {/* First Page Thumbnail */}
-            <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_page1.jpg" alt="First Page" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
-            </div>
-            {/* Second Page Thumbnail */}
-            <div className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
-              <img src="/book_page2.jpg" alt="Second Page" loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
-            </div>
+            {DIARY_BOOK_PREVIEW_IMAGES.map((image) => (
+              <div key={image.src} className="h-full flex-1 min-w-0 flex justify-center transform hover:scale-105 transition-transform duration-300">
+                <img src={image.src} alt={image.alt} loading="lazy" decoding="async" className="w-full h-full object-contain drop-shadow-md rounded-sm" />
+              </div>
+            ))}
           </div>
 
           <button 
@@ -1203,6 +1195,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         )}
       </div>
     );
+  };
+
+  const renderActivePage = () => {
+    if (activeTab === 'calendar') return renderCalendarPage();
+    if (activeTab === 'gallery') return renderGalleryPage();
+    return renderHomePage();
   };
 
   // --- Modals ---
@@ -1765,13 +1763,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       {/* Main Content Area */}
       {isEmbedded ? (
         <div className="w-full">
-          <AnimatePresence mode="wait">
-            <motion.div key={activeTab} className="w-full" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.15 }}>
-              {activeTab === 'home' && renderHomePage()}
-              {activeTab === 'calendar' && renderCalendarPage()}
-              {activeTab === 'gallery' && renderGalleryPage()}
-            </motion.div>
-          </AnimatePresence>
+          <motion.div key={activeTab} className="w-full" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.12 }}>
+            {renderActivePage()}
+          </motion.div>
         </div>
       ) : (
         <main className="app-scroll-area flex-1 overflow-y-auto overflow-x-hidden pb-24 p-4 scroll-smooth" onScroll={(e) => setShowScrollIndicator(e.target.scrollTop > 50 || window.scrollY > 50)}>

@@ -40,6 +40,20 @@
   textarea,
   button {
     color-scheme: light;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea {
+    caret-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input:focus,
+  textarea:focus {
+    caret-color: transparent;
   }
 
   input[type="date"],

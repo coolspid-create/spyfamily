@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 import { requireSupabase, supabase } from '../lib/supabase';
+import {
+    createLocalRepository,
+    createSupabaseRepository,
+    DEFAULT_SYNC_STATUS,
+    LOCAL_STORAGE_KEYS,
+    STORAGE_MODE,
+    isCloudReadyState,
+    resolveStorageMode as resolveRepositoryStorageMode
+} from '../lib/storageRepository';
+import {
+    getDiaryStoragePath,
+    isStorageImagePath,
+    removeDiaryImagesFromStorage,
+    uploadDiaryImagesToStorage
+} from '../lib/diaryStorage';
 const INITIAL_WEEKLY = {
     '월': [],
     '화': [],
@@ -21,10 +36,16 @@ const INITIAL_DAILY = [];
 const INITIAL_DIARIES = [];
 const WEEK_DAYS = Object.keys(INITIAL_WEEKLY);
 const DEFAULT_CHILD_PROFILES = { child1: '아이1', child2: '아이2', child3: '아이3' };
-const DIARY_RECORDS_STORAGE_KEY = 'family-diary-records-v1';
-const LEGACY_DIARY_RECORDS_STORAGE_KEY = 'memory-mvp-records-v2';
+const localRepository = createLocalRepository();
+const DIARY_RECORDS_STORAGE_KEY = LOCAL_STORAGE_KEYS.DIARY_RECORDS;
+const LEGACY_DIARY_RECORDS_STORAGE_KEY = LOCAL_STORAGE_KEYS.LEGACY_DIARY_RECORDS;
+const LOCAL_DIARY_SYNC_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.DIARY_SYNC_SIGNATURE;
+const CHILD_PROFILE_SYNC_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.CHILD_PROFILE_SYNC_SIGNATURE;
+const LAST_SYNC_AT_KEY = LOCAL_STORAGE_KEYS.LAST_SYNC_AT;
+const CLOUD_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_CACHE_PREFIX;
+const CLOUD_DIARY_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_DIARY_CACHE_PREFIX;
 const DIARY_COMMENT_MAX_LENGTH = 50;
-const DIARY_PHOTO_BUCKET = 'diary-photos';
+const AUTH_SIGN_OUT_TIMEOUT_MS = 2500;
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toSafeString = (value, fallback = '') => {
@@ -32,6 +53,7 @@ const toSafeString = (value, fallback = '') => {
     if (value === null || value === undefined) return fallback;
     return String(value);
 };
+const supabaseRepository = createSupabaseRepository({ client: supabase, toSafeString: (value) => toSafeString(value) });
 const toSafeNumber = (value, fallback = 0) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -40,6 +62,12 @@ const getLocalDateString = (date = new Date()) => (
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 );
 const normalizeBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+const withTimeout = (promise, timeoutMs, timeoutMessage) => Promise.race([
+    promise,
+    new Promise((resolve) => {
+        globalThis.setTimeout(() => resolve({ error: new Error(timeoutMessage) }), timeoutMs);
+    })
+]);
 const normalizeMethod = (method, fallback = '신용카드') => {
     const normalized = toSafeString(method, fallback).replace('성남', '지역').trim();
     return normalized || fallback;
@@ -92,9 +120,11 @@ const createFamilyInviteCode = () => {
     return `FA-${segment()}-${segment()}`;
 };
 
-const scopeFamilyQuery = (query, familyId) => (
-    familyId ? query.eq('family_id', familyId) : query
-);
+const isCloudReady = (state) => isCloudReadyState(state, supabase);
+
+const resolveStorageMode = resolveRepositoryStorageMode;
+
+const scopeFamilyQuery = (query, familyId) => supabaseRepository.scopeFamilyQuery(query, familyId);
 
 const isUuid = (value) => (
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(toSafeString(value))
@@ -106,69 +136,26 @@ const createClientUuid = () => (
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 );
 
-const isDirectImageSource = (value) => /^(data:image\/|blob:|https?:\/\/|\/)/i.test(toSafeString(value).trim());
-
-const isStorageImagePath = (value) => {
-    const raw = toSafeString(value).trim();
-    return Boolean(raw) && !isDirectImageSource(raw);
-};
-
-const getBlobExtension = (blob) => {
-    const mime = toSafeString(blob?.type, 'image/jpeg').toLowerCase();
-    if (mime.includes('png')) return 'png';
-    if (mime.includes('webp')) return 'webp';
-    return 'jpg';
-};
-
-const dataUrlToBlob = async (imageSource) => {
-    const response = await fetch(imageSource);
-    if (!response.ok) throw new Error('이미지 파일을 읽을 수 없습니다.');
-    return response.blob();
-};
-
-const uploadDiaryImagesToStorage = async ({ images, familyId, diaryId }) => {
-    if (!supabase || !familyId || !diaryId) {
-        return { imagePaths: images.filter(isStorageImagePath), uploadedPaths: [] };
+const loadPendingMutations = () => {
+    try {
+        return localRepository.loadPendingMutations();
+    } catch {
+        return [];
     }
+};
 
-    const imagePaths = [];
-    const uploadedPaths = [];
-
-    for (const [index, imageSource] of images.entries()) {
-        const source = toSafeString(imageSource).trim();
-        if (!source) continue;
-
-        if (isStorageImagePath(source)) {
-            imagePaths.push(source);
-            continue;
-        }
-
-        if (!source.startsWith('data:image/') && !source.startsWith('blob:')) {
-            continue;
-        }
-
-        const blob = await dataUrlToBlob(source);
-        const extension = getBlobExtension(blob);
-        const storagePath = `${familyId}/${diaryId}/${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.${extension}`;
-        const { error } = await supabase.storage
-            .from(DIARY_PHOTO_BUCKET)
-            .upload(storagePath, blob, {
-                cacheControl: '3600',
-                contentType: blob.type || 'image/jpeg',
-                upsert: false
-            });
-
-        if (error) throw error;
-        imagePaths.push(storagePath);
-        uploadedPaths.push(storagePath);
+const savePendingMutations = (mutations) => {
+    try {
+        localRepository.savePendingMutations(mutations);
+    } catch (error) {
+        console.warn('Pending cloud mutation queue could not be saved:', error);
     }
-
-    return { imagePaths, uploadedPaths };
 };
 
 const normalizeWeeklyData = (weeklyData) => WEEK_DAYS.reduce((normalized, day) => {
     normalized[day] = asArray(weeklyData?.[day]).map((item, index) => ({
         id: toSafeString(item?.id) || createLocalId(`schedule-${day}`, [index, item?.time, item?.title]),
+        localId: toSafeString(item?.localId ?? item?.local_id ?? item?.id) || createLocalId(`schedule-${day}`, [index, item?.time, item?.title]),
         time: normalizeTime(item?.time),
         title: toSafeString(item?.title, '일정'),
         agent: toSafeString(item?.agent, '자율') || '자율',
@@ -184,6 +171,7 @@ const normalizeWeeklyData = (weeklyData) => WEEK_DAYS.reduce((normalized, day) =
 const normalizeFunds = (funds) => {
     const normalizedFunds = asArray(funds).map((fund, index) => ({
         id: toSafeString(fund?.id) || `fund-${index + 1}`,
+        localId: toSafeString(fund?.localId ?? fund?.local_id ?? fund?.id) || `fund-${index + 1}`,
         name: toSafeString(fund?.name, index === 0 ? '아동수당' : '지역사랑상품권').replace('성남', '지역'),
         balance: toSafeNumber(fund?.balance),
         updated: toSafeString(fund?.updated, '미설정') || '미설정'
@@ -196,6 +184,7 @@ const normalizePayments = (payments) => asArray(payments).map((payment, index) =
     const day = normalizeDayNumber(payment?.day ?? payment?.payment_day);
     return {
         id: toSafeString(payment?.id) || createLocalId('payment', [index, payment?.source, day]),
+        localId: toSafeString(payment?.localId ?? payment?.local_id ?? payment?.id) || createLocalId('payment', [index, payment?.source, day]),
         source: toSafeString(payment?.source, '결제 내역'),
         amount: toSafeNumber(payment?.amount),
         method: normalizeMethod(payment?.method),
@@ -212,6 +201,7 @@ const normalizeMissions = (missions) => asArray(missions).map((mission, index) =
     const day = normalizeDayNumber(mission?.day);
     return {
         id: toSafeString(mission?.id) || createLocalId('mission', [type, index, mission?.title, day]),
+        localId: toSafeString(mission?.localId ?? mission?.local_id ?? mission?.id) || createLocalId('mission', [type, index, mission?.title, day]),
         type,
         day,
         year: type === 'event' ? toSafeNumber(mission?.year, new Date().getFullYear()) : mission?.year,
@@ -222,6 +212,7 @@ const normalizeMissions = (missions) => asArray(missions).map((mission, index) =
 
 const normalizeOps = (opsData) => asArray(opsData).map((op, index) => ({
     id: toSafeString(op?.id) || createLocalId('ops', [index, op?.title]),
+    localId: toSafeString(op?.localId ?? op?.local_id ?? op?.id) || createLocalId('ops', [index, op?.title]),
     title: toSafeString(op?.title, '가족일정'),
     date: normalizeDateDots(op?.date) || '',
     description: toSafeString(op?.description),
@@ -240,6 +231,7 @@ const normalizeOps = (opsData) => asArray(opsData).map((op, index) => ({
 
 const normalizeDailyTasks = (dailyTasks) => asArray(dailyTasks).map((task, index) => ({
     id: toSafeString(task?.id) || createLocalId('daily', [index, task?.task_name ?? task?.text]),
+    localId: toSafeString(task?.localId ?? task?.local_id ?? task?.id) || createLocalId('daily', [index, task?.task_name ?? task?.text]),
     task_name: toSafeString(task?.task_name ?? task?.text ?? task?.title, '할 일'),
     is_completed: normalizeBoolean(task?.is_completed ?? task?.completed ?? task?.checked),
     assigned_date: normalizeDateDashes(task?.assigned_date, getLocalDateString())
@@ -247,6 +239,7 @@ const normalizeDailyTasks = (dailyTasks) => asArray(dailyTasks).map((task, index
 
 const normalizeTransactionHistory = (history) => asArray(history).map((record, index) => ({
     id: toSafeString(record?.id) || createLocalId('history', [index, record?.source, record?.date_formatted]),
+    localId: toSafeString(record?.localId ?? record?.local_id ?? record?.id) || createLocalId('history', [index, record?.source, record?.date_formatted]),
     paymentId: toSafeString(record?.paymentId ?? record?.payment_id),
     month: toSafeString(record?.month),
     date_formatted: toSafeString(record?.date_formatted),
@@ -257,6 +250,7 @@ const normalizeTransactionHistory = (history) => asArray(history).map((record, i
 
 const normalizeNotices = (notices) => asArray(notices).map((notice, index) => ({
     id: toSafeString(notice?.id) || createLocalId('notice', [index, notice?.text]),
+    localId: toSafeString(notice?.localId ?? notice?.local_id ?? notice?.id) || createLocalId('notice', [index, notice?.text]),
     text: toSafeString(notice?.text, '알림'),
     checked: normalizeBoolean(notice?.checked ?? notice?.is_checked)
 }));
@@ -285,6 +279,21 @@ const normalizeDiaryTime = (value) => {
     return `${ampm} ${hour}:${minute}`;
 };
 
+const formatDiaryCommentTime = (value) => {
+    const raw = toSafeString(value).trim();
+    if (!raw) return '';
+    if (/^\d{1,2}월\s*\d{1,2}일/.test(raw)) return raw;
+
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+
+    const hour24 = date.getHours();
+    const ampm = hour24 >= 12 ? '오후' : '오전';
+    const hour12 = hour24 % 12 || 12;
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    return `${date.getMonth() + 1}월 ${date.getDate()}일 ${ampm} ${hour12}:${minute}`;
+};
+
 const normalizeDiaryRecords = (records) => (
     Array.isArray(records) ? records : []
 ).map((record, index) => {
@@ -292,15 +301,21 @@ const normalizeDiaryRecords = (records) => (
         record?.isoDate ?? record?.date,
         createIsoDateFromLabel(record?.date) || getLocalDateString()
     );
-    const imagePaths = asArray(record?.image_paths ?? record?.imagePaths).filter(path => typeof path === 'string' && path);
+    const imagePaths = asArray(record?.image_paths ?? record?.imagePaths)
+        .map(getDiaryStoragePath)
+        .filter(Boolean);
     const imageUrls = asArray(record?.imageUrls).filter(url => typeof url === 'string' && url);
     const imageUrl = toSafeString(record?.imageUrl || imageUrls[0] || imagePaths[0] || '');
-    const allImageUrls = imageUrls.length > 0 ? imageUrls : (imageUrl ? [imageUrl] : []);
+    const allImageUrls = [...new Set([
+        ...imageUrls,
+        ...imagePaths,
+        ...(imageUrl ? [imageUrl] : [])
+    ])];
     const comments = asArray(record?.diary_comments ?? record?.comments).map((comment, commentIndex) => ({
         id: toSafeString(comment?.id) || `comment-${index}-${commentIndex}`,
         author: toSafeString(comment?.author, '가족') || '가족',
         text: toSafeString(comment?.text).slice(0, DIARY_COMMENT_MAX_LENGTH),
-        time: toSafeString(comment?.time ?? comment?.created_at)
+        time: formatDiaryCommentTime(comment?.time ?? comment?.created_at)
     }));
 
     return {
@@ -341,11 +356,56 @@ const saveLocalDiaryRecords = (records) => {
     }
 };
 
+const getLocalDiarySyncSignature = (records = loadLocalDiaryRecords()) => JSON.stringify(
+    normalizeDiaryRecords(records).map(record => ({
+        id: record.localId || record.id,
+        date: record.isoDate,
+        time: record.time,
+        title: record.title,
+        text: record.text,
+        imageCount: asArray(record.imageUrls).length + asArray(record.imagePaths).length
+    }))
+);
+
+const markLocalDiariesSynced = () => {
+    try {
+        localStorage.setItem(LOCAL_DIARY_SYNC_SIGNATURE_KEY, getLocalDiarySyncSignature());
+    } catch (error) {
+        console.warn('Local diary sync marker could not be saved:', error);
+    }
+};
+
+const hasUnsyncedLocalDiaries = () => {
+    const localDiaries = loadLocalDiaryRecords();
+    if (localDiaries.length === 0) return false;
+    try {
+        return localStorage.getItem(LOCAL_DIARY_SYNC_SIGNATURE_KEY) !== getLocalDiarySyncSignature(localDiaries);
+    } catch {
+        return true;
+    }
+};
+
+const clearSupabaseAuthStorage = () => {
+    try {
+        Object.keys(localStorage)
+            .filter(key => key === 'supabase.auth.token' || (key.startsWith('sb-') && key.endsWith('-auth-token')))
+            .forEach(key => localStorage.removeItem(key));
+    } catch (error) {
+        console.warn('Supabase auth cache could not be cleared safely:', error);
+    }
+};
+
 const clearLocalAccountData = () => {
     try {
-        [DIARY_RECORDS_STORAGE_KEY, LEGACY_DIARY_RECORDS_STORAGE_KEY].forEach((key) => {
-            localStorage.removeItem(key);
-        });
+        clearSupabaseAuthStorage();
+        localRepository.removeKeys([
+            DIARY_RECORDS_STORAGE_KEY,
+            LEGACY_DIARY_RECORDS_STORAGE_KEY,
+            LOCAL_DIARY_SYNC_SIGNATURE_KEY,
+            CHILD_PROFILE_SYNC_SIGNATURE_KEY,
+            LAST_SYNC_AT_KEY,
+            LOCAL_STORAGE_KEYS.PENDING_MUTATIONS
+        ]);
         ['spy_childProfiles', 'spy_childCount', 'spy_currentChild'].forEach((key) => {
             localStorage.removeItem(key);
         });
@@ -353,18 +413,19 @@ const clearLocalAccountData = () => {
             localStorage.removeItem(`spy_guestData_${childId}`);
             localStorage.removeItem(`spy_guestDataLastSynced_${childId}`);
         });
+        Object.keys(localStorage)
+            .filter(key => (
+                key.startsWith(`${CLOUD_CACHE_PREFIX}_`) ||
+                key.startsWith(`${CLOUD_DIARY_CACHE_PREFIX}_`)
+            ))
+            .forEach(key => localStorage.removeItem(key));
     } catch (error) {
         console.warn('Local account cache could not be cleared safely:', error);
     }
 };
 
 const removeStoragePathsInChunks = async (paths) => {
-    const uniquePaths = [...new Set(asArray(paths).map(toSafeString).filter(isStorageImagePath))];
-    for (let index = 0; index < uniquePaths.length; index += 100) {
-        const chunk = uniquePaths.slice(index, index + 100);
-        const { error } = await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(chunk);
-        if (error) throw error;
-    }
+    await removeDiaryImagesFromStorage({ client: supabase, paths });
 };
 
 const normalizeGuestData = (data) => ({
@@ -378,6 +439,358 @@ const normalizeGuestData = (data) => ({
     dailyTasks: normalizeDailyTasks(data?.dailyTasks)
 });
 
+const hasMeaningfulGuestData = (guestData) => {
+    const normalized = normalizeGuestData(guestData);
+    const hasWeekly = Object.values(normalized.weeklyData).some(items => items.length > 0);
+    return (
+        hasWeekly ||
+        normalized.missionsData.length > 0 ||
+        normalized.payments.length > 0 ||
+        normalized.opsData.length > 0 ||
+        normalized.transactionHistory.length > 0 ||
+        normalized.notices.length > 0 ||
+        normalized.dailyTasks.length > 0 ||
+        normalized.funds.some((fund, index) => fund.balance !== INITIAL_FUNDS[index]?.balance)
+    );
+};
+
+const getChildIdsForLocalSnapshot = () => ['child1', 'child2', 'child3'];
+
+const hasUnsyncedGuestData = () => getChildIdsForLocalSnapshot().some((childId) => {
+    const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
+    if (!guestDataStr || guestDataStr === localStorage.getItem(`spy_guestDataLastSynced_${childId}`)) {
+        return false;
+    }
+
+    try {
+        return hasMeaningfulGuestData(JSON.parse(guestDataStr));
+    } catch {
+        return true;
+    }
+});
+
+const getChildProfileSyncSignature = ({
+    childProfiles = savedProfiles,
+    childCount = savedChildCount,
+    currentChild = savedCurrentChild
+} = {}) => JSON.stringify({
+    childCount: normalizeChildCount(childCount),
+    currentChild: normalizeCurrentChild(currentChild),
+    childProfiles: normalizeChildProfiles(childProfiles)
+});
+
+const hasMeaningfulChildProfileChanges = ({
+    childProfiles = savedProfiles,
+    childCount = savedChildCount,
+    currentChild = savedCurrentChild
+} = {}) => {
+    const normalizedProfiles = normalizeChildProfiles(childProfiles);
+    const normalizedCount = normalizeChildCount(childCount);
+    return (
+        normalizedCount !== 1 ||
+        normalizeCurrentChild(currentChild) !== 'child1' ||
+        normalizedProfiles.child1 !== DEFAULT_CHILD_PROFILES.child1 ||
+        normalizedProfiles.child2 !== DEFAULT_CHILD_PROFILES.child2 ||
+        normalizedProfiles.child3 !== DEFAULT_CHILD_PROFILES.child3
+    );
+};
+
+const markChildProfilesSynced = (state = {}) => {
+    try {
+        localStorage.setItem(CHILD_PROFILE_SYNC_SIGNATURE_KEY, getChildProfileSyncSignature(state));
+    } catch (error) {
+        console.warn('Child profile sync marker could not be saved:', error);
+    }
+};
+
+const hasUnsyncedChildProfiles = (state = {}) => {
+    if (!hasMeaningfulChildProfileChanges(state)) return false;
+    try {
+        return localStorage.getItem(CHILD_PROFILE_SYNC_SIGNATURE_KEY) !== getChildProfileSyncSignature(state);
+    } catch {
+        return true;
+    }
+};
+
+const hasUnsyncedLocalDataForCloud = (state = {}) => (
+    hasUnsyncedGuestData() ||
+    hasUnsyncedLocalDiaries() ||
+    hasUnsyncedChildProfiles(state)
+);
+
+const createSnapshotLocalId = (domain, childId, localId) => (
+    `${domain}:${childId}:${toSafeString(localId) || createClientUuid()}`
+);
+
+const createFamilySnapshotLocalId = (domain, localId) => (
+    `${domain}:${toSafeString(localId) || createClientUuid()}`
+);
+
+const dedupeRowsByLocalId = (rows) => {
+    const rowMap = new Map();
+    rows.forEach((row) => {
+        const localId = toSafeString(row.local_id);
+        rowMap.set(localId || createClientUuid(), row);
+    });
+    return [...rowMap.values()];
+};
+
+const createLocalCloudSyncBackup = (state) => {
+    const key = localRepository.createGuestSyncBackupKey();
+    const guestDataByChild = getChildIdsForLocalSnapshot().reduce((snapshot, childId) => {
+        const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
+        if (!guestDataStr) return snapshot;
+
+        try {
+            snapshot[childId] = normalizeGuestData(JSON.parse(guestDataStr));
+        } catch {
+            snapshot[childId] = { parseError: true, raw: guestDataStr };
+        }
+        return snapshot;
+    }, {});
+
+    return {
+        key,
+        payload: {
+            createdAt: new Date().toISOString(),
+            userId: state.session?.user?.id || null,
+            familyId: state.currentFamilyId || null,
+            currentChild: state.currentChild,
+            childCount: state.childCount,
+            childProfiles: state.childProfiles,
+            guestDataByChild,
+            diaries: loadLocalDiaryRecords()
+        }
+    };
+};
+
+const buildGuestCloudSnapshot = (state) => {
+    const tables = {
+        schedule: [],
+        payment: [],
+        asset: [],
+        ops: [],
+        dailytasks: [],
+        transactionhistory: [],
+        notice: []
+    };
+    const guestDataStringsByChild = {};
+
+    for (const childId of getChildIdsForLocalSnapshot()) {
+        const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
+        if (!guestDataStr || guestDataStr === localStorage.getItem(`spy_guestDataLastSynced_${childId}`)) {
+            continue;
+        }
+
+        const guestData = normalizeGuestData(JSON.parse(guestDataStr));
+        if (!hasMeaningfulGuestData(guestData)) {
+            guestDataStringsByChild[childId] = guestDataStr;
+            continue;
+        }
+
+        guestDataStringsByChild[childId] = guestDataStr;
+
+        for (const day in guestData.weeklyData) {
+            guestData.weeklyData[day].forEach(item => {
+                tables.schedule.push({
+                    local_id: createSnapshotLocalId('schedule', childId, item.localId),
+                    title: item.title,
+                    day_of_week: day,
+                    start_time: `${item.time}:00`,
+                    pickup_agent: item.agent,
+                    drop_agent: item.agent,
+                    location: item.location || '',
+                    contact_name: item.contactName || '',
+                    contact_phone: item.contactPhone || '',
+                    is_urgent: item.isUrgent || false,
+                    is_early: item.isEarly || false,
+                    child_id: childId
+                });
+            });
+        }
+
+        guestData.funds.forEach(fund => {
+            tables.asset.push({
+                local_id: createFamilySnapshotLocalId('asset', fund.localId),
+                name: fund.name,
+                balance: fund.balance,
+                last_updated: fund.updated === '미설정' ? null : new Date().toISOString()
+            });
+        });
+
+        guestData.payments.forEach(payment => {
+            tables.payment.push({
+                local_id: createSnapshotLocalId('payment', childId, payment.localId),
+                source: payment.source,
+                amount: payment.amount,
+                method: payment.method,
+                payment_day: normalizeDayNumber(payment.day),
+                discount_info: payment.discount,
+                is_completed: payment.isCompleted,
+                child_id: childId
+            });
+        });
+
+        guestData.opsData.forEach(op => {
+            tables.ops.push({
+                local_id: createSnapshotLocalId('ops', childId, op.localId),
+                title: op.title,
+                execution_date: normalizeDateDashes(op.date),
+                description: op.description || '',
+                priority: op.priority,
+                status: op.status,
+                child_id: childId
+            });
+        });
+
+        guestData.dailyTasks.forEach(task => {
+            tables.dailytasks.push({
+                local_id: createSnapshotLocalId('daily', childId, task.localId),
+                task_name: task.task_name,
+                is_completed: task.is_completed,
+                assigned_date: task.assigned_date,
+                child_id: childId
+            });
+        });
+
+        guestData.transactionHistory.forEach(history => {
+            tables.transactionhistory.push({
+                local_id: createSnapshotLocalId('history', childId, history.localId),
+                month: history.month,
+                date_formatted: history.date_formatted,
+                source: history.source,
+                amount: history.amount,
+                method: history.method || '',
+                child_id: childId
+            });
+        });
+
+        guestData.notices.forEach(notice => {
+            tables.notice.push({
+                local_id: createSnapshotLocalId('notice', childId, notice.localId),
+                text: notice.text,
+                is_checked: notice.checked
+            });
+        });
+    }
+
+    const children = Object.entries(normalizeChildProfiles(state.childProfiles))
+        .slice(0, normalizeChildCount(state.childCount))
+        .map(([childId, displayName], index) => ({
+            child_id: childId,
+            display_name: displayName,
+            sort_order: index + 1,
+            is_active: true
+        }));
+
+    Object.keys(tables).forEach((tableName) => {
+        tables[tableName] = dedupeRowsByLocalId(tables[tableName]);
+    });
+
+    return {
+        snapshot: {
+            family_id: state.currentFamilyId,
+            user_id: state.session?.user?.id || null,
+            created_at: new Date().toISOString(),
+            children,
+            tables
+        },
+        guestDataStringsByChild
+    };
+};
+
+const isMissingSyncSnapshotRpcError = (error) => (
+    ['PGRST202', '42883'].includes(toSafeString(error?.code)) ||
+    toSafeString(error?.message).includes('sync_guest_snapshot')
+);
+
+const isMissingLocalIdError = (error) => (
+    ['42703', 'PGRST204', 'PGRST205'].includes(toSafeString(error?.code)) ||
+    toSafeString(error?.message).includes('local_id')
+);
+
+const isMissingFamilyChildrenError = (error) => (
+    supabaseRepository.isMissingFamilyChildrenError(error)
+);
+
+const createFamilyChildRows = ({ familyId, childCount, childProfiles }) => (
+    Object.entries(normalizeChildProfiles(childProfiles))
+        .slice(0, normalizeChildCount(childCount))
+        .map(([childId, displayName], index) => ({
+            family_id: familyId,
+            child_id: childId,
+            display_name: toSafeString(displayName, DEFAULT_CHILD_PROFILES[childId] || childId),
+            sort_order: index + 1,
+            is_active: true
+        }))
+);
+
+const upsertFamilyChildren = async ({ familyId, childCount, childProfiles }) => {
+    if (!supabase || !familyId) return { ok: false, skipped: true };
+
+    const rows = createFamilyChildRows({ familyId, childCount, childProfiles });
+    if (rows.length === 0) return { ok: true };
+
+    const result = await supabaseRepository.upsertFamilyChildren(rows);
+
+    return result;
+};
+
+const withoutLocalId = (row) => {
+    const nextRow = { ...row };
+    delete nextRow.local_id;
+    return nextRow;
+};
+
+const insertWithLocalIdFallback = async (table, rows, { select = false } = {}) => {
+    return supabaseRepository.insertWithLocalIdFallback(table, rows, { select });
+};
+
+const verifyGuestSnapshotSync = async ({ snapshot, currentFamilyId }) => {
+    const verification = {};
+
+    for (const [table, rows] of Object.entries(snapshot.tables || {})) {
+        const expectedLocalIds = [...new Set(rows.map(row => toSafeString(row.local_id)).filter(Boolean))];
+        if (expectedLocalIds.length === 0) {
+            verification[table] = { expected: 0, actual: 0, skipped: false };
+            continue;
+        }
+
+        const { data, error } = await scopeFamilyQuery(
+            supabase.from(table).select('local_id'),
+            currentFamilyId
+        ).in('local_id', expectedLocalIds);
+
+        if (error) {
+            if (isMissingLocalIdError(error)) {
+                verification[table] = {
+                    expected: expectedLocalIds.length,
+                    actual: null,
+                    skipped: true,
+                    reason: error.message
+                };
+                continue;
+            }
+            throw error;
+        }
+
+        const actualLocalIds = new Set((data || []).map(row => row.local_id).filter(Boolean));
+        const missingLocalIds = expectedLocalIds.filter(localId => !actualLocalIds.has(localId));
+        verification[table] = {
+            expected: expectedLocalIds.length,
+            actual: actualLocalIds.size,
+            skipped: false,
+            missing: missingLocalIds
+        };
+
+        if (missingLocalIds.length > 0) {
+            throw new Error(`${table} 동기화 검증 실패: ${missingLocalIds.length}개 항목이 저장되지 않았습니다.`);
+        }
+    }
+
+    return verification;
+};
+
 const createScheduleKey = (item) => [
     item.time || '',
     (item.title || '').trim(),
@@ -389,6 +802,7 @@ const createScheduleKey = (item) => [
 
 const createScheduleCopy = (item, id) => ({
     id,
+    localId: id,
     time: item.time,
     title: item.title,
     agent: item.agent,
@@ -398,6 +812,25 @@ const createScheduleCopy = (item, id) => ({
     isEarly: !!item.isEarly,
     isUrgent: !!item.isUrgent
 });
+
+const isPendingReplay = (options = {}) => options?.fromPendingRetry === true;
+
+const getCloudErrorMessage = (error) => toSafeString(error?.message || error, '클라우드 저장 실패');
+
+const queueCloudFailure = ({ get, type, payload, error }) => {
+    const message = getCloudErrorMessage(error);
+    get().queuePendingMutation({
+        type,
+        payload,
+        lastError: message
+    });
+    try {
+        saveGuestDataToLocalStorage(get());
+    } catch (storageError) {
+        console.warn('Cloud failure fallback could not be snapshotted locally:', storageError);
+    }
+    return { ok: false, queued: true, error: message };
+};
 
 const savedProfiles = (() => {
     try {
@@ -452,12 +885,95 @@ const saveGuestDataToLocalStorage = (state) => {
     }
 };
 
+const getCloudCacheKey = (familyId, childId) => (
+    `${CLOUD_CACHE_PREFIX}_${familyId}_${childId}`
+);
+
+const getCloudDiaryCacheKey = (familyId) => (
+    `${CLOUD_DIARY_CACHE_PREFIX}_${familyId}`
+);
+
+const saveCloudCacheSnapshot = (state, familyId, childId) => {
+    if (!familyId || !childId) return;
+    try {
+        localRepository.saveJson(getCloudCacheKey(familyId, childId), {
+            createdAt: new Date().toISOString(),
+            data: createGuestDataSnapshot(state)
+        });
+    } catch (error) {
+        console.warn('Cloud cache could not be saved locally:', error);
+    }
+};
+
+const loadCloudCacheSnapshot = (familyId, childId) => {
+    if (!familyId || !childId) return null;
+    const cached = localRepository.loadJson(getCloudCacheKey(familyId, childId), null);
+    if (!cached?.data) return null;
+    return normalizeGuestData(cached.data);
+};
+
+const setCloudCacheForCurrentChild = (set, get, familyId, extraState = {}) => {
+    const { currentChild } = get();
+    const cached = loadCloudCacheSnapshot(familyId, currentChild);
+    if (!cached) return false;
+
+    set({
+        ...cached,
+        isLoading: false,
+        isDataLoaded: true,
+        storageMode: STORAGE_MODE.CLOUD_ERROR,
+        ...extraState
+    });
+    return true;
+};
+
+const saveCloudDiaryCache = (familyId, records) => {
+    if (!familyId) return;
+    try {
+        localRepository.saveJson(getCloudDiaryCacheKey(familyId), {
+            createdAt: new Date().toISOString(),
+            records: normalizeDiaryRecords(records)
+        });
+    } catch (error) {
+        console.warn('Cloud diary cache could not be saved locally:', error);
+    }
+};
+
+const loadCloudDiaryCache = (familyId) => {
+    if (!familyId) return null;
+    const cached = localRepository.loadJson(getCloudDiaryCacheKey(familyId), null);
+    if (!Array.isArray(cached?.records)) return null;
+    return normalizeDiaryRecords(cached.records);
+};
+
+const loadLocalGuestDataForChild = (childId) => {
+    const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
+    if (!guestDataStr) return normalizeGuestData({});
+
+    try {
+        return normalizeGuestData(JSON.parse(guestDataStr));
+    } catch (error) {
+        console.warn('Local guest data could not be loaded safely:', error);
+        return normalizeGuestData({});
+    }
+};
+
+const setLocalGuestDataForCurrentChild = (set, get, extraState = {}) => {
+    const { currentChild } = get();
+    set({
+        ...loadLocalGuestDataForChild(currentChild),
+        isLoading: false,
+        isDataLoaded: true,
+        ...extraState
+    });
+};
+
 const persistGuestData = (config) => (set, get, api) => config((args) => {
     const prevState = get();
     set(args);
     const nextState = get();
 
-    if (!nextState.session && nextState.isGuestMode && hasGuestDataChanged(prevState, nextState)) {
+    if ((!isCloudReady(nextState) || nextState.storageMode === STORAGE_MODE.CLOUD_ERROR) && hasGuestDataChanged(prevState, nextState)) {
         saveGuestDataToLocalStorage(nextState);
     }
 }, get, api);
@@ -478,6 +994,17 @@ export const useStore = create(persistGuestData((set, get) => ({
     currentFamilyId: null,
     familyMembers: [],
     familyInviteCode: null,
+    storageMode: STORAGE_MODE.LOCAL,
+    syncStatus: DEFAULT_SYNC_STATUS,
+    syncVerification: null,
+    lastSyncAt: (() => {
+        try {
+            return localStorage.getItem(LAST_SYNC_AT_KEY);
+        } catch {
+            return null;
+        }
+    })(),
+    pendingMutations: loadPendingMutations(),
     // Multi-Child Profile State
     childCount: savedChildCount, // Number of children currently managed (max 3)
     currentChild: savedCurrentChild,
@@ -490,11 +1017,168 @@ export const useStore = create(persistGuestData((set, get) => ({
 
     setGuestMode: (val) => {
         if (val) {
-            set({ isGuestMode: val, isAuthChecking: false });
+            set({ isGuestMode: val, isAuthChecking: false, storageMode: STORAGE_MODE.LOCAL });
             get().fetchDataFromDB();
         } else {
-            set({ isGuestMode: val, isAuthChecking: false });
+            set((state) => ({
+                isGuestMode: val,
+                isAuthChecking: false,
+                storageMode: resolveStorageMode(state)
+            }));
         }
+    },
+    refreshStorageMode: () => {
+        const state = get();
+        const storageMode = resolveStorageMode(state);
+        set({ storageMode });
+        return storageMode;
+    },
+    isCloudReady: () => isCloudReady(get()),
+    hasUnsyncedLocalData: () => hasUnsyncedLocalDataForCloud(get()),
+    queuePendingMutation: (mutation) => {
+        const queuedMutation = {
+            id: mutation.id || createClientUuid(),
+            type: mutation.type,
+            payload: mutation.payload || {},
+            createdAt: mutation.createdAt || new Date().toISOString(),
+            attempts: mutation.attempts || 0,
+            lastError: mutation.lastError || null
+        };
+        const pendingMutations = [...get().pendingMutations, queuedMutation];
+        savePendingMutations(pendingMutations);
+        set({
+            pendingMutations,
+            storageMode: isCloudReady(get()) ? STORAGE_MODE.CLOUD_ERROR : STORAGE_MODE.LOCAL,
+            syncStatus: {
+                phase: 'queued',
+                message: '클라우드 저장에 실패해 로컬 대기열에 보관했습니다.',
+                error: queuedMutation.lastError,
+                backupKey: null
+            }
+        });
+        return queuedMutation;
+    },
+    clearPendingMutations: () => {
+        savePendingMutations([]);
+        set({ pendingMutations: [] });
+    },
+    retryPendingMutations: async () => {
+        const state = get();
+        if (!isCloudReady(state)) {
+            return { ok: false, error: '가족 공유 연결 후 다시 시도할 수 있습니다.' };
+        }
+
+        const pending = [...state.pendingMutations];
+        if (pending.length === 0) return { ok: true, retried: 0, failed: 0 };
+
+        savePendingMutations([]);
+        set({
+            pendingMutations: [],
+            syncStatus: {
+                phase: 'retrying',
+                message: '로컬 대기열을 클라우드로 다시 저장하는 중입니다.',
+                error: null,
+                backupKey: null
+            }
+        });
+
+        const failed = [];
+        for (const mutation of pending) {
+            try {
+                if (mutation.type === 'diary:add') {
+                    await get().addDiary(mutation.payload.diaryData);
+                } else if (mutation.type === 'diary:update') {
+                    await get().updateDiary(mutation.payload.diaryData);
+                } else if (mutation.type === 'diary:delete') {
+                    await get().removeDiary(mutation.payload.diaryId);
+                } else if (mutation.type === 'diary:comment:add') {
+                    await get().addDiaryComment(mutation.payload.diaryId, mutation.payload.comment);
+                } else if (mutation.type === 'schedule:add') {
+                    await get().addSchedule(mutation.payload.day, mutation.payload.item, { fromPendingRetry: true });
+                } else if (mutation.type === 'schedule:update') {
+                    await get().updateScheduleItem(mutation.payload.item, { fromPendingRetry: true });
+                } else if (mutation.type === 'schedule:delete') {
+                    await get().removeScheduleItem(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'payment:add') {
+                    await get().addPayment(mutation.payload.paymentData, { fromPendingRetry: true });
+                } else if (mutation.type === 'payment:update') {
+                    await get().updatePayment(mutation.payload.payment, { fromPendingRetry: true });
+                } else if (mutation.type === 'payment:delete') {
+                    await get().removePayment(mutation.payload.paymentId, { fromPendingRetry: true });
+                } else if (mutation.type === 'ops:add') {
+                    await get().addOp(mutation.payload.opData, { fromPendingRetry: true });
+                } else if (mutation.type === 'ops:update') {
+                    await get().updateOp(mutation.payload.updatedOp, { fromPendingRetry: true });
+                } else if (mutation.type === 'ops:delete') {
+                    await get().removeOp(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'daily:add') {
+                    await get().addDailyTask(mutation.payload.taskName, { fromPendingRetry: true, localId: mutation.payload.localId });
+                } else if (mutation.type === 'daily:toggle') {
+                    await get().toggleDailyTask(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'daily:delete') {
+                    await get().removeDailyTask(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'notice:add') {
+                    await get().addNotice(mutation.payload.notice, { fromPendingRetry: true });
+                } else if (mutation.type === 'notice:toggle') {
+                    await get().updateNotice(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'notice:delete') {
+                    await get().removeNotice(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'fund:update') {
+                    await get().updateFund(mutation.payload.fund, { fromPendingRetry: true });
+                } else if (mutation.type === 'history:add') {
+                    await get().addTransactionHistory(mutation.payload.record, { fromPendingRetry: true });
+                } else if (mutation.type === 'history:update') {
+                    await get().updateTransactionHistory(mutation.payload.record, { fromPendingRetry: true });
+                } else if (mutation.type === 'history:delete') {
+                    await get().removeTransactionHistory(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'mission:add') {
+                    await get().addMission(mutation.payload.mission, { fromPendingRetry: true });
+                } else if (mutation.type === 'mission:update') {
+                    await get().updateMission(mutation.payload.mission, { fromPendingRetry: true });
+                } else if (mutation.type === 'mission:delete') {
+                    await get().removeMission(mutation.payload.id, { fromPendingRetry: true });
+                } else if (mutation.type === 'payment:process') {
+                    await get().processPayment(mutation.payload.paymentId, { ...mutation.payload, fromPendingRetry: true });
+                } else if (mutation.type === 'payment:undo') {
+                    await get().undoPayment(mutation.payload.paymentId, { ...mutation.payload, fromPendingRetry: true });
+                } else if (mutation.type === 'schedule:copy') {
+                    const rows = asArray(mutation.payload.rows).map(row => ({
+                        ...row,
+                        family_id: get().currentFamilyId
+                    }));
+                    const { error } = await insertWithLocalIdFallback('schedule', rows);
+                    if (error) throw error;
+                    await get().fetchDataFromDB();
+                }
+            } catch (error) {
+                failed.push({
+                    ...mutation,
+                    attempts: (mutation.attempts || 0) + 1,
+                    lastError: error.message
+                });
+            }
+        }
+
+        savePendingMutations(failed);
+        set({
+            pendingMutations: failed,
+            storageMode: failed.length > 0 ? STORAGE_MODE.CLOUD_ERROR : STORAGE_MODE.CLOUD,
+            syncStatus: failed.length > 0
+                ? {
+                    phase: 'queued',
+                    message: '일부 항목은 아직 로컬 대기열에 남아 있습니다.',
+                    error: failed[0]?.lastError || null,
+                    backupKey: null
+                }
+                : {
+                    phase: 'complete',
+                    message: '로컬 대기열 저장을 완료했습니다.',
+                    error: null,
+                    backupKey: null
+                }
+        });
+
+        return { ok: failed.length === 0, retried: pending.length, failed: failed.length };
     },
 
     // ---- Actions ----
@@ -537,16 +1221,44 @@ export const useStore = create(persistGuestData((set, get) => ({
         await get().syncProfilesToCloud();
     },
     syncProfilesToCloud: async () => {
-        const { childCount, childProfiles, currentChild, session } = get();
-        if (session && supabase) {
-            await supabase.auth.updateUser({
-                data: {
-                    spy_childCount: childCount,
-                    spy_childProfiles: childProfiles,
-                    spy_currentChild: currentChild
+        const { childCount, childProfiles, currentChild, currentFamilyId, session } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
+            return;
+        }
+
+        const childResult = await upsertFamilyChildren({
+            familyId: currentFamilyId,
+            childCount,
+            childProfiles
+        });
+
+        if (childResult.error) {
+            if (isMissingFamilyChildrenError(childResult.error)) {
+                await supabase.auth.updateUser({
+                    data: {
+                        spy_childCount: childCount,
+                        spy_childProfiles: childProfiles,
+                        spy_currentChild: currentChild
+                    }
+                });
+                markChildProfilesSynced({ childCount, childProfiles, currentChild });
+                return;
+            }
+
+            console.warn('Family child profile sync failed:', childResult.error);
+            set({
+                storageMode: STORAGE_MODE.CLOUD_ERROR,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '자녀 프로필 클라우드 저장에 실패했습니다. 로컬에는 계속 보존됩니다.',
+                    error: childResult.error.message,
+                    backupKey: null
                 }
             });
+            return;
         }
+
+        markChildProfilesSynced({ childCount, childProfiles, currentChild });
     },
 
     // ---- Family Share Context ----
@@ -557,12 +1269,13 @@ export const useStore = create(persistGuestData((set, get) => ({
                 currentFamilyId: null,
                 familyInviteCode: null,
                 familyMembers: [],
-                isFamilyLoading: false
+                isFamilyLoading: false,
+                storageMode: STORAGE_MODE.LOCAL
             });
             return null;
         }
 
-        set({ isFamilyLoading: true });
+        set({ isFamilyLoading: true, storageMode: STORAGE_MODE.LINKING });
         try {
             const { data: memberData, error: memberError } = await supabase
                 .from('family_members')
@@ -576,7 +1289,9 @@ export const useStore = create(persistGuestData((set, get) => ({
                 set({
                     currentFamilyId: null,
                     familyInviteCode: null,
-                    familyMembers: []
+                    familyMembers: [],
+                    isGuestMode: true,
+                    storageMode: STORAGE_MODE.LINKING
                 });
                 return null;
             }
@@ -596,19 +1311,67 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (familyError) throw familyError;
             if (listError) throw listError;
 
-            set({
+            const nextContext = {
                 currentFamilyId: memberData.family_id,
                 familyInviteCode: familyData?.invite_code || null,
                 familyMembers: membersList || [],
-                isGuestMode: false
-            });
+                isGuestMode: false,
+                storageMode: STORAGE_MODE.CLOUD
+            };
+
+            const { data: childRows, error: childRowsError } = await supabase
+                .from('family_children')
+                .select('child_id, display_name, sort_order, is_active')
+                .eq('family_id', memberData.family_id)
+                .eq('is_active', true)
+                .order('sort_order', { ascending: true });
+
+            if (childRowsError && !isMissingFamilyChildrenError(childRowsError)) {
+                throw childRowsError;
+            }
+
+            if (childRows?.length > 0) {
+                const nextProfiles = { ...DEFAULT_CHILD_PROFILES };
+                childRows.forEach((row) => {
+                    const childId = normalizeCurrentChild(row.child_id);
+                    nextProfiles[childId] = row.display_name || DEFAULT_CHILD_PROFILES[childId];
+                });
+                const nextChildCount = normalizeChildCount(childRows.length);
+                const activeChildIds = new Set(childRows.map(row => normalizeCurrentChild(row.child_id)));
+                const preferredChild = normalizeCurrentChild(get().currentChild);
+                const nextCurrentChild = activeChildIds.has(preferredChild)
+                    ? preferredChild
+                    : normalizeCurrentChild(childRows[0]?.child_id);
+                localStorage.setItem('spy_childProfiles', JSON.stringify(nextProfiles));
+                localStorage.setItem('spy_childCount', nextChildCount.toString());
+                localStorage.setItem('spy_currentChild', nextCurrentChild);
+                Object.assign(nextContext, {
+                    childProfiles: nextProfiles,
+                    childCount: nextChildCount,
+                    currentChild: nextCurrentChild
+                });
+                markChildProfilesSynced({
+                    childProfiles: nextProfiles,
+                    childCount: nextChildCount,
+                    currentChild: nextCurrentChild
+                });
+            }
+
+            set(nextContext);
             return memberData.family_id;
         } catch (error) {
             console.warn('Family context could not be loaded:', error);
             set({
                 currentFamilyId: null,
                 familyInviteCode: null,
-                familyMembers: []
+                familyMembers: [],
+                storageMode: session ? STORAGE_MODE.CLOUD_ERROR : STORAGE_MODE.LOCAL,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '가족 공유 연결 상태를 확인하지 못했습니다.',
+                    error: error.message,
+                    backupKey: null
+                }
             });
             return null;
         } finally {
@@ -619,7 +1382,11 @@ export const useStore = create(persistGuestData((set, get) => ({
         const { session } = get();
         if (!session || !supabase) return null;
 
-        set({ isFamilyLoading: true });
+        set({
+            isFamilyLoading: true,
+            storageMode: STORAGE_MODE.LINKING,
+            syncStatus: { ...DEFAULT_SYNC_STATUS, phase: 'linking', message: '가족 그룹을 생성하는 중입니다.' }
+        });
         try {
             const inviteCode = createFamilyInviteCode();
             const { data: familyData, error: familyError } = await supabase
@@ -646,13 +1413,27 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (memberError) throw memberError;
 
             await get().fetchFamilyContext();
-            await get().syncGuestDataToCloud();
-            await get().syncLocalDiariesToCloud();
-            await get().fetchDataFromDB();
-            await get().fetchDiariesFromDB();
+            set({
+                syncStatus: hasUnsyncedLocalDataForCloud(get())
+                    ? {
+                        phase: 'awaiting-confirmation',
+                        message: '이 기기의 로컬 데이터를 클라우드로 동기화할지 선택해 주세요.',
+                        error: null,
+                        backupKey: null
+                    }
+                    : DEFAULT_SYNC_STATUS
+            });
             return familyData.id;
         } catch (error) {
-            alert('가족 생성 실패: ' + error.message);
+            set({
+                storageMode: STORAGE_MODE.CLOUD_ERROR,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '가족 생성에 실패했습니다.',
+                    error: error.message,
+                    backupKey: null
+                }
+            });
             return null;
         } finally {
             set({ isFamilyLoading: false });
@@ -660,20 +1441,38 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
     joinFamily: async (inviteCode) => {
         if (!supabase) return false;
-        set({ isFamilyLoading: true });
+        set({
+            isFamilyLoading: true,
+            storageMode: STORAGE_MODE.LINKING,
+            syncStatus: { ...DEFAULT_SYNC_STATUS, phase: 'linking', message: '가족 그룹에 합류하는 중입니다.' }
+        });
         try {
             const code = toSafeString(inviteCode).trim().toUpperCase();
             const { error } = await supabase.rpc('join_family_by_code', { code_input: code });
             if (error) throw error;
 
             await get().fetchFamilyContext();
-            await get().syncGuestDataToCloud();
-            await get().syncLocalDiariesToCloud();
-            await get().fetchDataFromDB();
-            await get().fetchDiariesFromDB();
+            set({
+                syncStatus: hasUnsyncedLocalDataForCloud(get())
+                    ? {
+                        phase: 'awaiting-confirmation',
+                        message: '이 기기의 로컬 데이터를 클라우드로 동기화할지 선택해 주세요.',
+                        error: null,
+                        backupKey: null
+                    }
+                    : DEFAULT_SYNC_STATUS
+            });
             return true;
         } catch (error) {
-            alert('합류 실패: ' + error.message);
+            set({
+                storageMode: STORAGE_MODE.CLOUD_ERROR,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '가족 합류에 실패했습니다.',
+                    error: error.message,
+                    backupKey: null
+                }
+            });
             return false;
         } finally {
             set({ isFamilyLoading: false });
@@ -682,9 +1481,8 @@ export const useStore = create(persistGuestData((set, get) => ({
     leaveFamily: async () => {
         const { session, currentFamilyId } = get();
         if (!session || !currentFamilyId || !supabase) return false;
-        if (!confirm('정말로 가족 그룹에서 탈퇴하시겠습니까? 공유된 데이터에 더 이상 접근할 수 없습니다.')) return false;
 
-        set({ isFamilyLoading: true });
+        set({ isFamilyLoading: true, syncStatus: { ...DEFAULT_SYNC_STATUS, phase: 'linking', message: '가족 그룹에서 나가는 중입니다.' } });
         try {
             const { error } = await supabase
                 .from('family_members')
@@ -694,24 +1492,26 @@ export const useStore = create(persistGuestData((set, get) => ({
 
             if (error) throw error;
 
-            set({
+            setLocalGuestDataForCurrentChild(set, get, {
                 currentFamilyId: null,
                 familyInviteCode: null,
                 familyMembers: [],
-                weeklyData: INITIAL_WEEKLY,
-                payments: INITIAL_PAYMENTS,
-                missionsData: INITIAL_MISSIONS,
-                opsData: INITIAL_OPS,
-                transactionHistory: INITIAL_HISTORY,
-                notices: [],
-                dailyTasks: INITIAL_DAILY,
                 diaries: loadLocalDiaryRecords(),
-                isGuestMode: true
+                isGuestMode: true,
+                storageMode: STORAGE_MODE.LOCAL,
+                syncStatus: DEFAULT_SYNC_STATUS
             });
-            await get().fetchDataFromDB();
             return true;
         } catch (error) {
-            alert('탈퇴 실패: ' + error.message);
+            set({
+                storageMode: STORAGE_MODE.CLOUD_ERROR,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '가족 탈퇴에 실패했습니다.',
+                    error: error.message,
+                    backupKey: null
+                }
+            });
             return false;
         } finally {
             set({ isFamilyLoading: false });
@@ -735,11 +1535,13 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         if (error) {
             console.warn('Cloud diary fetch failed, falling back to local records:', error);
-            set({ diaries: loadLocalDiaryRecords() });
+            set({ diaries: loadCloudDiaryCache(currentFamilyId) || loadLocalDiaryRecords() });
             return;
         }
 
-        set({ diaries: normalizeDiaryRecords(data) });
+        const normalizedDiaries = normalizeDiaryRecords(data);
+        saveCloudDiaryCache(currentFamilyId, normalizedDiaries);
+        set({ diaries: normalizedDiaries });
     },
     syncLocalDiariesToCloud: async () => {
         const { session, currentFamilyId } = get();
@@ -778,6 +1580,7 @@ export const useStore = create(persistGuestData((set, get) => ({
 
             try {
                 const uploadResult = await uploadDiaryImagesToStorage({
+                    client: supabase,
                     images: imageSources,
                     familyId: currentFamilyId,
                     diaryId
@@ -805,11 +1608,13 @@ export const useStore = create(persistGuestData((set, get) => ({
                 existingLocalIds.add(localId);
             } catch (error) {
                 if (uploadedPaths.length > 0) {
-                    await supabase.storage.from(DIARY_PHOTO_BUCKET).remove(uploadedPaths);
+                    await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths });
                 }
                 throw error;
             }
         }
+
+        markLocalDiariesSynced();
     },
     addDiary: async (diaryData) => {
         const { session, currentFamilyId } = get();
@@ -849,6 +1654,11 @@ export const useStore = create(persistGuestData((set, get) => ({
                 saveLocalDiaryRecords(diaries);
                 return { diaries };
             });
+            get().queuePendingMutation({
+                type: 'diary:add',
+                payload: { diaryData: nextLocal },
+                lastError: error.message
+            });
             throw error;
         }
 
@@ -884,7 +1694,19 @@ export const useStore = create(persistGuestData((set, get) => ({
             .eq('id', nextRecord.id)
             .eq('family_id', currentFamilyId);
 
-        if (error) throw error;
+        if (error) {
+            set((state) => {
+                const diaries = state.diaries.map(record => record.id === nextRecord.id ? nextRecord : record);
+                saveLocalDiaryRecords(diaries);
+                return { diaries };
+            });
+            get().queuePendingMutation({
+                type: 'diary:update',
+                payload: { diaryData: nextRecord },
+                lastError: error.message
+            });
+            throw error;
+        }
         await get().fetchDiariesFromDB();
         return nextRecord;
     },
@@ -905,7 +1727,19 @@ export const useStore = create(persistGuestData((set, get) => ({
             .eq('id', diaryId)
             .eq('family_id', currentFamilyId);
 
-        if (error) throw error;
+        if (error) {
+            set((state) => {
+                const diaries = state.diaries.filter(record => record.id !== diaryId);
+                saveLocalDiaryRecords(diaries);
+                return { diaries };
+            });
+            get().queuePendingMutation({
+                type: 'diary:delete',
+                payload: { diaryId },
+                lastError: error.message
+            });
+            throw error;
+        }
         await get().fetchDiariesFromDB();
     },
     addDiaryComment: async (diaryId, comment) => {
@@ -940,7 +1774,23 @@ export const useStore = create(persistGuestData((set, get) => ({
                 text: safeComment.text
             }]);
 
-        if (error) throw error;
+        if (error) {
+            set((state) => {
+                const diaries = state.diaries.map(record => (
+                    record.id === diaryId
+                        ? { ...record, comments: [...(record.comments || []), safeComment] }
+                        : record
+                ));
+                saveLocalDiaryRecords(diaries);
+                return { diaries };
+            });
+            get().queuePendingMutation({
+                type: 'diary:comment:add',
+                payload: { diaryId, comment: safeComment },
+                lastError: error.message
+            });
+            throw error;
+        }
         await get().fetchDiariesFromDB();
     },
 
@@ -961,24 +1811,16 @@ export const useStore = create(persistGuestData((set, get) => ({
                 set({ currentChild: meta.spy_currentChild });
             }
         }
-        // When setting a real session, immediately clear all data to prevent
-        // guest/test data from showing before fetchDataFromDB completes
         if (session) {
+            const currentFamilyId = get().currentFamilyId;
             set({
                 session,
                 isAuthChecking: false,
-                isGuestMode: false,
-                weeklyData: INITIAL_WEEKLY,
-                missionsData: INITIAL_MISSIONS,
-                funds: INITIAL_FUNDS,
-                payments: INITIAL_PAYMENTS,
-                opsData: INITIAL_OPS,
-                transactionHistory: INITIAL_HISTORY,
-                notices: [],
-                dailyTasks: INITIAL_DAILY,
-                diaries: INITIAL_DIARIES
+                isGuestMode: !currentFamilyId,
+                storageMode: resolveStorageMode({ session, currentFamilyId })
             });
         } else {
+            clearSupabaseAuthStorage();
             set({
                 session,
                 isAuthChecking: false,
@@ -986,7 +1828,9 @@ export const useStore = create(persistGuestData((set, get) => ({
                 currentFamilyId: null,
                 familyInviteCode: null,
                 familyMembers: [],
-                diaries: loadLocalDiaryRecords()
+                diaries: loadLocalDiaryRecords(),
+                storageMode: STORAGE_MODE.LOCAL,
+                syncStatus: DEFAULT_SYNC_STATUS
             });
         }
     },
@@ -1022,18 +1866,33 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
 
     signOut: async () => {
-        if (supabase) {
-            await supabase.auth.signOut();
+        try {
+            if (supabase) {
+                const { error } = await withTimeout(
+                    supabase.auth.signOut({ scope: 'local' }),
+                    AUTH_SIGN_OUT_TIMEOUT_MS,
+                    '로그아웃 응답 시간이 초과되었습니다.'
+                );
+                if (error) throw error;
+            }
+        } catch (error) {
+            console.warn('Supabase local sign-out did not complete cleanly, clearing app session anyway:', error);
+        } finally {
+            clearSupabaseAuthStorage();
+            set({
+                session: null,
+                isGuestMode: true,
+                currentFamilyId: null,
+                familyInviteCode: null,
+                familyMembers: [],
+                diaries: loadLocalDiaryRecords(),
+                storageMode: STORAGE_MODE.LOCAL,
+                syncStatus: DEFAULT_SYNC_STATUS,
+                syncVerification: null
+            });
+            await get().fetchDataFromDB();
         }
-        set({
-            session: null,
-            isGuestMode: true,
-            currentFamilyId: null,
-            familyInviteCode: null,
-            familyMembers: [],
-            diaries: loadLocalDiaryRecords()
-        });
-        await get().fetchDataFromDB();
+        return { ok: true };
     },
 
     deleteAccount: async () => {
@@ -1067,11 +1926,6 @@ export const useStore = create(persistGuestData((set, get) => ({
             const { error } = await supabase.rpc('delete_user_account');
             if (error) throw error;
 
-            const { error: signOutError } = await supabase.auth.signOut();
-            if (signOutError) {
-                console.warn('Sign-out after account deletion failed:', signOutError);
-            }
-
             clearLocalAccountData();
             set({
                 session: null,
@@ -1091,9 +1945,13 @@ export const useStore = create(persistGuestData((set, get) => ({
                 transactionHistory: INITIAL_HISTORY,
                 notices: [],
                 dailyTasks: INITIAL_DAILY,
-                diaries: INITIAL_DIARIES
+                diaries: INITIAL_DIARIES,
+                storageMode: STORAGE_MODE.LOCAL,
+                syncStatus: DEFAULT_SYNC_STATUS,
+                syncVerification: null,
+                lastSyncAt: null,
+                pendingMutations: []
             });
-            clearLocalAccountData();
             return { ok: true };
         } catch (error) {
             console.error('Account deletion failed:', error);
@@ -1110,7 +1968,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         }));
     },
     copyScheduleToDays: async (sourceDay, targetDays) => {
-        const { currentChild, currentFamilyId, weeklyData, session, isGuestMode } = get();
+        const { currentChild, currentFamilyId, weeklyData, session } = get();
         const sourceSchedule = weeklyData[sourceDay] || [];
         const uniqueTargetDays = [...new Set(targetDays)]
             .filter(day => day !== sourceDay && Array.isArray(weeklyData[day]));
@@ -1119,7 +1977,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             return { added: 0, skipped: 0 };
         }
 
-        if (!session && isGuestMode) {
+        if (!isCloudReady({ session, currentFamilyId })) {
             let added = 0;
             let skipped = 0;
             const nextWeekly = { ...weeklyData };
@@ -1157,7 +2015,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         uniqueTargetDays.forEach((day) => {
             const existingKeys = new Set((weeklyData[day] || []).map(createScheduleKey));
 
-            sourceSchedule.forEach((item) => {
+            sourceSchedule.forEach((item, index) => {
                 const key = createScheduleKey(item);
                 if (existingKeys.has(key)) {
                     skipped += 1;
@@ -1165,7 +2023,9 @@ export const useStore = create(persistGuestData((set, get) => ({
                 }
 
                 existingKeys.add(key);
+                const localId = createLocalId('schedule-copy', [sourceDay, day, item.localId || item.id, index, Date.now()]);
                 inserts.push({
+                    local_id: localId,
                     title: item.title,
                     day_of_week: day,
                     start_time: item.time + ':00',
@@ -1186,38 +2046,67 @@ export const useStore = create(persistGuestData((set, get) => ({
             return { added: 0, skipped };
         }
 
-        const { error } = await supabase.from('schedule').insert(inserts);
+        const { error } = await insertWithLocalIdFallback('schedule', inserts);
         if (error) {
-            alert('일정 복사 실패: ' + error.message);
-            return { added: 0, skipped };
+            const nextWeekly = { ...weeklyData };
+            inserts.forEach((row) => {
+                if (!nextWeekly[row.day_of_week]) return;
+                nextWeekly[row.day_of_week] = [
+                    ...(nextWeekly[row.day_of_week] || []),
+                    {
+                        id: row.local_id,
+                        localId: row.local_id,
+                        time: normalizeTime(row.start_time),
+                        title: row.title,
+                        agent: row.pickup_agent || row.drop_agent || '자율',
+                        location: row.location || '',
+                        contactName: row.contact_name || '',
+                        contactPhone: row.contact_phone || '',
+                        isEarly: row.is_early,
+                        isUrgent: row.is_urgent
+                    }
+                ].sort((a, b) => a.time.localeCompare(b.time));
+            });
+            set({ weeklyData: nextWeekly });
+            queueCloudFailure({
+                get,
+                type: 'schedule:copy',
+                payload: { rows: inserts },
+                error
+            });
+            return { added: inserts.length, skipped, queued: true };
         }
 
         await get().fetchDataFromDB();
         return { added: inserts.length, skipped };
     },
-    addSchedule: async (day, item) => {
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
-        if (!session && isGuestMode) {
-            const newItem = {
-                id: 'g_' + Date.now(),
-                time: item.time,
-                title: item.title,
-                agent: item.agent,
-                location: item.location || '',
-                contactName: item.contactName || '',
-                contactPhone: item.contactPhone || '',
-                isEarly: item.isEarly || false,
-                isUrgent: item.isUrgent || false
-            };
+    addSchedule: async (day, item, options = {}) => {
+        const { currentChild, currentFamilyId, session } = get();
+        const localId = item.localId || createLocalId('schedule', [currentChild, day, item.time, item.title, Date.now()]);
+        const localScheduleItem = {
+            id: item.id || localId,
+            localId,
+            time: item.time,
+            title: item.title,
+            agent: item.agent,
+            location: item.location || '',
+            contactName: item.contactName || '',
+            contactPhone: item.contactPhone || '',
+            isEarly: item.isEarly || false,
+            isUrgent: item.isUrgent || false
+        };
+
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => {
                 const newWeekly = { ...s.weeklyData };
-                newWeekly[day] = [...(newWeekly[day] || []), newItem].sort((a, b) => a.time.localeCompare(b.time));
+                newWeekly[day] = [...(newWeekly[day] || []), localScheduleItem].sort((a, b) => a.time.localeCompare(b.time));
                 return { weeklyData: newWeekly };
             });
-            return;
+            return { ok: true, local: true };
         }
 
-        const { error } = await supabase.from('schedule').insert([{
+        const { error } = await insertWithLocalIdFallback('schedule', [{
+            local_id: localId,
             title: item.title,
             day_of_week: day,
             start_time: item.time + ':00',
@@ -1230,13 +2119,27 @@ export const useStore = create(persistGuestData((set, get) => ({
             is_early: item.isEarly || false,
             child_id: currentChild,
             family_id: currentFamilyId
-        }]).select();
-        if (error) { alert('일정 추가 실패: ' + error.message); return; }
+        }], { select: true });
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => {
+                const newWeekly = { ...s.weeklyData };
+                newWeekly[day] = [...(newWeekly[day] || []), localScheduleItem].sort((a, b) => a.time.localeCompare(b.time));
+                return { weeklyData: newWeekly };
+            });
+            return queueCloudFailure({
+                get,
+                type: 'schedule:add',
+                payload: { day, item: localScheduleItem },
+                error
+            });
+        }
         await get().fetchDataFromDB();
+        return { ok: true };
     },
-    updateScheduleItem: async (item) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    updateScheduleItem: async (item, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => {
                 const newWeekly = { ...s.weeklyData };
                 for (const day in newWeekly) {
@@ -1260,12 +2163,32 @@ export const useStore = create(persistGuestData((set, get) => ({
             contact_name: item.contactName || '',
             contact_phone: item.contactPhone || ''
         }), currentFamilyId).eq('id', item.id);
-        if (error) { alert('수정 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => {
+                const newWeekly = { ...s.weeklyData };
+                for (const day in newWeekly) {
+                    newWeekly[day] = newWeekly[day].map(x =>
+                        x.id === item.id
+                            ? { ...x, ...item, time: item.time, title: item.title, agent: item.agent, location: item.location, contactName: item.contactName, contactPhone: item.contactPhone }
+                            : x
+                    ).sort((a, b) => a.time.localeCompare(b.time));
+                }
+                return { weeklyData: newWeekly };
+            });
+            return queueCloudFailure({
+                get,
+                type: 'schedule:update',
+                payload: { item },
+                error
+            });
+        }
         await get().fetchDataFromDB();
+        return { ok: true };
     },
-    removeScheduleItem: async (id) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    removeScheduleItem: async (id, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => {
                 const newWeekly = { ...s.weeklyData };
                 for (const day in newWeekly) {
@@ -1277,20 +2200,35 @@ export const useStore = create(persistGuestData((set, get) => ({
         }
 
         const { error } = await scopeFamilyQuery(supabase.from('schedule').delete(), currentFamilyId).eq('id', id);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => {
+                const newWeekly = { ...s.weeklyData };
+                for (const day in newWeekly) {
+                    newWeekly[day] = newWeekly[day].filter(x => x.id !== id);
+                }
+                return { weeklyData: newWeekly };
+            });
+            return queueCloudFailure({
+                get,
+                type: 'schedule:delete',
+                payload: { id },
+                error
+            });
+        }
         await get().fetchDataFromDB();
+        return { ok: true };
     },
 
     // 2. Missions Data Actions (Supabase Sync)
-    addMission: async (mission) => {
+    addMission: async (mission, options = {}) => {
         set({ isLoading: true });
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
-
-        if (!session && isGuestMode) {
-            const id = 'g_' + Date.now();
+        const { currentChild, currentFamilyId, session } = get();
+        const localId = mission.localId || mission.id || createLocalId('mission', [currentChild, mission.type, mission.title, mission.day, Date.now()]);
+        const applyLocalMission = () => {
             if (mission.type === 'fund') {
-                const newPayment = { id, source: mission.title.replace(' 결제', ''), amount: 0, method: '미지정', day: `${mission.day} 일`, discount: '', isCompleted: false };
-                const newFundMission = { id, type: 'fund', day: mission.day, title: mission.title };
+                const newPayment = { id: localId, localId, source: mission.title.replace(' 결제', ''), amount: 0, method: '미지정', day: `${mission.day} 일`, discount: '', isCompleted: false };
+                const newFundMission = { id: localId, localId, type: 'fund', day: mission.day, title: mission.title };
                 set(s => ({
                     payments: [...s.payments, newPayment].sort((a, b) => parseInt(a.day) - parseInt(b.day)),
                     missionsData: [...s.missionsData, newFundMission]
@@ -1298,16 +2236,21 @@ export const useStore = create(persistGuestData((set, get) => ({
             } else {
                 const year = mission.year || new Date().getFullYear();
                 const month = mission.month || new Date().getMonth() + 1;
-                const newOp = { id, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')}`, description: '', priority: 'LOW', status: 'PENDING', participants: { mom: false, dad: false }, checklist: [] };
-                const newEventMission = { id, type: 'event', year, month, day: mission.day, title: mission.title };
+                const newOp = { id: localId, localId, title: mission.title, date: `${year}.${String(month).padStart(2, '0')}.${String(mission.day).padStart(2, '0')}`, description: '', priority: 'LOW', status: 'PENDING', participants: { mom: false, dad: false }, checklist: [] };
+                const newEventMission = { id: localId, localId, type: 'event', year, month, day: mission.day, title: mission.title };
                 set(s => ({ opsData: [...s.opsData, newOp], missionsData: [...s.missionsData, newEventMission] }));
             }
+        };
+
+        if (!isCloudReady({ session, currentFamilyId })) {
+            applyLocalMission();
             set({ isLoading: false });
-            return;
+            return { ok: true, local: true };
         }
 
         if (mission.type === 'fund') {
-            const { error } = await supabase.from('payment').insert([{
+            const { error } = await insertWithLocalIdFallback('payment', [{
+                local_id: localId,
                 source: mission.title.replace(' 결제', ''),
                 amount: 0,
                 method: '미지정',
@@ -1316,12 +2259,23 @@ export const useStore = create(persistGuestData((set, get) => ({
                 child_id: currentChild,
                 family_id: currentFamilyId
             }]);
-            if (error) alert('일정 추가 실패: ' + error.message);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                applyLocalMission();
+                set({ isLoading: false });
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:add',
+                    payload: { mission: { ...mission, id: localId, localId } },
+                    error
+                });
+            }
         } else {
             const year = mission.year || new Date().getFullYear();
             const month = String(mission.month || new Date().getMonth() + 1).padStart(2, '0');
             const day = String(mission.day).padStart(2, '0');
-            const { error } = await supabase.from('ops').insert([{
+            const { error } = await insertWithLocalIdFallback('ops', [{
+                local_id: localId,
                 title: mission.title,
                 execution_date: `${year}-${month}-${day}`,
                 status: 'PENDING',
@@ -1329,16 +2283,26 @@ export const useStore = create(persistGuestData((set, get) => ({
                 child_id: currentChild,
                 family_id: currentFamilyId
             }]);
-            if (error) alert('일정 추가 실패: ' + error.message);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                applyLocalMission();
+                set({ isLoading: false });
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:add',
+                    payload: { mission: { ...mission, id: localId, localId } },
+                    error
+                });
+            }
         }
         await get().fetchDataFromDB();
         set({ isLoading: false });
+        return { ok: true };
     },
-    updateMission: async (mission) => {
+    updateMission: async (mission, options = {}) => {
         set({ isLoading: true });
-        const { session, isGuestMode, currentFamilyId } = get();
-
-        if (!session && isGuestMode) {
+        const { session, currentFamilyId } = get();
+        const applyLocalMissionUpdate = () => {
             if (mission.type === 'fund') {
                 set(s => ({
                     payments: s.payments.map(p => p.id === mission.id ? { ...p, source: mission.title.replace(' 결제', ''), day: `${mission.day} 일` } : p).sort((a, b) => parseInt(a.day) - parseInt(b.day)),
@@ -1352,8 +2316,12 @@ export const useStore = create(persistGuestData((set, get) => ({
                     missionsData: s.missionsData.map(m => m.id === mission.id ? { ...m, title: mission.title, year, month, day: mission.day } : m)
                 }));
             }
+        };
+
+        if (!isCloudReady({ session, currentFamilyId })) {
+            applyLocalMissionUpdate();
             set({ isLoading: false });
-            return;
+            return { ok: true, local: true };
         }
 
         if (mission.type === 'fund') {
@@ -1361,7 +2329,17 @@ export const useStore = create(persistGuestData((set, get) => ({
                 source: mission.title.replace(' 결제', ''),
                 payment_day: mission.day
             }), currentFamilyId).eq('id', mission.id);
-            if (error) alert('일정 수정 실패: ' + error.message);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                applyLocalMissionUpdate();
+                set({ isLoading: false });
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:update',
+                    payload: { mission },
+                    error
+                });
+            }
         } else {
             const year = mission.year || new Date().getFullYear();
             const month = String(mission.month || new Date().getMonth() + 1).padStart(2, '0');
@@ -1370,17 +2348,28 @@ export const useStore = create(persistGuestData((set, get) => ({
                 title: mission.title,
                 execution_date: `${year}-${month}-${day}`
             }), currentFamilyId).eq('id', mission.id);
-            if (error) alert('일정 수정 실패: ' + error.message);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                applyLocalMissionUpdate();
+                set({ isLoading: false });
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:update',
+                    payload: { mission },
+                    error
+                });
+            }
         }
         await get().fetchDataFromDB();
         set({ isLoading: false });
+        return { ok: true };
     },
-    removeMission: async (id) => {
+    removeMission: async (id, options = {}) => {
         const state = get();
         const mission = state.missionsData.find(m => m.id === id);
         if (!mission) return;
 
-        if (!state.session && state.isGuestMode) {
+        if (!isCloudReady(state)) {
             set((s) => ({
                 payments: s.payments.filter(p => p.id !== id),
                 opsData: s.opsData.filter(o => o.id !== id),
@@ -1391,10 +2380,36 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         if (mission.type === 'fund') {
             const { error } = await scopeFamilyQuery(supabase.from('payment').delete(), state.currentFamilyId).eq('id', id);
-            if (error) { alert('삭제 실패: ' + error.message); return; }
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                set((s) => ({
+                    payments: s.payments.filter(p => p.id !== id),
+                    opsData: s.opsData.filter(o => o.id !== id),
+                    missionsData: s.missionsData.filter(m => m.id !== id)
+                }));
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:delete',
+                    payload: { id },
+                    error
+                });
+            }
         } else {
             const { error } = await scopeFamilyQuery(supabase.from('ops').delete(), state.currentFamilyId).eq('id', id);
-            if (error) { alert('삭제 실패: ' + error.message); return; }
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                set((s) => ({
+                    payments: s.payments.filter(p => p.id !== id),
+                    opsData: s.opsData.filter(o => o.id !== id),
+                    missionsData: s.missionsData.filter(m => m.id !== id)
+                }));
+                return queueCloudFailure({
+                    get,
+                    type: 'mission:delete',
+                    payload: { id },
+                    error
+                });
+            }
         }
 
         set((state) => ({
@@ -1402,87 +2417,152 @@ export const useStore = create(persistGuestData((set, get) => ({
             opsData: state.opsData.filter(o => o.id !== id),
             missionsData: state.missionsData.filter(m => m.id !== id)
         }));
+        return { ok: true };
     },
 
     // 3. Notices Actions (Supabase Sync)
-    addNotice: async (notice) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
-            set(s => ({ notices: [...s.notices, { id: 'g_' + Date.now(), text: notice.text, checked: notice.checked }] }));
+    addNotice: async (notice, options = {}) => {
+        const { session, currentFamilyId } = get();
+        const localId = notice.localId || notice.id || createLocalId('notice', [notice.text, Date.now()]);
+        const localNotice = { id: notice.id || localId, localId, text: notice.text, checked: notice.checked };
+        if (!isCloudReady({ session, currentFamilyId })) {
+            set(s => ({ notices: [...s.notices, localNotice] }));
             return;
         }
-        const { data, error } = await supabase.from('notice').insert([{
+        const { data, error } = await insertWithLocalIdFallback('notice', [{
+            local_id: localId,
             text: notice.text,
             is_checked: notice.checked,
             family_id: currentFamilyId
-        }]).select();
-        if (error) { console.error(error); return; }
-        if (data && data.length > 0) {
-            set((state) => ({ notices: [...state.notices, { id: data[0].id, text: data[0].text, checked: data[0].is_checked }] }));
+        }], { select: true });
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => ({ notices: [...s.notices, localNotice] }));
+            return queueCloudFailure({
+                get,
+                type: 'notice:add',
+                payload: { notice: localNotice },
+                error
+            });
         }
+        if (data && data.length > 0) {
+            set((state) => ({ notices: [...state.notices, { id: data[0].id, localId: data[0].local_id, text: data[0].text, checked: data[0].is_checked }] }));
+        }
+        return { ok: true };
     },
-    updateNotice: async (id) => {
+    updateNotice: async (id, options = {}) => {
         const state = get();
         const notice = state.notices.find(n => n.id === id);
         if (notice) {
-            if (!state.session && state.isGuestMode) {
+            if (!isCloudReady(state)) {
                 set(s => ({ notices: s.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n) }));
                 return;
             }
-            await scopeFamilyQuery(supabase.from('notice').update({ is_checked: !notice.checked }), state.currentFamilyId).eq('id', id);
+            const { error } = await scopeFamilyQuery(supabase.from('notice').update({ is_checked: !notice.checked }), state.currentFamilyId).eq('id', id);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                set((state) => ({
+                    notices: state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n)
+                }));
+                return queueCloudFailure({
+                    get,
+                    type: 'notice:toggle',
+                    payload: { id },
+                    error
+                });
+            }
             set((state) => ({
                 notices: state.notices.map(n => n.id === id ? { ...n, checked: !n.checked } : n)
             }));
+            return { ok: true };
         }
     },
-    removeNotice: async (id) => {
+    removeNotice: async (id, options = {}) => {
         const state = get();
-        if (!state.session && state.isGuestMode) {
+        if (!isCloudReady(state)) {
             set(s => ({ notices: s.notices.filter(n => n.id !== id) }));
             return;
         }
-        await scopeFamilyQuery(supabase.from('notice').delete(), state.currentFamilyId).eq('id', id);
+        const { error } = await scopeFamilyQuery(supabase.from('notice').delete(), state.currentFamilyId).eq('id', id);
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set((state) => ({
+                notices: state.notices.filter(n => n.id !== id)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'notice:delete',
+                payload: { id },
+                error
+            });
+        }
         set((state) => ({
             notices: state.notices.filter(n => n.id !== id)
         }));
+        return { ok: true };
     },
 
     // 4. Payments Actions
-    addPayment: async (paymentData) => {
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
-        if (!session && isGuestMode) {
-            const id = 'g_' + Date.now();
-            const newPayment = {
-                id, source: paymentData.source, amount: paymentData.amount, method: paymentData.method,
-                day: `${parseInt(paymentData.day.replace('일', ''), 10) || 1} 일`, discount: paymentData.discount, isCompleted: false
-            };
-            const newFundMission = {
-                id, type: 'fund', day: parseInt(paymentData.day.replace('일', ''), 10) || 1, title: `${paymentData.source} 결제(${paymentData.amount.toLocaleString()}₩)`
-            };
-            set(s => ({
-                payments: [...s.payments, newPayment].sort((a, b) => parseInt(a.day.replace('일', '')) - parseInt(b.day.replace('일', ''))),
-                missionsData: [...s.missionsData, newFundMission]
-            }));
-            return;
-        }
-
-        const { data, error } = await supabase.from('payment').insert([{
+    addPayment: async (paymentData, options = {}) => {
+        const { currentChild, currentFamilyId, session } = get();
+        const localId = paymentData.localId || paymentData.id || createLocalId('payment', [currentChild, paymentData.source, paymentData.day, Date.now()]);
+        const dayNumber = parseInt(toSafeString(paymentData.day).replace('일', ''), 10) || 1;
+        const localPayment = {
+            id: paymentData.id || localId,
+            localId,
             source: paymentData.source,
             amount: paymentData.amount,
             method: paymentData.method,
-            payment_day: parseInt(paymentData.day.replace('일', ''), 10) || 1,
+            day: `${dayNumber} 일`,
+            discount: paymentData.discount,
+            isCompleted: false
+        };
+        const localFundMission = {
+            id: paymentData.id || localId,
+            type: 'fund',
+            day: dayNumber,
+            title: `${paymentData.source} 결제(${paymentData.amount.toLocaleString()}₩)`
+        };
+
+        if (!isCloudReady({ session, currentFamilyId })) {
+            set(s => ({
+                payments: [...s.payments, localPayment].sort((a, b) => parseInt(a.day.replace('일', '')) - parseInt(b.day.replace('일', ''))),
+                missionsData: [...s.missionsData, localFundMission]
+            }));
+            return { ok: true, local: true };
+        }
+
+        const { data, error } = await insertWithLocalIdFallback('payment', [{
+            local_id: localId,
+            source: paymentData.source,
+            amount: paymentData.amount,
+            method: paymentData.method,
+            payment_day: dayNumber,
             discount_info: paymentData.discount,
             is_completed: false,
             child_id: currentChild,
             family_id: currentFamilyId
-        }]).select();
+        }], { select: true });
 
-        if (error) { alert('요청 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => ({
+                payments: [...s.payments, localPayment].sort((a, b) => parseInt(a.day.replace('일', '')) - parseInt(b.day.replace('일', ''))),
+                missionsData: [...s.missionsData, localFundMission]
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'payment:add',
+                payload: { paymentData: { ...paymentData, id: localPayment.id, localId } },
+                error
+            });
+        }
 
         if (data && data.length > 0) {
             const p = data[0];
             const newPayment = {
                 id: p.id,
+                localId: p.local_id,
                 source: p.source,
                 amount: p.amount,
                 method: p.method,
@@ -1505,10 +2585,11 @@ export const useStore = create(persistGuestData((set, get) => ({
                 missionsData: [...state.missionsData, newFundMission]
             }));
         }
+        return { ok: true };
     },
-    removePayment: async (paymentId) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    removePayment: async (paymentId, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => ({
                 payments: s.payments.filter(p => p.id !== paymentId),
                 missionsData: s.missionsData.filter(m => m.id !== paymentId)
@@ -1517,16 +2598,29 @@ export const useStore = create(persistGuestData((set, get) => ({
         }
 
         const { error } = await scopeFamilyQuery(supabase.from('payment').delete(), currentFamilyId).eq('id', paymentId);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => ({
+                payments: s.payments.filter(p => p.id !== paymentId),
+                missionsData: s.missionsData.filter(m => m.id !== paymentId)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'payment:delete',
+                payload: { paymentId },
+                error
+            });
+        }
 
         set((state) => ({
             payments: state.payments.filter(p => p.id !== paymentId),
             missionsData: state.missionsData.filter(m => m.id !== paymentId)
         }));
+        return { ok: true };
     },
-    updatePayment: async (payment) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    updatePayment: async (payment, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set((state) => {
                 const numDay = parseInt(payment.day.replace('일', ''), 10) || 1;
                 return {
@@ -1553,7 +2647,30 @@ export const useStore = create(persistGuestData((set, get) => ({
             discount_info: payment.discount
         }), currentFamilyId).eq('id', payment.id);
 
-        if (error) { alert('수정 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set((state) => {
+                const numDay = parseInt(payment.day.replace('일', ''), 10) || 1;
+                return {
+                    payments: state.payments.map(p => p.id === payment.id ? payment : p).sort((a, b) => {
+                        const numA = parseInt(a.day.replace('일', ''));
+                        const numB = parseInt(b.day.replace('일', ''));
+                        return numA - numB;
+                    }),
+                    missionsData: state.missionsData.map(m => m.id === payment.id ? {
+                        ...m,
+                        day: numDay,
+                        title: `${payment.source} 결제(${payment.amount.toLocaleString()}₩)`
+                    } : m)
+                };
+            });
+            return queueCloudFailure({
+                get,
+                type: 'payment:update',
+                payload: { payment },
+                error
+            });
+        }
 
         set((state) => {
             const numDay = parseInt(payment.day.replace('일', ''), 10) || 1;
@@ -1570,11 +2687,16 @@ export const useStore = create(persistGuestData((set, get) => ({
                 } : m)
             };
         });
+        return { ok: true };
     },
-    processPayment: async (paymentId) => {
+    processPayment: async (paymentId, options = {}) => {
         const state = get();
         const payment = state.payments.find(p => p.id === paymentId);
-        if (!payment || payment.isCompleted) return;
+        if (!payment) {
+            if (isPendingReplay(options)) throw new Error('결제 항목을 찾을 수 없습니다.');
+            return;
+        }
+        if (payment.isCompleted && !isPendingReplay(options)) return;
 
         const now = new Date();
         const year = now.getFullYear();
@@ -1583,31 +2705,52 @@ export const useStore = create(persistGuestData((set, get) => ({
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
 
-        const currentMonth = `${year}-${month}`;
-        const completedAt = `${year}.${month}.${day} ${hours}:${minutes}`;
+        const currentMonth = options.currentMonth || `${year}-${month}`;
+        const completedAt = options.completedAt || `${year}.${month}.${day} ${hours}:${minutes}`;
+        const historyLocalId = options.historyLocalId || createLocalId('history-payment', [get().currentChild, paymentId, currentMonth]);
+        const localHistoryRecord = {
+            id: historyLocalId,
+            localId: historyLocalId,
+            paymentId,
+            month: currentMonth,
+            date_formatted: completedAt,
+            source: payment.source,
+            amount: payment.amount,
+            method: payment.method
+        };
+        const applyLocalProcessPayment = () => {
+            set(s => {
+                const hasHistory = s.transactionHistory.some(h => h.paymentId === paymentId && h.month === currentMonth);
+                return {
+                    payments: s.payments.map(p => p.id === paymentId ? { ...p, isCompleted: true, completedAt, justCompleted: true } : p),
+                    transactionHistory: hasHistory ? s.transactionHistory : [localHistoryRecord, ...s.transactionHistory]
+                };
+            });
+        };
 
-        let updatedFunds = state.funds;
-
-        if (!state.session && state.isGuestMode) {
-            const newHistoryRecord = {
-                id: 'g_' + Date.now(),
-                paymentId,
-                month: currentMonth,
-                date_formatted: completedAt,
-                source: payment.source,
-                amount: payment.amount,
-                method: payment.method
-            };
-            set(s => ({
-                payments: s.payments.map(p => p.id === paymentId ? { ...p, isCompleted: true, completedAt, justCompleted: true } : p),
-                transactionHistory: [newHistoryRecord, ...s.transactionHistory]
-            }));
-            return;
+        if (!isCloudReady(state)) {
+            applyLocalProcessPayment();
+            return { ok: true, local: true };
         }
 
-        await scopeFamilyQuery(supabase.from('payment').update({ is_completed: true }), state.currentFamilyId).eq('id', paymentId);
+        const { error: paymentError } = await scopeFamilyQuery(
+            supabase.from('payment').update({ is_completed: true }),
+            state.currentFamilyId
+        ).eq('id', paymentId);
 
-        const { data: histData } = await supabase.from('transactionhistory').insert([{
+        if (paymentError) {
+            if (isPendingReplay(options)) throw paymentError;
+            applyLocalProcessPayment();
+            return queueCloudFailure({
+                get,
+                type: 'payment:process',
+                payload: { paymentId, currentMonth, completedAt, historyLocalId },
+                error: paymentError
+            });
+        }
+
+        const { data: histData, error: historyError } = await insertWithLocalIdFallback('transactionhistory', [{
+            local_id: historyLocalId,
             payment_id: paymentId,
             month: currentMonth,
             date_formatted: completedAt,
@@ -1616,10 +2759,22 @@ export const useStore = create(persistGuestData((set, get) => ({
             method: payment.method,
             child_id: get().currentChild,
             family_id: state.currentFamilyId
-        }]).select();
+        }], { select: true });
+
+        if (historyError) {
+            if (isPendingReplay(options)) throw historyError;
+            applyLocalProcessPayment();
+            return queueCloudFailure({
+                get,
+                type: 'payment:process',
+                payload: { paymentId, currentMonth, completedAt, historyLocalId },
+                error: historyError
+            });
+        }
 
         const newHistoryRecord = histData && histData.length > 0 ? {
             id: histData[0].id,
+            localId: histData[0].local_id,
             paymentId,
             month: currentMonth,
             date_formatted: completedAt,
@@ -1629,95 +2784,147 @@ export const useStore = create(persistGuestData((set, get) => ({
         } : null;
 
         set((state) => ({
-            funds: updatedFunds,
             payments: state.payments.map(p =>
                 p.id === paymentId ? { ...p, isCompleted: true, completedAt, justCompleted: true } : p
             ),
-            transactionHistory: newHistoryRecord ? [newHistoryRecord, ...state.transactionHistory] : state.transactionHistory
+            transactionHistory: newHistoryRecord
+                ? [
+                    newHistoryRecord,
+                    ...state.transactionHistory.filter(h => !(h.paymentId === paymentId && h.month === currentMonth))
+                ]
+                : state.transactionHistory
         }));
+        return { ok: true };
     },
-    undoPayment: async (paymentId) => {
+    undoPayment: async (paymentId, options = {}) => {
         const state = get();
         const payment = state.payments.find(p => p.id === paymentId);
-        if (!payment || !payment.isCompleted) return;
-
-        let updatedFunds = state.funds;
+        if (!payment) {
+            if (isPendingReplay(options)) throw new Error('결제 항목을 찾을 수 없습니다.');
+            return;
+        }
+        if (!payment.isCompleted && !isPendingReplay(options)) return;
 
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
-        const currentMonth = `${year}-${month}`;
-
-        if (!state.session && state.isGuestMode) {
+        const currentMonth = options.currentMonth || `${year}-${month}`;
+        const applyLocalUndoPayment = () => {
             set((s) => ({
                 payments: s.payments.map(p =>
                     p.id === paymentId ? { ...p, isCompleted: false, completedAt: null } : p
                 ),
                 transactionHistory: s.transactionHistory.filter(h => !(h.paymentId === paymentId && h.month === currentMonth))
             }));
-            return;
+        };
+
+        if (!isCloudReady(state)) {
+            applyLocalUndoPayment();
+            return { ok: true, local: true };
         }
 
-        await scopeFamilyQuery(supabase.from('payment').update({ is_completed: false }), state.currentFamilyId).eq('id', paymentId);
-        await scopeFamilyQuery(supabase.from('transactionhistory').delete(), state.currentFamilyId).eq('payment_id', paymentId).eq('month', currentMonth);
+        const { error: paymentError } = await scopeFamilyQuery(
+            supabase.from('payment').update({ is_completed: false }),
+            state.currentFamilyId
+        ).eq('id', paymentId);
+
+        if (paymentError) {
+            if (isPendingReplay(options)) throw paymentError;
+            applyLocalUndoPayment();
+            return queueCloudFailure({
+                get,
+                type: 'payment:undo',
+                payload: { paymentId, currentMonth },
+                error: paymentError
+            });
+        }
+
+        const { error: historyError } = await scopeFamilyQuery(
+            supabase.from('transactionhistory').delete(),
+            state.currentFamilyId
+        ).eq('payment_id', paymentId).eq('month', currentMonth);
+
+        if (historyError) {
+            if (isPendingReplay(options)) throw historyError;
+            applyLocalUndoPayment();
+            return queueCloudFailure({
+                get,
+                type: 'payment:undo',
+                payload: { paymentId, currentMonth },
+                error: historyError
+            });
+        }
 
         set((state) => ({
-            funds: updatedFunds,
             payments: state.payments.map(p =>
                 p.id === paymentId ? { ...p, isCompleted: false, completedAt: null } : p
             ),
             transactionHistory: state.transactionHistory.filter(h => !(h.paymentId === paymentId && h.month === currentMonth))
         }));
+        return { ok: true };
     },
-    updateFund: async (fund) => {
-        const { session, isGuestMode, currentFamilyId } = get();
+    updateFund: async (fund, options = {}) => {
+        const { session, currentFamilyId } = get();
         const now = new Date();
         const todayStr = `${now.getFullYear().toString().slice(-2)}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
 
-        if (!session && isGuestMode) {
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => ({ funds: s.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f) }));
             return;
         }
 
-        await scopeFamilyQuery(supabase.from('asset').update({ balance: fund.balance, last_updated: new Date().toISOString() }), currentFamilyId).eq('id', fund.id);
+        const { error } = await scopeFamilyQuery(supabase.from('asset').update({ balance: fund.balance, last_updated: new Date().toISOString() }), currentFamilyId).eq('id', fund.id);
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => ({ funds: s.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f) }));
+            return queueCloudFailure({
+                get,
+                type: 'fund:update',
+                payload: { fund },
+                error
+            });
+        }
         set((state) => ({
             funds: state.funds.map(f => f.id === fund.id ? { ...fund, updated: todayStr } : f)
         }));
+        return { ok: true };
     },
 
     setOpsData: (ops) => set({ opsData: ops }),
-    addOp: async (opData) => {
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
+    addOp: async (opData, options = {}) => {
+        const { currentChild, currentFamilyId, session } = get();
+        const localId = opData.localId || opData.id || createLocalId('ops', [currentChild, opData.date, opData.title, Date.now()]);
+        const dateStr = opData.date.replace(/-/g, '.');
+        const localOp = {
+            id: opData.id || localId,
+            localId,
+            title: opData.title,
+            date: dateStr,
+            description: opData.description,
+            priority: opData.priority,
+            status: 'PENDING',
+            participants: { mom: false, dad: false },
+            checklist: []
+        };
+        const localEventMission = {
+            id: opData.id || localId,
+            type: 'event',
+            year: parseInt(dateStr.split('.')[0], 10),
+            month: parseInt(dateStr.split('.')[1], 10),
+            day: parseInt(dateStr.split('.')[2], 10),
+            title: localOp.title
+        };
 
-        if (!session && isGuestMode) {
-            const id = 'g_' + Date.now();
-            const dateStr = opData.date.replace(/-/g, '.');
-            const parsedOp = {
-                id,
-                title: opData.title,
-                date: dateStr,
-                description: opData.description,
-                priority: opData.priority,
-                status: 'PENDING',
-                participants: { mom: false, dad: false },
-                checklist: []
-            };
-            const newEventMission = {
-                id,
-                type: 'event',
-                year: parseInt(dateStr.split('.')[0], 10),
-                month: parseInt(dateStr.split('.')[1], 10),
-                day: parseInt(dateStr.split('.')[2], 10),
-                title: parsedOp.title
-            };
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(state => ({
-                opsData: [...state.opsData, parsedOp],
-                missionsData: [...state.missionsData, newEventMission]
+                opsData: [...state.opsData, localOp],
+                missionsData: [...state.missionsData, localEventMission]
             }));
-            return;
+            return { ok: true, local: true };
         }
 
-        const { data, error } = await supabase.from('ops').insert([{
+        const { data, error } = await insertWithLocalIdFallback('ops', [{
+            local_id: localId,
             title: opData.title,
             execution_date: opData.date.replace(/\./g, '-'),
             description: opData.description,
@@ -1725,14 +2932,27 @@ export const useStore = create(persistGuestData((set, get) => ({
             status: 'PENDING',
             child_id: currentChild,
             family_id: currentFamilyId
-        }]).select();
+        }], { select: true });
 
-        if (error) { alert('요청 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(state => ({
+                opsData: [...state.opsData, localOp],
+                missionsData: [...state.missionsData, localEventMission]
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'ops:add',
+                payload: { opData: { ...opData, id: localOp.id, localId } },
+                error
+            });
+        }
 
         if (data && data.length > 0) {
             const newOp = data[0];
             const parsedOp = {
                 id: newOp.id,
+                localId: newOp.local_id,
                 title: newOp.title,
                 date: newOp.execution_date.replace(/-/g, '.'),
                 description: newOp.description,
@@ -1754,10 +2974,11 @@ export const useStore = create(persistGuestData((set, get) => ({
                 missionsData: [...state.missionsData, newEventMission]
             }));
         }
+        return { ok: true };
     },
-    removeOp: async (id) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    removeOp: async (id, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(state => ({
                 opsData: state.opsData.filter(op => op.id !== id),
                 missionsData: state.missionsData.filter(m => m.id !== id)
@@ -1766,18 +2987,31 @@ export const useStore = create(persistGuestData((set, get) => ({
         }
 
         const { error } = await scopeFamilyQuery(supabase.from('ops').delete(), currentFamilyId).eq('id', id);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(state => ({
+                opsData: state.opsData.filter(op => op.id !== id),
+                missionsData: state.missionsData.filter(m => m.id !== id)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'ops:delete',
+                payload: { id },
+                error
+            });
+        }
 
         set(state => ({
             opsData: state.opsData.filter(op => op.id !== id),
             missionsData: state.missionsData.filter(m => m.id !== id)
         }));
+        return { ok: true };
     },
-    updateOp: async (updatedOp) => {
+    updateOp: async (updatedOp, options = {}) => {
         const state = get();
         const oldOp = state.opsData.find(o => o.id === updatedOp.id);
 
-        if (!state.session && state.isGuestMode) {
+        if (!isCloudReady(state)) {
             set(s => ({
                 opsData: s.opsData.map(op => op.id === updatedOp.id ? updatedOp : op),
                 missionsData: s.missionsData.map(m => m.id === updatedOp.id ? {
@@ -1799,7 +3033,25 @@ export const useStore = create(persistGuestData((set, get) => ({
             status: updatedOp.status
         }), state.currentFamilyId).eq('id', updatedOp.id);
 
-        if (error) { console.error('Ops update error:', error); alert('업데이트 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(s => ({
+                opsData: s.opsData.map(op => op.id === updatedOp.id ? updatedOp : op),
+                missionsData: s.missionsData.map(m => m.id === updatedOp.id ? {
+                    ...m,
+                    year: parseInt(updatedOp.date.split('.')[0], 10),
+                    month: parseInt(updatedOp.date.split('.')[1], 10),
+                    day: parseInt(updatedOp.date.split('.')[2], 10),
+                    title: updatedOp.title
+                } : m)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'ops:update',
+                payload: { updatedOp },
+                error
+            });
+        }
 
         // Sync Participants
         if (oldOp && oldOp.participants !== updatedOp.participants) {
@@ -1844,80 +3096,120 @@ export const useStore = create(persistGuestData((set, get) => ({
                 title: updatedOp.title
             } : m)
         }));
+        return { ok: true };
     },
 
     // 5. Daily Tasks Actions
-    addDailyTask: async (taskName) => {
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
+    addDailyTask: async (taskName, options = {}) => {
+        const { currentChild, currentFamilyId, session } = get();
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const localId = options.localId || createLocalId('daily', [currentChild, todayStr, taskName, Date.now()]);
+        const localTask = { id: localId, localId, task_name: taskName, is_completed: false, assigned_date: todayStr, child_id: currentChild };
 
-        if (!session && isGuestMode) {
+        if (!isCloudReady({ session, currentFamilyId })) {
             set((s) => ({
-                dailyTasks: [...s.dailyTasks, { id: 'g_' + Date.now(), task_name: taskName, is_completed: false, assigned_date: todayStr, child_id: currentChild }]
+                dailyTasks: [...s.dailyTasks, localTask]
             }));
             return;
         }
 
-        const { data, error } = await supabase.from('dailytasks').insert([{
+        const { data, error } = await insertWithLocalIdFallback('dailytasks', [{
+            local_id: localId,
             task_name: taskName,
             is_completed: false,
             assigned_date: todayStr,
             child_id: currentChild,
             family_id: currentFamilyId
-        }]).select();
+        }], { select: true });
 
-        if (error) { alert('오늘할일 추가 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set((s) => ({
+                dailyTasks: [...s.dailyTasks, localTask]
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'daily:add',
+                payload: { taskName, localId },
+                error
+            });
+        }
 
         if (data && data.length > 0) {
             set((state) => ({
-                dailyTasks: [...state.dailyTasks, data[0]]
+                dailyTasks: [...state.dailyTasks, { ...data[0], localId: data[0].local_id }]
             }));
         }
+        return { ok: true };
     },
-    toggleDailyTask: async (id) => {
+    toggleDailyTask: async (id, options = {}) => {
         const state = get();
         const task = state.dailyTasks.find(t => t.id === id);
         if (task) {
-            if (!state.session && state.isGuestMode) {
+            if (!isCloudReady(state)) {
                 set((s) => ({ dailyTasks: s.dailyTasks.map(t => t.id === id ? { ...t, is_completed: !t.is_completed } : t) }));
                 return;
             }
 
-            await scopeFamilyQuery(supabase.from('dailytasks').update({ is_completed: !task.is_completed }), state.currentFamilyId).eq('id', id);
+            const { error } = await scopeFamilyQuery(supabase.from('dailytasks').update({ is_completed: !task.is_completed }), state.currentFamilyId).eq('id', id);
+            if (error) {
+                if (isPendingReplay(options)) throw error;
+                set((s) => ({ dailyTasks: s.dailyTasks.map(t => t.id === id ? { ...t, is_completed: !t.is_completed } : t) }));
+                return queueCloudFailure({
+                    get,
+                    type: 'daily:toggle',
+                    payload: { id },
+                    error
+                });
+            }
             set((state) => ({
                 dailyTasks: state.dailyTasks.map(t => t.id === id ? { ...t, is_completed: !t.is_completed } : t)
             }));
+            return { ok: true };
         }
     },
-    removeDailyTask: async (id) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    removeDailyTask: async (id, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set((s) => ({ dailyTasks: s.dailyTasks.filter(t => t.id !== id) }));
             return;
         }
 
         const { error } = await scopeFamilyQuery(supabase.from('dailytasks').delete(), currentFamilyId).eq('id', id);
-        if (error) { alert('삭제 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set((s) => ({ dailyTasks: s.dailyTasks.filter(t => t.id !== id) }));
+            return queueCloudFailure({
+                get,
+                type: 'daily:delete',
+                payload: { id },
+                error
+            });
+        }
 
         set((state) => ({
             dailyTasks: state.dailyTasks.filter(t => t.id !== id)
         }));
+        return { ok: true };
     },
 
     // 6. Transaction History Actions
-    addTransactionHistory: async (record) => {
-        const { currentChild, currentFamilyId, session, isGuestMode } = get();
+    addTransactionHistory: async (record, options = {}) => {
+        const { currentChild, currentFamilyId, session } = get();
         const { month, date_formatted, source, amount, method } = record;
+        const localId = record.localId || record.id || createLocalId('history', [currentChild, month, date_formatted, source, Date.now()]);
+        const localRecord = { id: record.id || localId, localId, month, date_formatted, source, amount, method, child_id: currentChild };
 
-        if (!session && isGuestMode) {
+        if (!isCloudReady({ session, currentFamilyId })) {
             set((s) => ({
-                transactionHistory: [{ id: 'g_' + Date.now(), month, date_formatted, source, amount, method, child_id: currentChild }, ...s.transactionHistory]
+                transactionHistory: [localRecord, ...s.transactionHistory]
             }));
             return;
         }
 
-        const { data, error } = await supabase.from('transactionhistory').insert([{
+        const { data, error } = await insertWithLocalIdFallback('transactionhistory', [{
+            local_id: localId,
             month,
             date_formatted,
             source,
@@ -1925,21 +3217,33 @@ export const useStore = create(persistGuestData((set, get) => ({
             method,
             child_id: currentChild,
             family_id: currentFamilyId
-        }]).select();
+        }], { select: true });
 
-        if (error) { alert('결제 기록 추가 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set((s) => ({
+                transactionHistory: [localRecord, ...s.transactionHistory]
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'history:add',
+                payload: { record: { ...record, id: localRecord.id, localId } },
+                error
+            });
+        }
 
         if (data && data.length > 0) {
             set((state) => ({
-                transactionHistory: [data[0], ...state.transactionHistory]
+                transactionHistory: [{ ...data[0], localId: data[0].local_id }, ...state.transactionHistory]
             }));
         }
+        return { ok: true };
     },
-    updateTransactionHistory: async (record) => {
-        const { session, isGuestMode, currentFamilyId } = get();
+    updateTransactionHistory: async (record, options = {}) => {
+        const { session, currentFamilyId } = get();
         const { id, month, date_formatted, source, amount, method } = record;
 
-        if (!session && isGuestMode) {
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => ({ transactionHistory: s.transactionHistory.map(th => th.id === id ? { ...th, month, date_formatted, source, amount, method } : th) }));
             return;
         }
@@ -1952,101 +3256,193 @@ export const useStore = create(persistGuestData((set, get) => ({
             method
         }), currentFamilyId).eq('id', id);
 
-        if (error) { alert('과거 기록 수정 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(state => ({
+                transactionHistory: state.transactionHistory.map(th => th.id === id ? { ...th, month, date_formatted, source, amount, method } : th)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'history:update',
+                payload: { record },
+                error
+            });
+        }
 
         set(state => ({
             transactionHistory: state.transactionHistory.map(th => th.id === id ? { ...th, month, date_formatted, source, amount, method } : th)
         }));
+        return { ok: true };
     },
-    removeTransactionHistory: async (id) => {
-        const { session, isGuestMode, currentFamilyId } = get();
-        if (!session && isGuestMode) {
+    removeTransactionHistory: async (id, options = {}) => {
+        const { session, currentFamilyId } = get();
+        if (!isCloudReady({ session, currentFamilyId })) {
             set(s => ({ transactionHistory: s.transactionHistory.filter(th => th.id !== id) }));
             return;
         }
 
         const { error } = await scopeFamilyQuery(supabase.from('transactionhistory').delete(), currentFamilyId).eq('id', id);
-        if (error) { alert('과거 기록 삭제 실패: ' + error.message); return; }
+        if (error) {
+            if (isPendingReplay(options)) throw error;
+            set(state => ({
+                transactionHistory: state.transactionHistory.filter(th => th.id !== id)
+            }));
+            return queueCloudFailure({
+                get,
+                type: 'history:delete',
+                payload: { id },
+                error
+            });
+        }
 
         set(state => ({
             transactionHistory: state.transactionHistory.filter(th => th.id !== id)
         }));
+        return { ok: true };
     },
 
     // ----    // 7. General Data Fetching
     syncGuestDataToCloud: async () => {
-        set({ isLoading: true });
-        const { currentChild, currentFamilyId, session } = get();
-        const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
-        if (!session || !currentFamilyId || !guestDataStr) {
-            set({ isLoading: false });
-            return;
-        }
-
-        try {
-            const guestData = normalizeGuestData(JSON.parse(guestDataStr));
-
-            const schedules = [];
-            for (const day in guestData.weeklyData) {
-                guestData.weeklyData[day].forEach(item => {
-                    schedules.push({ title: item.title, day_of_week: day, start_time: item.time + ':00', pickup_agent: item.agent, drop_agent: item.agent, location: item.location || '', contact_name: item.contactName || '', contact_phone: item.contactPhone || '', is_urgent: item.isUrgent || false, is_early: item.isEarly || false, child_id: currentChild, family_id: currentFamilyId });
-                });
+        let backupKey = null;
+        set({
+            isLoading: true,
+            storageMode: STORAGE_MODE.SYNCING,
+            syncStatus: {
+                phase: 'snapshot',
+                message: '로컬 데이터 백업을 만드는 중입니다.',
+                error: null,
+                backupKey: null
             }
-            if (schedules.length > 0) await supabase.from('schedule').insert(schedules);
+        });
+        try {
+            const syncState = get();
+            const { currentFamilyId, session } = syncState;
+            if (!isCloudReady(syncState)) {
+                set({
+                    storageMode: resolveStorageMode(syncState),
+                    syncStatus: {
+                        phase: 'failed',
+                        message: '가족 공유 연결 후 동기화할 수 있습니다.',
+                        error: 'cloud-not-ready',
+                        backupKey: null
+                    }
+                });
+                return { ok: false, error: '가족 공유 연결 후 동기화할 수 있습니다.' };
+            }
 
-            const payments = guestData.payments.map(p => ({ source: p.source, amount: p.amount, method: p.method, payment_day: normalizeDayNumber(p.day), discount_info: p.discount, is_completed: p.isCompleted, child_id: currentChild, family_id: currentFamilyId }));
-            if (payments.length > 0) await supabase.from('payment').insert(payments);
+            const backup = createLocalCloudSyncBackup(syncState);
+            backupKey = backup.key;
+            localStorage.setItem(backup.key, JSON.stringify(backup.payload));
+            set({
+                syncStatus: {
+                    phase: 'uploading',
+                    message: '로컬 데이터를 클라우드로 업로드하는 중입니다.',
+                    error: null,
+                    backupKey
+                }
+            });
 
-            const ops = guestData.opsData.map(o => ({ title: o.title, execution_date: normalizeDateDashes(o.date), description: o.description || '', priority: o.priority, status: o.status, child_id: currentChild, family_id: currentFamilyId }));
-            if (ops.length > 0) await supabase.from('ops').insert(ops);
+            const { snapshot, guestDataStringsByChild } = buildGuestCloudSnapshot(syncState);
+            const insertRows = async (table, rows) => {
+                if (rows.length === 0) return;
+                const rowsWithFamily = rows.map(row => ({
+                    ...row,
+                    family_id: currentFamilyId,
+                    user_id: session.user.id
+                }));
+                const { error } = await supabase.from(table).upsert(rowsWithFamily, {
+                    onConflict: 'family_id,local_id',
+                    ignoreDuplicates: false
+                });
+                if (!error) return;
 
-            const dailyTasks = guestData.dailyTasks.map(t => ({ task_name: t.task_name, is_completed: t.is_completed, assigned_date: t.assigned_date, child_id: currentChild, family_id: currentFamilyId }));
-            if (dailyTasks.length > 0) await supabase.from('dailytasks').insert(dailyTasks);
+                if (!['42703', '42P10'].includes(toSafeString(error.code))) throw error;
 
-            const history = guestData.transactionHistory.map(h => ({ month: h.month, date_formatted: h.date_formatted, source: h.source, amount: h.amount, method: h.method || '', child_id: currentChild, family_id: currentFamilyId }));
-            if (history.length > 0) await supabase.from('transactionhistory').insert(history);
+                const legacyRows = rowsWithFamily.map(withoutLocalId);
+                const { error: legacyError } = await supabase.from(table).insert(legacyRows);
+                if (legacyError) throw legacyError;
+            };
 
-            const notices = guestData.notices.map(n => ({ text: n.text, is_checked: n.checked, family_id: currentFamilyId }));
-            if (notices.length > 0) await supabase.from('notice').insert(notices);
+            const rpcResult = await supabase.rpc('sync_guest_snapshot', { snapshot_input: snapshot });
+            if (rpcResult.error) {
+                if (!isMissingSyncSnapshotRpcError(rpcResult.error)) throw rpcResult.error;
 
+                const childResult = await upsertFamilyChildren({
+                    familyId: currentFamilyId,
+                    childCount: syncState.childCount,
+                    childProfiles: syncState.childProfiles
+                });
+                if (childResult.error && !isMissingFamilyChildrenError(childResult.error)) {
+                    throw childResult.error;
+                }
+
+                await insertRows('schedule', snapshot.tables.schedule);
+                await insertRows('asset', snapshot.tables.asset);
+                await insertRows('payment', snapshot.tables.payment);
+                await insertRows('ops', snapshot.tables.ops);
+                await insertRows('dailytasks', snapshot.tables.dailytasks);
+                await insertRows('transactionhistory', snapshot.tables.transactionhistory);
+                await insertRows('notice', snapshot.tables.notice);
+            }
+
+            Object.entries(guestDataStringsByChild).forEach(([childId, guestDataStr]) => {
+                localStorage.setItem(`spy_guestDataLastSynced_${childId}`, guestDataStr);
+            });
+            markChildProfilesSynced(syncState);
+
+            set({
+                syncStatus: {
+                    phase: 'verifying',
+                    message: '업로드 결과를 확인하는 중입니다.',
+                    error: null,
+                    backupKey
+                }
+            });
+
+            const verification = await verifyGuestSnapshotSync({ snapshot, currentFamilyId });
             await get().syncLocalDiariesToCloud();
-            localStorage.setItem(`spy_guestDataLastSynced_${currentChild}`, guestDataStr);
-            set({ isGuestMode: false });
+            const lastSyncAt = new Date().toISOString();
+            localStorage.setItem(LAST_SYNC_AT_KEY, lastSyncAt);
+            savePendingMutations([]);
+
+            set({
+                isGuestMode: false,
+                storageMode: STORAGE_MODE.CLOUD,
+                syncStatus: {
+                    phase: 'complete',
+                    message: '클라우드 동기화가 완료되었습니다.',
+                    error: null,
+                    backupKey
+                },
+                lastSyncAt,
+                syncVerification: verification,
+                pendingMutations: []
+            });
             await get().fetchDataFromDB();
+            return { ok: true, backupKey };
         } catch (e) {
             console.error('Guest Sync Error:', e);
-            alert('데이터 동기화 실패. 다시 시도해 주세요.');
+            set({
+                storageMode: STORAGE_MODE.CLOUD_ERROR,
+                syncStatus: {
+                    phase: 'failed',
+                    message: '동기화에 실패했습니다. 로컬 백업은 그대로 보존되어 있습니다.',
+                    error: e.message,
+                    backupKey
+                }
+            });
+            return { ok: false, error: e.message, backupKey };
         } finally {
             set({ isLoading: false });
         }
     },
 
     fetchDataFromDB: async () => {
-        const { session, currentChild } = get();
+        const { session } = get();
         if (!session) {
-            const guestDataStr = localStorage.getItem(`spy_guestData_${currentChild}`);
-            if (guestDataStr) {
-                try {
-                    const parsed = normalizeGuestData(JSON.parse(guestDataStr));
-                    set({ ...parsed, isLoading: false, isDataLoaded: true });
-                } catch (error) {
-                    console.warn('Local guest data could not be loaded safely:', error);
-                    set({
-                        ...normalizeGuestData({}),
-                        isLoading: false,
-                        isDataLoaded: true
-                    });
-                }
-            } else {
-                set({
-                    ...normalizeGuestData({}),
-                    isLoading: false, isDataLoaded: true
-                });
-            }
+            setLocalGuestDataForCurrentChild(set, get, { storageMode: STORAGE_MODE.LOCAL });
             return;
         }
-
-        if (!session) return;
 
         set({ isLoading: true });
         try {
@@ -2056,11 +3452,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             }
 
             if (!currentFamilyId) {
-                set({
-                    ...normalizeGuestData({}),
-                    isLoading: false,
-                    isDataLoaded: true
-                });
+                setLocalGuestDataForCurrentChild(set, get);
                 return;
             }
 
@@ -2096,6 +3488,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     const updatedStr = `${d.getFullYear().toString().slice(-2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
                     return {
                         id: a.id,
+                        localId: a.local_id,
                         name: a.name,
                         balance: a.balance,
                         updated: updatedStr
@@ -2115,6 +3508,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (historyData) {
                 formattedHistory = historyData.map(h => ({
                     id: h.id,
+                    localId: h.local_id,
                     paymentId: h.payment_id,
                     month: h.month,
                     date_formatted: h.date_formatted,
@@ -2148,6 +3542,7 @@ export const useStore = create(persistGuestData((set, get) => ({
 
                     formattedPayments.push({
                         id: p.id,
+                        localId: p.local_id,
                         source: p.source,
                         amount: p.amount,
                         method: p.method.replace('성남', '지역'),
@@ -2179,6 +3574,7 @@ export const useStore = create(persistGuestData((set, get) => ({
 
                         return {
                             id: o.id,
+                            localId: o.local_id,
                             title: o.title,
                             date: o.execution_date.replace(/-/g, '.'),
                             description: o.description,
@@ -2222,6 +3618,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     if (newWeekly[s.day_of_week]) {
                         newWeekly[s.day_of_week].push({
                             id: s.id,
+                            localId: s.local_id,
                             time: s.start_time.slice(0, 5), // 'HH:MM:SS' -> 'HH:MM'
                             title: s.title,
                             agent: s.pickup_agent || s.drop_agent || '자율',
@@ -2245,6 +3642,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 set({
                     notices: noticeData.map(n => ({
                         id: n.id,
+                        localId: n.local_id,
                         text: n.text,
                         checked: n.is_checked
                     }))
@@ -2265,11 +3663,28 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (dailyError) {
                 // If the table doesn't exist yet, simply ignore to prevent app crashing before migration runs
             } else if (dailyData) {
-                set({ dailyTasks: dailyData });
+                set({
+                    dailyTasks: dailyData.map(task => ({
+                        ...task,
+                        localId: task.local_id
+                    }))
+                });
             }
+
+            saveCloudCacheSnapshot(get(), currentFamilyId, currentChild);
 
         } catch (err) {
             console.error('Error fetching data:', err);
+            const fallbackFamilyId = get().currentFamilyId;
+            const restored = setCloudCacheForCurrentChild(set, get, fallbackFamilyId, {
+                syncStatus: {
+                    phase: 'failed',
+                    message: '클라우드 데이터를 불러오지 못해 이 기기에 보관된 마지막 데이터를 표시합니다.',
+                    error: err.message,
+                    backupKey: null
+                }
+            });
+            if (restored) return;
         } finally {
             set({ isLoading: false });
         }
