@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { ClipboardPaste, Copy, Key, Lock, LogOut, ShieldAlert, UserPlus, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,6 +22,56 @@ const getAuthErrorMessage = (error, mode) => {
     return `${mode} 실패: ${message}`;
 };
 
+const UI_ACTION_TIMEOUT_MS = 15000;
+const ACCOUNT_DELETE_TIMEOUT_MS = 60000;
+
+const withUiTimeout = (promise, message, timeoutMs = UI_ACTION_TIMEOUT_MS) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+        window.clearTimeout(timeoutId);
+    });
+};
+
+const copyTextWithFallback = async (text) => {
+    const safeText = String(text || '');
+    if (!safeText) return false;
+
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(safeText);
+            return true;
+        }
+    } catch {
+        // Fall back to the older selection-based copy path below.
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = safeText;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    let copied = false;
+    try {
+        copied = document.execCommand('copy');
+    } finally {
+        document.body.removeChild(textarea);
+    }
+
+    if (!copied) {
+        throw new Error('클립보드 복사 권한을 사용할 수 없습니다.');
+    }
+    return true;
+};
+
 export default function Login({ onClose }) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -37,7 +87,9 @@ export default function Login({ onClose }) {
     const [deleteTextOpen, setDeleteTextOpen] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [accountDeleteComplete, setAccountDeleteComplete] = useState(false);
     const [familyAction, setFamilyAction] = useState(null);
+    const inviteInputRef = useRef(null);
 
     const signIn = useStore(state => state.signIn);
     const signUp = useStore(state => state.signUp);
@@ -90,7 +142,6 @@ export default function Login({ onClose }) {
                 }
             } else {
                 await signIn(email.trim(), password);
-                onClose?.();
             }
         } catch (error) {
             setErrorMsg(getAuthErrorMessage(error, isSignUp ? '가입' : '로그인'));
@@ -103,19 +154,24 @@ export default function Login({ onClose }) {
         setStatusMsg('');
         setFamilyAction('create');
         try {
-            const familyId = await createFamily(familyName.trim() || '우리 가족');
+            const familyId = await withUiTimeout(
+                createFamily(familyName.trim() || '우리 가족'),
+                '가족 그룹 생성 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+            );
             if (familyId) {
                 if (hasUnsyncedLocalData()) {
                     setCloudSyncPromptOpen(true);
                 } else {
-                    await fetchDataFromDB();
-                    await fetchDiariesFromDB();
+                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.');
+                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.');
                     setStatusMsg('가족 그룹이 생성되었습니다. 초대 코드를 다른 보호자에게 공유할 수 있어요.');
                 }
             } else {
                 const latestSyncStatus = useStore.getState().syncStatus;
                 setErrorMsg(`가족 생성 실패: ${latestSyncStatus?.error || '다시 시도해 주세요.'}`);
             }
+        } catch (error) {
+            setErrorMsg(`가족 생성 실패: ${error.message || '다시 시도해 주세요.'}`);
         } finally {
             setFamilyAction(null);
         }
@@ -127,20 +183,25 @@ export default function Login({ onClose }) {
         setStatusMsg('');
         setFamilyAction('join');
         try {
-            const joined = await joinFamily(inviteCode);
+            const joined = await withUiTimeout(
+                joinFamily(inviteCode),
+                '가족 합류 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+            );
             if (joined) {
                 setInviteCode('');
                 if (hasUnsyncedLocalData()) {
                     setCloudSyncPromptOpen(true);
                 } else {
-                    await fetchDataFromDB();
-                    await fetchDiariesFromDB();
+                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.');
+                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.');
                     setStatusMsg('가족 그룹에 합류했습니다.');
                 }
             } else {
                 const latestSyncStatus = useStore.getState().syncStatus;
                 setErrorMsg(`가족 합류 실패: ${latestSyncStatus?.error || '초대 코드를 확인해 주세요.'}`);
             }
+        } catch (error) {
+            setErrorMsg(`가족 합류 실패: ${error.message || '다시 시도해 주세요.'}`);
         } finally {
             setFamilyAction(null);
         }
@@ -181,8 +242,13 @@ export default function Login({ onClose }) {
 
     const handleCopyInviteCode = async () => {
         if (!familyInviteCode) return;
-        await navigator.clipboard?.writeText(familyInviteCode);
-        setStatusMsg('초대 코드를 복사했습니다.');
+        setErrorMsg('');
+        try {
+            await copyTextWithFallback(familyInviteCode);
+            setStatusMsg('초대 코드를 복사했습니다.');
+        } catch (error) {
+            setErrorMsg(error.message || '클립보드 복사 권한을 사용할 수 없습니다.');
+        }
     };
 
     const handlePasteInviteCode = async () => {
@@ -198,7 +264,8 @@ export default function Login({ onClose }) {
             setInviteCode(nextCode);
             setStatusMsg('초대 코드를 붙여넣었습니다.');
         } catch {
-            setErrorMsg('클립보드 접근이 허용되지 않았습니다. 코드를 직접 입력해 주세요.');
+            inviteInputRef.current?.focus();
+            setErrorMsg('클립보드 읽기 권한이 없어 자동 붙여넣기는 제한됩니다. 입력창에 코드를 직접 입력해 주세요.');
         }
     };
 
@@ -235,6 +302,7 @@ export default function Login({ onClose }) {
         setErrorMsg('');
         setStatusMsg('');
         setDeleteConfirmText('');
+        setAccountDeleteComplete(false);
         setDeleteWarningOpen(true);
     };
 
@@ -252,16 +320,22 @@ export default function Login({ onClose }) {
         setErrorMsg('');
         setIsDeletingAccount(true);
         try {
-            const result = await deleteAccount();
+            const result = await withUiTimeout(
+                deleteAccount(),
+                '계정 삭제가 1분 이상 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+                ACCOUNT_DELETE_TIMEOUT_MS
+            );
             if (result?.ok) {
                 setDeleteTextOpen(false);
                 setDeleteConfirmText('');
                 setStatusMsg('회원 탈퇴 및 계정 데이터 파기가 완료되었습니다.');
-                onClose?.();
+                setAccountDeleteComplete(true);
                 return;
             }
 
             setErrorMsg(`탈퇴 처리 중 오류가 발생했습니다: ${result?.error || '다시 시도해 주세요.'}`);
+        } catch (error) {
+            setErrorMsg(`탈퇴 처리 중 오류가 발생했습니다: ${error.message || '다시 시도해 주세요.'}`);
         } finally {
             setIsDeletingAccount(false);
         }
@@ -396,7 +470,6 @@ export default function Login({ onClose }) {
                                     type="text"
                                     value={familyName}
                                     onChange={(event) => setFamilyName(event.target.value)}
-                                    onContextMenu={(event) => event.preventDefault()}
                                     spellCheck={false}
                                     className="w-full rounded-xl border border-navy/12 bg-white p-3 text-[14px] font-bold text-navy outline-none transition-all focus:border-navy/20 focus:ring-0"
                                     placeholder="우리 가족"
@@ -416,10 +489,10 @@ export default function Login({ onClose }) {
                                 </label>
                                 <div className="relative">
                                     <input
+                                        ref={inviteInputRef}
                                         type="text"
                                         value={inviteCode}
                                         onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
-                                        onContextMenu={(event) => event.preventDefault()}
                                         spellCheck={false}
                                         autoCapitalize="characters"
                                         autoCorrect="off"
@@ -507,17 +580,24 @@ export default function Login({ onClose }) {
                 <NativeSafeTextDialog
                     open={deleteTextOpen}
                     title="최종 확인"
-                    message="탈퇴를 원하시면 아래 빈칸에 '탈퇴'라고 입력해 주세요."
+                    message="탈퇴를 원하시면 아래 빈칸에 '탈퇴'라고 입력해 주세요. 계정과 사진, 공유 데이터 정리에는 보통 20~30초가 걸릴 수 있습니다."
+                    errorMessage={errorMsg}
+                    isProcessing={isDeletingAccount}
+                    processingMessage="계정과 클라우드 데이터를 삭제 중입니다."
+                    processingDetail="사진 파일과 가족 공유 데이터를 정리하는 중입니다. 보통 20~30초 정도 걸릴 수 있으니 완료 메시지가 나올 때까지 잠시 기다려 주세요."
                     value={deleteConfirmText}
                     onChange={setDeleteConfirmText}
                     placeholder="탈퇴"
                     maxLength={10}
-                    confirmLabel={isDeletingAccount ? '처리 중...' : '영구 삭제'}
+                    confirmLabel={isDeletingAccount ? '삭제 중...' : '영구 삭제'}
                     cancelLabel="취소"
                     destructive
                     confirmDisabled={deleteConfirmText.trim() !== '탈퇴' || isDeletingAccount}
+                    cancelDisabled={isDeletingAccount}
+                    inputDisabled={isDeletingAccount}
                     onConfirm={handleDeleteAccount}
                     onCancel={() => {
+                        if (isDeletingAccount) return;
                         setDeleteTextOpen(false);
                         setDeleteConfirmText('');
                     }}
@@ -552,6 +632,24 @@ export default function Login({ onClose }) {
                     <X size={16} />
                 </button>
 
+                {accountDeleteComplete ? (
+                    <div className="flex flex-col items-center px-1 py-8 text-center">
+                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                            <ShieldAlert size={22} className="stroke-[2.5px]" />
+                        </div>
+                        <h2 className="text-[20px] font-black text-navy">회원 탈퇴 완료</h2>
+                        <p className="mt-3 text-[13px] font-bold leading-relaxed text-navy/60">
+                            계정 정보와 연결된 클라우드 데이터를 삭제했습니다.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="mt-6 flex h-12 w-full items-center justify-center rounded-2xl bg-navy text-[14px] font-black text-white shadow-[0_10px_22px_rgba(26,35,126,0.16)] active:scale-[0.98]"
+                        >
+                            확인
+                        </button>
+                    </div>
+                ) : (
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={isSignUp ? 'signup' : 'signin'}
@@ -685,7 +783,9 @@ export default function Login({ onClose }) {
                         </form>
                     </motion.div>
                 </AnimatePresence>
+                )}
 
+                {!accountDeleteComplete && (
                 <div className="mt-5 border-t border-navy/6 pt-3 text-center">
                     <div className="flex items-center justify-center gap-3 text-[9px] font-bold">
                         <a
@@ -715,6 +815,7 @@ export default function Login({ onClose }) {
                         </a>
                     </div>
                 </div>
+                )}
             </motion.div>
         </div>
     );

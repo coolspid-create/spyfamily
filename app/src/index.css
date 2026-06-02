@@ -24,7 +24,8 @@
     background-color: var(--color-background);
     color: var(--color-navy);
     font-family: var(--font-sans);
-    background-image: url('https://www.transparenttextures.com/patterns/cream-paper.png');
+    background-image: radial-gradient(circle at 1px 1px, rgba(26, 35, 126, 0.05) 1px, transparent 1.5px);
+    background-size: 18px 18px;
     overflow-x: hidden;
     overflow-y: hidden;
   }
@@ -45,15 +46,20 @@
 
   input,
   textarea {
-    caret-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
+    caret-color: var(--color-navy);
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   input:focus,
   textarea:focus {
-    caret-color: transparent;
+    caret-color: var(--color-navy);
+  }
+
+  input::selection,
+  textarea::selection {
+    background-color: color-mix(in srgb, var(--color-navy) 18%, transparent);
+    color: var(--color-navy);
   }
 
   input[type="date"],

@@ -512,8 +512,9 @@ export default function HomeBoard() {
                                                                     setEditForm({ ...editForm, agent: value });
                                                                 }
                                                             }}
-                                                            className="w-full"
-                                                            buttonClassName="text-[13px] font-semibold text-gray-800"
+                                                            className="w-24 shrink-0"
+                                                            buttonClassName="min-h-7 bg-transparent px-0 text-[13px] font-semibold text-gray-800"
+                                                            popupWidth={124}
                                                             ariaLabel="담당자 선택"
                                                         />
                                                     </div>
@@ -683,8 +684,9 @@ export default function HomeBoard() {
                                                                     setEditForm({ ...editForm, agent: value });
                                                                 }
                                                             }}
-                                                            className="w-full"
-                                                            buttonClassName="text-[13px] font-semibold text-navy"
+                                                            className="w-24 shrink-0"
+                                                            buttonClassName="min-h-7 bg-transparent px-0 text-[13px] font-semibold text-navy"
+                                                            popupWidth={124}
                                                             ariaLabel="담당자 선택"
                                                         />
                                                     </div>
@@ -825,8 +827,9 @@ export default function HomeBoard() {
                                                         setNewSchedule({ ...newSchedule, agent: value });
                                                     }
                                                 }}
-                                                className="w-full"
-                                                buttonClassName="text-[13px] font-semibold text-navy"
+                                                className="w-24 shrink-0"
+                                                buttonClassName="min-h-7 bg-transparent px-0 text-[13px] font-semibold text-navy"
+                                                popupWidth={124}
                                                 ariaLabel="담당자 선택"
                                             />
                                         </div>

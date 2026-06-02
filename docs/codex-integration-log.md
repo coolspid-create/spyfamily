@@ -1,6 +1,397 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-02 - Pre-release smoke check and texture refactor
+
+Source handoff:
+Direct user request in Codex to debug the app before release, check for errors step by step, then refactor.
+
+Checked:
+- Reviewed project coordination docs and current dirty worktree.
+- Confirmed available scripts: `lint`, `build`, and `preview`; no test script is currently defined.
+- Ran static checks for console errors/warnings, alert usage, dangerous DOM APIs, local storage parsing, Supabase call sites, external links, and obvious secret/service-role patterns.
+- Verified `.env.local` is ignored by `app/.gitignore`; only `.env.example` is tracked.
+- Confirmed public policy links use `rel="noopener noreferrer"`.
+- Confirmed production dependencies report `0 vulnerabilities` through `npm audit --omit=dev`.
+
+Applied:
+- Replaced the app body background's external `transparenttextures.com` image URL with a local CSS radial texture pattern. This removes an unnecessary third-party network request from the packaged app and production build.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `npm ls --depth=0` completed and showed installed top-level dependencies.
+- `npm audit --omit=dev` completed with `found 0 vulnerabilities`.
+- Browser smoke check on `http://127.0.0.1:5175/`:
+  - initial load: no console errors
+  - bottom tabs checked: weekly, daily, monthly, payment, family, diary
+  - account modal open/close: no console errors
+- Production preview check:
+  - started temporary Vite preview on `http://127.0.0.1:4177/`
+  - HTTP check returned 200
+  - browser render had no console errors or warnings
+  - temporary preview server was stopped
+- `npx cap doctor android` completed with `Android looking great`.
+- Confirmed built `dist` no longer contains the external `transparenttextures` URL.
+
+Files changed:
+- `app/src/index.css`
+- `docs/codex-integration-log.md`
+
+Intentionally left out:
+- Did not update Capacitor package patch versions, because Doctor passed and dependency changes immediately before release increase regression risk.
+- Did not modify `app/src/original_backup`; it contains old backup code and is not part of the production Vite bundle.
+- Did not run destructive account deletion or write test data during browser smoke checks.
+- Did not perform Android packaging or release asset changes.
+
+Open follow-ups:
+- Add a real automated smoke/e2e test script later; this project currently has no `npm test` or Playwright test suite.
+- Before final store release, run an installed APK pass on a real Android device for startup, tab switching, family account flows, and account deletion progress UI.
+
+Previous integration:
+2026-06-02 - Account deletion pending-state UX
+
+Source handoff:
+Direct user request in Codex after confirming account deletion works but can take about 20-30 seconds.
+
+Applied:
+- Added explicit copy to the final account deletion confirmation dialog that account, photo, and shared cloud data cleanup can usually take 20-30 seconds.
+- Added an animated pending state to the text-confirmation dialog, including a spinner, status message, and explanatory detail while deletion is running.
+- Disabled the confirmation input and cancel button during account deletion so the user cannot hide the progress dialog and mistake the operation for cancellation.
+- Changed the delete button label from generic processing text to `삭제 중...` during the operation.
+- Increased the account deletion UI timeout from 25 seconds to 60 seconds to avoid false timeout errors for normal 20-30 second deletion runs.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Browser reload check on `http://127.0.0.1:5175/` completed with no console errors.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Retest the full deletion flow on an installed APK so the native WebView timing and visual loading state can be checked on-device.
+
+Previous integration:
+2026-06-02 - Policy Pages workflow repair
+
+Source handoff:
+Direct user request in Codex to resolve the failing `Deploy policy pages` workflow noted after the policy page update.
+
+Findings:
+- The policy repository was publicly served from the `gh-pages` branch.
+- The `main` workflow was using `actions/deploy-pages`, which targets GitHub Actions Pages publishing and did not match the active branch-based Pages deployment setup.
+- Previous `main` pushes therefore failed while direct `gh-pages` commits deployed successfully.
+
+Applied:
+- Updated `coolspid-create/family-scheduler-policy/.github/workflows/pages.yml` on `main` so pushes to `main` copy the static policy files into `gh-pages` and push that branch.
+- The workflow now publishes only `index.html`, `privacy.html`, `delete-account.html`, and `.nojekyll`.
+
+Verification:
+- New workflow commit `32d0bd38d1e73360b04f3b437657ecdbde72ff1f` completed successfully.
+- The workflow produced `gh-pages` commit `57b0999995e46087987677b6542dfcfe10b868bf`.
+- GitHub Pages dynamic deployment for that `gh-pages` commit completed successfully.
+- Verified both public policy URLs still respond with the updated family-sharing and account-deletion wording.
+
+Files changed:
+- Remote: `coolspid-create/family-scheduler-policy/.github/workflows/pages.yml`
+- Local log: `docs/codex-integration-log.md`
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-02 - Family sharing policy pages update
+
+Source handoff:
+Direct user request in Codex to update the published privacy policy and account deletion page for the new family sharing behavior.
+
+Applied:
+- Updated the local policy source pages for family sharing, Supabase Auth/Database/Storage usage, Realtime sync, RLS-based access controls, local-vs-cloud data handling, logout/family leave/member withdrawal differences, and deletion-request fallback by email.
+- Updated `coolspid-create/family-scheduler-policy` on `main`.
+- Confirmed the public Pages site was still served from `gh-pages`; updated `gh-pages` directly after the `main` deployment workflow failed.
+- Changed the page back links to `./` so they work correctly from the GitHub Pages subdirectory.
+
+Public deployment:
+- `privacy.html`: latest `main` commit `d6201960e0870254d7de1e0c51a85c38a992e1bf`, `gh-pages` commit `fcb90f594113baf4c3e05dd3caf69c8fc724065c`.
+- `delete-account.html`: latest `main` commit `c0ad383e2136759bc97643d3370cafe70aa5ac76`, `gh-pages` commit `1d8cc15f3178c59b608d802b9c1b2e31f301a4f0`.
+- GitHub Pages deployments for both `gh-pages` commits completed successfully.
+
+Verification:
+- `npm run build` completed successfully.
+- Verified the exact public policy URLs respond with the updated family-sharing and account-deletion wording:
+  - `https://coolspid-create.github.io/family-scheduler-policy/privacy.html`
+  - `https://coolspid-create.github.io/family-scheduler-policy/delete-account.html`
+- GitHub repository contents were checked on both `main` and `gh-pages`.
+
+Files changed:
+- `app/public/privacy.html`
+- `app/public/delete-account.html`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- The existing `Deploy policy pages` workflow on `main` is failing. Direct `gh-pages` updates were used for this release, but the workflow should be repaired if future policy edits are expected to auto-publish from `main`.
+
+Previous integration:
+2026-06-02 - Startup auth splash flicker reduction
+
+Source handoff:
+Direct user report in Codex that the first screen looked like it briefly stuttered or refreshed when the app first launched.
+
+Findings:
+- Browser reload on `http://127.0.0.1:5175/` did not show a real navigation loop or console error.
+- The startup path renders a full-screen auth-check splash while Supabase session restore resolves, then swaps to the main app shell.
+- In the local dev server, React `StrictMode` can also run startup effects twice, making the brief state transition easier to notice than in a production APK.
+
+Applied:
+- Added a short 180ms delay before showing the auth-check splash, so fast session checks do not flash a separate loading screen.
+- Changed the delayed auth splash to use the app background/navy text palette instead of a navy full-screen panel, reducing the visual jump if the auth check takes longer.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Browser reload check on `http://127.0.0.1:5175/` confirmed the main app shell is visible, the auth loading splash is not left on screen, and console logs contain no app errors.
+
+Files changed:
+- `app/src/App.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Retest on the installed APK once rebuilt; this change affects startup feel and needs a real-device visual pass.
+
+Previous integration:
+2026-06-02 - Clean account deletion debug APK from isolated worktree
+
+Source handoff:
+Direct user request in Codex to separate the mixed working tree and build an APK containing only the account deletion and family-sharing auto-open fixes.
+
+Built:
+- Created a detached clean worktree at `C:\Users\KPSA\Documents\Codex\FamilyScheduler-clean-account-delete-20260602-205056` from `HEAD`.
+- Applied only the selected account deletion/family-sharing fixes to the clean worktree.
+- Excluded the unrelated pending changes for weekly assignee select styling, Android text selection handle styling, backup files, scratch files, logs, old APKs, and planning artifacts.
+- Synced the clean Vite build into Capacitor Android and generated a debug APK.
+- Copied the APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-account-delete-clean-20260602-205519.apk`.
+
+Selected source changes in the clean worktree:
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/store/useStore.js`
+- `app/migration_delete_user_account.sql`
+
+Verification:
+- `npm run lint` completed successfully in the clean worktree.
+- `npm run build` completed successfully in the clean worktree.
+- `npx cap sync android` completed successfully in the clean worktree.
+- `.\gradlew.bat :app:assembleDebug` completed successfully in the clean worktree.
+- `apksigner verify --verbose --print-certs` verified the APK with APK Signature Scheme v2 and Android Debug signing certificate.
+- `aapt dump badging` confirmed package `com.coolspid.familyxscheduler.debug`, versionCode `17`, versionName `1.1.6`, minSdk `24`, targetSdk `36`, application label `가족일정`.
+- SHA256: `A2270E20304645F4D9C796B3061F3A0B4EBD02D3290CF5BE4BA11FE8E51082C3`.
+
+Files changed in the main worktree by this pass:
+- `docs/codex-integration-log.md`
+- `artifacts/apk/FamilyScheduler-v1.1.6-debug-account-delete-clean-20260602-205519.apk`
+
+Open follow-ups:
+- Install the clean APK and retest account deletion with the real account that previously stayed on `처리 중...`.
+- The original main worktree still contains unrelated pending edits and untracked files; keep using the clean APK for this retest unless those edits are intentionally accepted later.
+
+Previous integration:
+2026-06-02 - Android debug APK build for account deletion retest
+
+Source handoff:
+Direct user request in Codex to create an updated APK after the existing installed test version still stayed on `처리 중...` during account deletion.
+
+Built:
+- Rebuilt the production web bundle from the current app state.
+- Synced the fresh `dist` output into the Capacitor Android project.
+- Generated a debug APK for device retesting.
+- Copied the APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-200245.apk`.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `npx cap sync android` completed successfully.
+- `.\gradlew.bat :app:assembleDebug` completed successfully.
+- `apksigner verify --verbose --print-certs` verified the APK with APK Signature Scheme v2 and Android Debug signing certificate.
+- `aapt dump badging` confirmed package `com.coolspid.familyxscheduler.debug`, versionCode `17`, versionName `1.1.6`, minSdk `24`, targetSdk `36`, application label `가족일정`.
+- SHA256: `8359A233E5F0B3A1D484DBA6F475C2EA51434021C152EFDFC7C99EC657A03E6B`.
+
+Files changed:
+- `docs/codex-integration-log.md`
+- `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-200245.apk`
+
+Open follow-ups:
+- Install this updated debug APK and retest account deletion with the real account that previously stayed on `처리 중...`.
+
+Previous integration:
+2026-06-02 - Account deletion storage cleanup and completion UI
+
+Source handoff:
+Direct user report in Codex that account deletion stayed on `처리 중...`, did not show a completion message, and needed verification that Supabase Auth/account data is actually deleted.
+
+Root cause:
+- Supabase Auth user deletion is blocked while the user still owns Storage objects.
+- The app only attempted diary photo cleanup when `currentFamilyId` was present, so accounts that had already left a family could still own `diary-photos` objects but could not delete them through the family-member-only Storage policy.
+- Delete failures were written to the background login panel while the final confirmation dialog stayed on top, so the user could not see the failure message clearly.
+
+Applied:
+- Changed account deletion to fetch the user's own diary image paths even when there is no active family context, then remove those files through the Supabase Storage API before calling `delete_user_account`.
+- Added a `diary_owner_select_for_account_delete` policy so a user can read their own diary image paths for deletion even after leaving the family group.
+- Updated `diary-photos` SELECT/DELETE policies to allow either family members or the file owner to read/delete the object.
+- Updated `delete_user_account()` to treat both `storage.objects.owner` and `owner_id` as blocking owned Storage objects.
+- Updated `delete_user_account()` to delete empty families created by the deleted user, while still nulling `created_by` when other members remain.
+- Added a UI timeout for account deletion, surfaced deletion errors inside the final confirmation dialog, and added a visible `회원 탈퇴 완료` completion panel after successful deletion.
+- Synchronized the remote Supabase policy/function changes into `app/migration_delete_user_account.sql`.
+
+Verification:
+- Supabase docs checked: Auth user deletion is blocked when the user owns Storage objects, and Storage objects should be deleted via Storage API rather than SQL.
+- Remote SQL verified the reported stuck account state had 0 family memberships, 2 diary rows, and 4 owned `diary-photos` objects, matching the failure mode.
+- Created an app-path temporary Supabase Auth account, family, diary row, and Storage object; removed family membership first to reproduce the edge case; selected own diary image paths; removed Storage via API; called `delete_user_account`; verified Auth user, family, membership, diary, comments, and Storage object counts were all 0.
+- Browser UI test created a separate temporary account through the local app, completed account deletion, and confirmed `회원 탈퇴 완료` plus completion message were visible and `처리 중` was gone.
+- SQL verified the browser UI temporary account had 0 matching Auth rows afterward.
+- Browser console error check returned no errors.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Supabase security advisor still reports intentional `authenticated` access to SECURITY DEFINER functions `delete_user_account()` and `join_family_by_code`, plus the existing leaked-password-protection warning.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/migration_delete_user_account.sql`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Retest once on the installed APK with the real account that previously showed `처리 중...`.
+- Consider enabling Supabase leaked password protection in the Auth dashboard.
+
+Previous integration:
+2026-06-02 - Prevent automatic family sharing setup modal
+
+Source handoff:
+Direct user request in Codex after the family sharing setup screen opened automatically when the app was restarted.
+
+Applied:
+- Removed the startup behavior that opened the family sharing setup modal when a restored Supabase session had no family group yet.
+- Kept passive session restore and existing-family cloud data loading intact.
+- Changed the auth-state modal update so the no-family setup screen stays open only when the user already opened the top family/account control.
+- Stopped closing the family sharing modal immediately after login, so user-initiated login can continue into family create/join setup.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Browser check on `http://127.0.0.1:5175/` confirmed the initial screen shows `계정 연결` without the `가족 공유 설정` modal.
+- Browser check confirmed clicking `계정 연결` opens the auth modal.
+- Browser console error check returned no errors.
+
+Intentionally left out:
+- No auth configuration, Supabase schema, calendar sync behavior, Android packaging, or release assets were changed.
+- A real persisted no-family Supabase account was not created for this pass; the fixed startup path is covered by the removed automatic `setIsShareAuthOpen(true)` branch and the guarded auth-state update.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Retest once on the installed APK with the account that previously reproduced the automatic setup screen.
+
+Previous integration:
+2026-06-02 - Weekly schedule assignee picker render and style fix
+
+Source handoff:
+Direct user request in Codex after the weekly schedule assignee picker stopped opening and its pill background looked inconsistent with surrounding form rows.
+
+Applied:
+- Fixed `NativeSafeSelect` portal rendering by moving `AnimatePresence` inside the portal target, so the select menu now actually mounts in `document.body`.
+- Changed the select positioning effect to `useLayoutEffect` so fixed-position popups are measured before paint.
+- Simplified the select toggle path so it no longer performs popup positioning state updates inside another state updater.
+- Removed gray/navy pill backgrounds from weekly schedule assignee controls and restored a compact transparent text-row style consistent with the other form inputs.
+- Kept the popup portal behavior so assignee menus can extend outside schedule cards without being clipped.
+
+Verification:
+- Browser check on `http://localhost:5175/` opened the new schedule form, clicked "담당자 선택", confirmed menu items render, selected "엄마", and confirmed the button value updated while the menu closed.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+
+Files changed:
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- None.
+
+Previous integration:
+2026-06-02 - Input caret, family sharing controls, and schedule assignee picker fixes
+
+Source handoff:
+Direct user request in Codex to keep text carets visible while removing the Android blue text-handle box, fix the weekly schedule assignee picker clipping/width, prevent family group creation from hanging indefinitely, and improve clipboard copy/paste behavior.
+
+Applied:
+- Restored visible navy text carets and text selection for app inputs/textareas, while removing the prior global input context-menu and selection blockers.
+- Added a transparent Android text-selection handle drawable and wired it into both app themes so installed APK builds no longer show the boxed native selection handle over app inputs.
+- Moved `NativeSafeSelect` option menus into a fixed-position portal with viewport/app-shell clamping, so assignee menus are no longer clipped by schedule cards.
+- Reduced weekly schedule assignee picker width to a compact pill-sized control.
+- Added Supabase family action timeouts for family context lookup, family creation, family joining, and follow-up fetches so the UI releases from "생성 중..." with a useful error instead of hanging.
+- Added UI-level timeouts and explicit error handling around family create/join flows.
+- Improved invite-code copy with a textarea fallback for browsers/WebViews where `navigator.clipboard.writeText` is unavailable.
+- Changed invite-code paste failure behavior to focus the input and explain that automatic clipboard reading is permission-limited, while normal manual paste/input remains available.
+
+Verification:
+- `rg` confirmed no remaining global `caret-color: transparent`, input `contextmenu`, or input `selectstart` blocker in active source files.
+- `git diff --check` completed with only existing LF/CRLF normalization warnings.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `./gradlew.bat :app:assembleDebug` completed successfully with the new Android drawable resource.
+- Browser checks for both `http://127.0.0.1:5175/` and `http://localhost:5175/` were blocked by the in-app browser with `net::ERR_BLOCKED_BY_CLIENT`, so visual verification in the desktop browser could not be completed in this pass.
+
+Files changed:
+- `app/android/app/src/main/res/drawable/text_select_handle_transparent.xml`
+- `app/android/app/src/main/res/values/styles.xml`
+- `app/src/App.jsx`
+- `app/src/components/HomeBoard.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/index.css`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Confirm on an installed APK that the Android text-selection handle no longer appears as a blue box while the blinking web caret remains visible.
+- If automatic invite-code paste is still desired, it will remain constrained by Android WebView/browser clipboard-read permission; manual paste and direct input are the safe fallback.
+
+Previous integration:
+2026-06-02 - Build debug APK after diary fixes
+
+Source handoff:
+Direct user request in Codex to create a test APK from the current worktree.
+
+Built:
+- Generated a fresh Vite production build.
+- Synced the latest `dist` assets into the Capacitor Android project.
+- Built an Android debug APK.
+- Copied the APK to `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-142856.apk`.
+
+Verification:
+- `npm run build` completed successfully.
+- `npx cap sync android` completed successfully.
+- `./gradlew.bat :app:assembleDebug` completed successfully.
+- `aapt dump badging` confirmed package `com.coolspid.familyxscheduler.debug`, versionName `1.1.6`, versionCode `17`, targetSdkVersion `36`, and label `가족일정`.
+- `apksigner verify --verbose` confirmed APK Signature Scheme v2 verification.
+- APK size is 5.41 MB, SHA256 `37857B902677F2B4E4E54BEC19E7D0EC3ECC0B746954A1667D081C008B7B5741`.
+
+Intentionally left out:
+- No release signing, Play Store bundle, version bump, source behavior change, or commit was made.
+
+Files changed:
+- `artifacts/apk/FamilyScheduler-v1.1.6-debug-20260602-142856.apk`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-02 - Diary calendar navigation and storage image recovery pass
 
 Source handoff:

@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './components/NativeSafeControls';
 
 const FAMILY_SHARING_ENABLED = import.meta.env.VITE_ENABLE_FAMILY_SHARING === 'true';
+const AUTH_SPLASH_DELAY_MS = 180;
 const MAIN_TAB_TRANSITION = { duration: 0.15 };
 const MAIN_TAB_MOTION = {
   initial: { opacity: 0, y: 10 },
@@ -150,25 +151,6 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  useEffect(() => {
-    const isTextControl = (target) => (
-      target instanceof HTMLElement &&
-      Boolean(target.closest('input, textarea'))
-    );
-    const preventNativeTextMenu = (event) => {
-      if (isTextControl(event.target)) {
-        event.preventDefault();
-      }
-    };
-
-    document.addEventListener('contextmenu', preventNativeTextMenu, true);
-    document.addEventListener('selectstart', preventNativeTextMenu, true);
-    return () => {
-      document.removeEventListener('contextmenu', preventNativeTextMenu, true);
-      document.removeEventListener('selectstart', preventNativeTextMenu, true);
-    };
-  }, []);
-
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -227,6 +209,7 @@ function App() {
 
   const isAuthChecking = useStore(state => state.isAuthChecking);
   const [isShareAuthOpen, setIsShareAuthOpen] = useState(false);
+  const [showAuthSplash, setShowAuthSplash] = useState(false);
 
   const openShareAuth = () => {
     if (!FAMILY_SHARING_ENABLED) {
@@ -260,8 +243,6 @@ function App() {
         await fetchDataFromDB();
         if (familyId) {
           await fetchDiariesFromDB();
-        } else {
-          setIsShareAuthOpen(true);
         }
         return;
       }
@@ -284,7 +265,7 @@ function App() {
           await fetchDataFromDB();
           if (familyId) await fetchDiariesFromDB();
         }
-        setIsShareAuthOpen(!familyId);
+        setIsShareAuthOpen((wasOpen) => wasOpen && !familyId);
       } else if (!session) {
         fetchDataFromDB();
       }
@@ -322,6 +303,18 @@ function App() {
     };
   }, [session, currentFamilyId, fetchDataFromDB, fetchDiariesFromDB]);
 
+  useEffect(() => {
+    if (!isAuthChecking || showAuthSplash) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowAuthSplash(true);
+    }, AUTH_SPLASH_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isAuthChecking, showAuthSplash]);
+
   const confirmGuestCloudSync = async () => {
     const { syncGuestDataToCloud, fetchDiariesFromDB } = useStore.getState();
     const result = await syncGuestDataToCloud();
@@ -343,24 +336,28 @@ function App() {
   }, []);
 
   if (isAuthChecking) {
+    if (!showAuthSplash) {
+      return <div className="min-h-screen bg-background" aria-hidden="true" />;
+    }
+
     return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-navy px-6 text-background">
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 text-navy">
         <div className="flex w-full max-w-xs flex-col items-center text-center">
           <img
             src="/app-icon-192.png"
             alt=""
             className="h-20 w-20 rounded-[22px] shadow-2xl ring-1 ring-white/20"
           />
-          <h1 className="mt-5 whitespace-nowrap font-stencil text-3xl font-bold text-background">
+          <h1 className="mt-5 whitespace-nowrap font-stencil text-3xl font-bold text-navy">
             가족 × 스케줄러
           </h1>
-          <p className="mt-3 whitespace-nowrap text-[15px] font-bold text-background/80">
+          <p className="mt-3 whitespace-nowrap text-[15px] font-bold text-navy/60">
             우리 가족의 일정을 준비하고 있어요
           </p>
           <div className="mt-6 flex items-center gap-2" aria-label="로딩 중">
             <span className="h-2 w-2 animate-pulse rounded-full bg-accent-red" />
-            <span className="h-2 w-2 animate-pulse rounded-full bg-background/70 [animation-delay:150ms]" />
-            <span className="h-2 w-2 animate-pulse rounded-full bg-background/50 [animation-delay:300ms]" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-navy/35 [animation-delay:150ms]" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-navy/20 [animation-delay:300ms]" />
           </div>
         </div>
       </div>

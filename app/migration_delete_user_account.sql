@@ -3,6 +3,47 @@
 
 begin;
 
+drop policy if exists "diary_owner_select_for_account_delete" on public.diary;
+create policy "diary_owner_select_for_account_delete"
+on public.diary
+for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "diary_photos_select_family" on storage.objects;
+create policy "diary_photos_select_family"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'diary-photos'
+  and (
+    (
+      (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      and private.is_family_member(((storage.foldername(name))[1])::uuid)
+    )
+    or owner_id = (select auth.uid())::text
+    or owner = (select auth.uid())
+  )
+);
+
+drop policy if exists "diary_photos_delete_family" on storage.objects;
+create policy "diary_photos_delete_family"
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'diary-photos'
+  and (
+    (
+      (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      and private.is_family_member(((storage.foldername(name))[1])::uuid)
+    )
+    or owner_id = (select auth.uid())::text
+    or owner = (select auth.uid())
+  )
+);
+
 create or replace function public.delete_user_account()
 returns void
 language plpgsql
@@ -19,21 +60,37 @@ begin
         raise exception '로그인이 필요합니다.' using errcode = '28000';
     end if;
 
-    select coalesce(array_agg(fm.family_id), '{}'::uuid[])
+    select coalesce(array_agg(family.id), '{}'::uuid[])
     into single_member_family_ids
-    from public.family_members fm
-    where fm.user_id = requesting_user_id
-      and not exists (
-          select 1
-          from public.family_members other_members
-          where other_members.family_id = fm.family_id
-            and other_members.user_id <> requesting_user_id
-      );
+    from public.families family
+    where (
+        exists (
+            select 1
+            from public.family_members own_membership
+            where own_membership.family_id = family.id
+              and own_membership.user_id = requesting_user_id
+        )
+        and not exists (
+            select 1
+            from public.family_members other_members
+            where other_members.family_id = family.id
+              and other_members.user_id <> requesting_user_id
+        )
+    )
+    or (
+        family.created_by = requesting_user_id
+        and not exists (
+            select 1
+            from public.family_members any_member
+            where any_member.family_id = family.id
+        )
+    );
 
     if exists (
         select 1
         from storage.objects objects
         where objects.owner = requesting_user_id
+           or objects.owner_id = requesting_user_id::text
     ) then
         raise exception '업로드된 사진 삭제가 먼저 필요합니다. 잠시 후 다시 시도해 주세요.' using errcode = 'P0001';
     end if;

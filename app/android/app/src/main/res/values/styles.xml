@@ -10,6 +10,9 @@
         <item name="android:colorAccent">@color/colorAccent</item>
         <item name="android:colorBackground">@color/app_background</item>
         <item name="android:forceDarkAllowed">false</item>
+        <item name="android:textSelectHandle">@drawable/text_select_handle_transparent</item>
+        <item name="android:textSelectHandleLeft">@drawable/text_select_handle_transparent</item>
+        <item name="android:textSelectHandleRight">@drawable/text_select_handle_transparent</item>
         <item name="android:alertDialogTheme">@style/AppTheme.LightDialog</item>
         <item name="android:datePickerDialogTheme">@style/AppTheme.LightDialog</item>
         <item name="android:timePickerDialogTheme">@style/AppTheme.LightDialog</item>
@@ -28,6 +31,9 @@
         <item name="android:colorAccent">@color/colorAccent</item>
         <item name="android:colorBackground">@color/app_background</item>
         <item name="android:forceDarkAllowed">false</item>
+        <item name="android:textSelectHandle">@drawable/text_select_handle_transparent</item>
+        <item name="android:textSelectHandleLeft">@drawable/text_select_handle_transparent</item>
+        <item name="android:textSelectHandleRight">@drawable/text_select_handle_transparent</item>
         <item name="android:alertDialogTheme">@style/AppTheme.LightDialog</item>
         <item name="android:datePickerDialogTheme">@style/AppTheme.LightDialog</item>
         <item name="android:timePickerDialogTheme">@style/AppTheme.LightDialog</item>

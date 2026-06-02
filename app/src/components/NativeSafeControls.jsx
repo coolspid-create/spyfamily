@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
@@ -72,23 +72,121 @@ export function NativeSafeSelect({
     className = '',
     buttonClassName = '',
     optionClassName = '',
+    popupClassName = '',
+    popupAlign = 'left',
+    popupWidth,
     disabled = false,
     ariaLabel = '선택',
 }) {
     const [open, setOpen] = useState(false);
+    const [popupStyle, setPopupStyle] = useState(null);
     const ref = useRef(null);
+    const pickerRef = useRef(null);
+    const pickerId = useId();
     const normalizedOptions = options.map(option => (
         typeof option === 'string' ? { value: option, label: option } : option
     ));
     const selected = normalizedOptions.find(option => option.value === value);
 
+    const updatePopupPosition = useCallback(() => {
+        const anchor = ref.current;
+        if (!anchor || typeof window === 'undefined') return;
+
+        const anchorRect = anchor.getBoundingClientRect();
+        const appRect = anchor.closest('.app-shell')?.getBoundingClientRect();
+        const minLeft = appRect ? appRect.left + PICKER_EDGE_PADDING : PICKER_EDGE_PADDING;
+        const maxRight = appRect ? appRect.right - PICKER_EDGE_PADDING : window.innerWidth - PICKER_EDGE_PADDING;
+        const preferredWidth = popupWidth || Math.max(anchorRect.width, 132);
+        const width = Math.min(preferredWidth, Math.max(132, maxRight - minLeft));
+        const preferredLeft = popupAlign === 'right' ? anchorRect.right - width : anchorRect.left;
+        const left = Math.min(Math.max(preferredLeft, minLeft), maxRight - width);
+        const top = anchorRect.bottom + 6;
+
+        setPopupStyle({
+            left,
+            top,
+            width,
+            maxHeight: Math.max(180, window.innerHeight - top - PICKER_EDGE_PADDING),
+        });
+    }, [popupAlign, popupWidth]);
+
     useEffect(() => {
         const handlePointerDown = (event) => {
-            if (!ref.current?.contains(event.target)) setOpen(false);
+            if (
+                !ref.current?.contains(event.target) &&
+                !pickerRef.current?.contains(event.target)
+            ) {
+                setOpen(false);
+            }
+        };
+        const handlePickerOpen = (event) => {
+            if (event.detail !== pickerId) setOpen(false);
         };
         document.addEventListener('pointerdown', handlePointerDown);
-        return () => document.removeEventListener('pointerdown', handlePointerDown);
-    }, []);
+        window.addEventListener('native-safe-picker-open', handlePickerOpen);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+            window.removeEventListener('native-safe-picker-open', handlePickerOpen);
+        };
+    }, [pickerId]);
+
+    useLayoutEffect(() => {
+        if (!open) return undefined;
+
+        updatePopupPosition();
+        window.addEventListener('resize', updatePopupPosition);
+        window.addEventListener('scroll', updatePopupPosition, true);
+        return () => {
+            window.removeEventListener('resize', updatePopupPosition);
+            window.removeEventListener('scroll', updatePopupPosition, true);
+        };
+    }, [open, updatePopupPosition]);
+
+    const toggleOpen = () => {
+        if (disabled) return;
+        setOpen(prevOpen => {
+            if (!prevOpen) {
+                notifyPickerOpen(pickerId);
+                return true;
+            }
+            return false;
+        });
+    };
+
+    const popup = typeof document !== 'undefined' ? createPortal(
+        <AnimatePresence>
+            {open && popupStyle && (
+                <motion.div
+                    ref={pickerRef}
+                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                    transition={{ duration: 0.16, ease: 'easeOut' }}
+                    style={popupStyle}
+                    className={`fixed z-[280] overflow-y-auto rounded-xl border border-navy/10 bg-white shadow-xl shadow-navy/10 no-scrollbar [&::-webkit-scrollbar]:hidden ${popupClassName}`}
+                >
+                    {normalizedOptions.map(option => {
+                        const selectedOption = option.value === value;
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(option.value);
+                                    setOpen(false);
+                                }}
+                                className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-[13px] font-black transition-colors ${selectedOption ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'} ${optionClassName}`}
+                            >
+                                <span className="min-w-0 truncate">{option.label}</span>
+                                <span className={`h-3 w-3 shrink-0 rounded-full border ${selectedOption ? 'border-white bg-white' : 'border-navy/25'}`} />
+                            </button>
+                        );
+                    })}
+                </motion.div>
+            )}
+        </AnimatePresence>,
+        document.body
+    ) : null;
 
     return (
         <div ref={ref} className={`relative ${className}`}>
@@ -97,41 +195,13 @@ export function NativeSafeSelect({
                 disabled={disabled}
                 aria-label={ariaLabel}
                 aria-expanded={open}
-                onClick={() => !disabled && setOpen(prev => !prev)}
+                onClick={toggleOpen}
                 className={`flex w-full items-center justify-between gap-2 text-left disabled:opacity-50 ${buttonClassName}`}
             >
                 <span className="min-w-0 truncate">{selected?.label ?? value}</span>
                 <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
             </button>
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                        transition={{ duration: 0.16, ease: 'easeOut' }}
-                        className="absolute left-0 right-0 top-full z-[220] mt-1 overflow-hidden rounded-xl border border-navy/10 bg-white shadow-xl shadow-navy/10"
-                    >
-                        {normalizedOptions.map(option => {
-                            const selectedOption = option.value === value;
-                            return (
-                                <button
-                                    key={option.value}
-                                    type="button"
-                                    onClick={() => {
-                                        onChange(option.value);
-                                        setOpen(false);
-                                    }}
-                                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-[13px] font-black transition-colors ${selectedOption ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'} ${optionClassName}`}
-                                >
-                                    <span className="truncate">{option.label}</span>
-                                    <span className={`h-3 w-3 rounded-full border ${selectedOption ? 'border-white bg-white' : 'border-navy/25'}`} />
-                                </button>
-                            );
-                        })}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {popup}
         </div>
     );
 }
@@ -712,6 +782,11 @@ export function NativeSafeTextDialog({
     open,
     title = '입력',
     message,
+    errorMessage,
+    statusMessage,
+    isProcessing = false,
+    processingMessage,
+    processingDetail,
     value,
     onChange,
     confirmLabel = '저장',
@@ -720,6 +795,8 @@ export function NativeSafeTextDialog({
     maxLength,
     destructive = false,
     confirmDisabled = false,
+    cancelDisabled = false,
+    inputDisabled = false,
     onConfirm,
     onCancel,
 }) {
@@ -749,14 +826,50 @@ export function NativeSafeTextDialog({
                             maxLength={maxLength}
                             autoFocus
                             placeholder={placeholder}
+                            disabled={inputDisabled}
                             onChange={(event) => onChange(event.target.value)}
-                            className="mt-4 w-full rounded-xl border border-navy/10 bg-navy/5 px-3 py-3 text-[14px] font-black text-navy outline-none focus:border-navy/30 focus:bg-white"
+                            className="mt-4 w-full rounded-xl border border-navy/10 bg-navy/5 px-3 py-3 text-[14px] font-black text-navy outline-none transition-colors focus:border-navy/30 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                         />
+                        {isProcessing && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="mt-3 rounded-xl border border-accent-red/10 bg-accent-red/5 p-3 text-left"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <span
+                                        aria-hidden="true"
+                                        className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-accent-red/20 border-t-accent-red"
+                                    />
+                                    <div>
+                                        <p className="text-[12px] font-black leading-relaxed text-accent-red">
+                                            {processingMessage || '처리 중입니다.'}
+                                        </p>
+                                        {processingDetail && (
+                                            <p className="mt-1 text-[11px] font-bold leading-relaxed text-navy/55">
+                                                {processingDetail}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {errorMessage && (
+                            <p className="mt-3 rounded-xl border border-accent-red/10 bg-accent-red/5 p-2 text-center text-[11px] font-bold leading-relaxed text-accent-red">
+                                {errorMessage}
+                            </p>
+                        )}
+                        {statusMessage && (
+                            <p className="mt-3 rounded-xl border border-emerald-500/10 bg-emerald-50 p-2 text-center text-[11px] font-bold leading-relaxed text-emerald-700">
+                                {statusMessage}
+                            </p>
+                        )}
                         <div className="mt-5 flex gap-2.5">
                             <button
                                 type="button"
                                 onClick={onCancel}
-                                className="flex-1 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy/55"
+                                disabled={cancelDisabled}
+                                className="flex-1 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy/55 disabled:cursor-not-allowed disabled:opacity-45"
                             >
                                 {cancelLabel}
                             </button>
@@ -764,9 +877,18 @@ export function NativeSafeTextDialog({
                                 type="button"
                                 onClick={onConfirm}
                                 disabled={confirmDisabled}
-                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed disabled:opacity-45 ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
+                                aria-busy={isProcessing}
+                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed ${isProcessing ? 'opacity-90' : 'disabled:opacity-45'} ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
                             >
-                                {confirmLabel}
+                                <span className="inline-flex items-center justify-center gap-2">
+                                    {isProcessing && (
+                                        <span
+                                            aria-hidden="true"
+                                            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white"
+                                        />
+                                    )}
+                                    {confirmLabel}
+                                </span>
                             </button>
                         </div>
                     </motion.div>

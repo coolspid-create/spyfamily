@@ -9,42 +9,61 @@
     main { max-width: 760px; margin: 0 auto; padding: 32px 20px 56px; }
     h1 { font-size: 28px; margin: 0 0 12px; color: #1e245a; }
     h2 { font-size: 18px; margin: 28px 0 8px; color: #1e245a; }
+    h3 { font-size: 16px; margin: 20px 0 6px; color: #1e245a; }
     p, li { font-size: 15px; }
     a { color: #1e245a; font-weight: 700; }
     .card { background: #fff; border: 2px solid #1e245a22; border-radius: 8px; padding: 20px; box-shadow: 0 8px 24px #1e245a14; }
     .button { display: inline-block; margin-top: 12px; padding: 12px 16px; background: #1e245a; color: #fff; border-radius: 6px; text-decoration: none; }
     .destructive-button { display: inline-block; margin-top: 12px; padding: 12px 16px; background: #D32F2F; color: #fff; border-radius: 6px; text-decoration: none; font-weight: bold; }
     .back-link { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 16px; padding: 10px 14px; border-radius: 999px; background: #1e245a; color: #fff; text-decoration: none; font-size: 14px; box-shadow: 0 6px 16px #1e245a22; }
+    .notice { border-radius: 8px; background: #f7f3e8; padding: 12px 14px; }
   </style>
 </head>
 <body>
   <main>
-    <a class="back-link" href="/" onclick="if (history.length > 1) { history.back(); return false; }">&larr; 앱으로 돌아가기</a>
+    <a class="back-link" href="./" onclick="if (history.length > 1) { history.back(); return false; }">&larr; 앱으로 돌아가기</a>
     <section class="card">
       <h1>계정 및 데이터 삭제 안내</h1>
-      <p><strong>가족 × 스케줄러</strong>는 사용자의 개인정보 자기결정권을 존중하며, 비회원 기기 로컬 데이터 및 회원 클라우드 데이터를 사용자가 주도적으로 완전히 삭제할 수 있는 정책과 수단을 제공합니다.</p>
+      <p><strong>가족 × 스케줄러</strong>는 로그인 없이 사용하는 로컬 데이터와, 사용자가 직접 가족 공유 계정을 연결해 저장하는 클라우드 데이터를 구분해 삭제할 수 있도록 안내합니다.</p>
 
       <h2>1. 비회원 로컬 데이터 삭제</h2>
-      <p>계정 가입 없이 기기에 로컬로 보관되는 모든 일정, 메모, 다이어리 기록은 다음과 같이 삭제할 수 있습니다.</p>
+      <p>계정 연결 없이 사용한 일정, 메모, 결제 기록, 다이어리 기록은 사용자의 기기 내부 저장소에 보관됩니다. 다음 방법으로 삭제할 수 있습니다.</p>
       <ul>
-        <li>앱을 스마트폰 기기에서 삭제 (Uninstall)</li>
-        <li>모바일 환경의 '앱 정보' ➔ '데이터 및 캐시 지우기' 실행</li>
-        <li>웹 브라우저의 캐시 및 사이트 쿠키/로컬 스토리지 삭제</li>
+        <li>스마트폰에서 앱 삭제</li>
+        <li>기기 설정의 앱 정보에서 저장공간, 데이터, 캐시 삭제</li>
+        <li>웹 브라우저로 사용한 경우 해당 사이트의 쿠키, 캐시, 로컬 스토리지 삭제</li>
       </ul>
 
-      <h2>2. 회원 계정 및 클라우드 동기화 데이터 삭제 (가족 공유 회원)</h2>
-      <p>가족 공유 계정 가입 시 서버 데이터베이스에 안전하게 보관 및 공유되는 데이터는 아래 수단을 통해 완전히 폐기됩니다.</p>
-      
-      <h3>가족 탈퇴 및 계정 삭제 요청</h3>
-      <p>회원 탈퇴 및 서버에 보존된 내 이메일 정보, 연동 일정, 다이어리 기록, 그리고 Supabase Storage에 업로드된 사진 파일 전체를 완전히 삭제하기 위해 아래 이메일로 요청을 접수할 수 있습니다. 요청 접수 시 본인 인증 후 영업일 기준 3일 이내에 데이터베이스 레코드 및 스토리지 파일이 영구 삭제 처리(Cascading Delete)됩니다.</p>
-      <p><a class="destructive-button" href="mailto:coolspid@gmail.com?subject=%EA%B0%80%EC%A1%B1%20%C3%97%20%EC%8A%A4%EC%BC%80%EC%A4%84%EB%9F%AC%20%ED%9A%8C%EC%9B%90%20%ED%83%88%ED%87%B4%20%EB%B0%8F%20%EA%B3%84%EC%A0%95%20%EC%82%AD%EC%A0%9C%20%EC%9A%94%EC%B2%AD">회원 탈퇴 및 계정 삭제 요청 메일 보내기</a></p>
+      <h2>2. 가족 공유 계정의 로그아웃, 가족 탈퇴, 회원 탈퇴</h2>
+      <h3>로그아웃</h3>
+      <p>로그아웃은 현재 기기의 로그인 세션을 해제하는 기능입니다. 계정이나 클라우드 데이터는 삭제되지 않습니다.</p>
 
-      <h2>3. 보관 기간 및 예외 처리</h2>
-      <p>개인정보 및 일정 데이터 삭제 요청 시 데이터베이스에서는 즉각적이고 물리적인 하드 딜리트(Hard Delete) 처리가 수행되어 영구히 복구할 수 없습니다. 다만 문의 메일 수신 내역 등 법적 분쟁 방지 및 관련 법령에서 정한 의무 보존 내역은 해당 의무 기간 동안에 한해 다른 데이터와 완전히 격리되어 별도 보관될 수 있습니다.</p>
-      
+      <h3>가족 탈퇴</h3>
+      <p>가족 탈퇴는 현재 계정을 가족 그룹에서 분리하고 해당 기기를 로컬 저장 모드로 전환하는 기능입니다. 가족 탈퇴만으로 Supabase Auth 계정 전체가 삭제되는 것은 아니며, 가족 그룹에 남아 있는 다른 구성원의 데이터는 유지될 수 있습니다.</p>
+
+      <h3>회원 탈퇴 및 계정 삭제</h3>
+      <p>앱의 가족 공유 설정 화면에서 <strong>회원 탈퇴</strong>를 선택하고 최종 확인 문구를 입력하면 계정 삭제가 진행됩니다. 탈퇴가 완료되면 다음 정보가 운영 데이터베이스 및 스토리지에서 삭제됩니다.</p>
+      <ul>
+        <li>Supabase Auth에 저장된 회원 계정 및 로그인 식별 정보</li>
+        <li>회원의 가족 그룹 참여 정보</li>
+        <li>회원이 작성한 일정, 오늘 할 일, 결제 및 자산 기록, 가족 일정, 알림장, 다이어리 글과 댓글</li>
+        <li>회원이 업로드한 다이어리 사진 파일 및 연결된 저장 경로</li>
+        <li>회원이 가족 그룹의 유일한 구성원인 경우 해당 가족 그룹 정보</li>
+      </ul>
+      <p class="notice">회원 탈퇴는 복구할 수 없는 영구 삭제 작업입니다. 다른 가족 구성원이 작성한 공유 데이터는 해당 구성원의 데이터로 남을 수 있습니다.</p>
+
+      <h2>3. 앱에서 탈퇴가 어려운 경우</h2>
+      <p>앱 접근이 어렵거나 회원 탈퇴 처리 중 오류가 발생하면 아래 이메일로 삭제 요청을 보낼 수 있습니다. 요청 시 가입 이메일 주소와 요청 내용을 적어 주세요. 비밀번호는 절대 보내지 마세요.</p>
+      <p><a class="destructive-button" href="mailto:coolspid@gmail.com?subject=%EA%B0%80%EC%A1%B1%20%C3%97%20%EC%8A%A4%EC%BC%80%EC%A4%84%EB%9F%AC%20%ED%9A%8C%EC%9B%90%20%ED%83%88%ED%87%B4%20%EB%B0%8F%20%EA%B3%84%EC%A0%95%20%EC%82%AD%EC%A0%9C%20%EC%9A%94%EC%B2%AD">회원 탈퇴 및 계정 삭제 요청 메일 보내기</a></p>
+      <p>이메일 요청은 본인 확인 후 영업일 기준 3일 이내 처리를 목표로 합니다. 확인에 필요한 정보가 부족한 경우 추가 확인을 요청할 수 있습니다.</p>
+
+      <h2>4. 보관될 수 있는 정보</h2>
+      <p>회원 탈퇴로 운영 데이터베이스와 스토리지의 계정 및 사용자 작성 데이터는 삭제됩니다. 다만 문의 이메일, 처리 기록, 법령상 보존이 필요한 정보, 보안 및 장애 대응 로그는 필요한 기간 동안 별도 보관될 수 있습니다. 클라우드 제공자의 백업에 남은 사본은 접근이 제한된 상태로 각 시스템의 보존 주기에 따라 만료 또는 삭제됩니다.</p>
+
       <h2>문의</h2>
       <p>데이터 보호 및 삭제와 관련하여 추가 지원이 필요하시면 고객센터 이메일로 연락해 주시기 바랍니다.</p>
       <p>고객 문의 메일 주소: <a href="mailto:coolspid@gmail.com">coolspid@gmail.com</a></p>
+      <p>시행일: 2026년 6월 2일</p>
     </section>
   </main>
 </body>

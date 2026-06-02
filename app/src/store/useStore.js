@@ -46,6 +46,7 @@ const CLOUD_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_CACHE_PREFIX;
 const CLOUD_DIARY_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_DIARY_CACHE_PREFIX;
 const DIARY_COMMENT_MAX_LENGTH = 50;
 const AUTH_SIGN_OUT_TIMEOUT_MS = 2500;
+const FAMILY_ACTION_TIMEOUT_MS = 12000;
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toSafeString = (value, fallback = '') => {
@@ -68,6 +69,16 @@ const withTimeout = (promise, timeoutMs, timeoutMessage) => Promise.race([
         globalThis.setTimeout(() => resolve({ error: new Error(timeoutMessage) }), timeoutMs);
     })
 ]);
+const withRejectingTimeout = (promise, timeoutMs, timeoutMessage) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = globalThis.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+        globalThis.clearTimeout(timeoutId);
+    });
+};
 const normalizeMethod = (method, fallback = '신용카드') => {
     const normalized = toSafeString(method, fallback).replace('성남', '지역').trim();
     return normalized || fallback;
@@ -1277,11 +1288,15 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         set({ isFamilyLoading: true, storageMode: STORAGE_MODE.LINKING });
         try {
-            const { data: memberData, error: memberError } = await supabase
-                .from('family_members')
-                .select('family_id, role, display_name')
-                .eq('user_id', session.user.id)
-                .maybeSingle();
+            const { data: memberData, error: memberError } = await withRejectingTimeout(
+                supabase
+                    .from('family_members')
+                    .select('family_id, role, display_name')
+                    .eq('user_id', session.user.id)
+                    .maybeSingle(),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 공유 연결 상태 확인 시간이 초과되었습니다.'
+            );
 
             if (memberError) throw memberError;
 
@@ -1296,17 +1311,21 @@ export const useStore = create(persistGuestData((set, get) => ({
                 return null;
             }
 
-            const [{ data: familyData, error: familyError }, { data: membersList, error: listError }] = await Promise.all([
-                supabase
-                    .from('families')
-                    .select('id, name, invite_code')
-                    .eq('id', memberData.family_id)
-                    .single(),
-                supabase
-                    .from('family_members')
-                    .select('user_id, role, display_name, joined_at')
-                    .eq('family_id', memberData.family_id)
-            ]);
+            const [{ data: familyData, error: familyError }, { data: membersList, error: listError }] = await withRejectingTimeout(
+                Promise.all([
+                    supabase
+                        .from('families')
+                        .select('id, name, invite_code')
+                        .eq('id', memberData.family_id)
+                        .single(),
+                    supabase
+                        .from('family_members')
+                        .select('user_id, role, display_name, joined_at')
+                        .eq('family_id', memberData.family_id)
+                ]),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 구성원 정보를 불러오는 시간이 초과되었습니다.'
+            );
 
             if (familyError) throw familyError;
             if (listError) throw listError;
@@ -1319,12 +1338,16 @@ export const useStore = create(persistGuestData((set, get) => ({
                 storageMode: STORAGE_MODE.CLOUD
             };
 
-            const { data: childRows, error: childRowsError } = await supabase
-                .from('family_children')
-                .select('child_id, display_name, sort_order, is_active')
-                .eq('family_id', memberData.family_id)
-                .eq('is_active', true)
-                .order('sort_order', { ascending: true });
+            const { data: childRows, error: childRowsError } = await withRejectingTimeout(
+                supabase
+                    .from('family_children')
+                    .select('child_id, display_name, sort_order, is_active')
+                    .eq('family_id', memberData.family_id)
+                    .eq('is_active', true)
+                    .order('sort_order', { ascending: true }),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '자녀 프로필 정보를 불러오는 시간이 초과되었습니다.'
+            );
 
             if (childRowsError && !isMissingFamilyChildrenError(childRowsError)) {
                 throw childRowsError;
@@ -1389,30 +1412,42 @@ export const useStore = create(persistGuestData((set, get) => ({
         });
         try {
             const inviteCode = createFamilyInviteCode();
-            const { data: familyData, error: familyError } = await supabase
-                .from('families')
-                .insert([{
-                    name: toSafeString(familyName, '가족 스케줄러') || '가족 스케줄러',
-                    invite_code: inviteCode,
-                    created_by: session.user.id
-                }])
-                .select('id')
-                .single();
+            const { data: familyData, error: familyError } = await withRejectingTimeout(
+                supabase
+                    .from('families')
+                    .insert([{
+                        name: toSafeString(familyName, '가족 스케줄러') || '가족 스케줄러',
+                        invite_code: inviteCode,
+                        created_by: session.user.id
+                    }])
+                    .select('id')
+                    .single(),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 그룹 생성 시간이 초과되었습니다.'
+            );
 
             if (familyError) throw familyError;
 
-            const { error: memberError } = await supabase
-                .from('family_members')
-                .insert([{
-                    user_id: session.user.id,
-                    family_id: familyData.id,
-                    role: 'owner',
-                    display_name: '보호자'
-                }]);
+            const { error: memberError } = await withRejectingTimeout(
+                supabase
+                    .from('family_members')
+                    .insert([{
+                        user_id: session.user.id,
+                        family_id: familyData.id,
+                        role: 'owner',
+                        display_name: '보호자'
+                    }]),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 구성원 등록 시간이 초과되었습니다.'
+            );
 
             if (memberError) throw memberError;
 
-            await get().fetchFamilyContext();
+            await withRejectingTimeout(
+                get().fetchFamilyContext(),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 그룹 생성 후 상태 확인 시간이 초과되었습니다.'
+            );
             set({
                 syncStatus: hasUnsyncedLocalDataForCloud(get())
                     ? {
@@ -1448,10 +1483,18 @@ export const useStore = create(persistGuestData((set, get) => ({
         });
         try {
             const code = toSafeString(inviteCode).trim().toUpperCase();
-            const { error } = await supabase.rpc('join_family_by_code', { code_input: code });
+            const { error } = await withRejectingTimeout(
+                supabase.rpc('join_family_by_code', { code_input: code }),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 합류 시간이 초과되었습니다.'
+            );
             if (error) throw error;
 
-            await get().fetchFamilyContext();
+            await withRejectingTimeout(
+                get().fetchFamilyContext(),
+                FAMILY_ACTION_TIMEOUT_MS,
+                '가족 합류 후 상태 확인 시간이 초과되었습니다.'
+            );
             set({
                 syncStatus: hasUnsyncedLocalDataForCloud(get())
                     ? {
@@ -1906,22 +1949,19 @@ export const useStore = create(persistGuestData((set, get) => ({
             const userId = session.user.id;
             const isOnlyFamilyMember = currentFamilyId && familyMembers.length <= 1;
 
-            if (currentFamilyId) {
-                let diaryQuery = supabase
-                    .from('diary')
-                    .select('image_paths')
-                    .eq('family_id', currentFamilyId);
+            let diaryQuery = supabase
+                .from('diary')
+                .select('image_paths');
 
-                if (!isOnlyFamilyMember) {
-                    diaryQuery = diaryQuery.eq('user_id', userId);
-                }
+            diaryQuery = isOnlyFamilyMember
+                ? diaryQuery.eq('family_id', currentFamilyId)
+                : diaryQuery.eq('user_id', userId);
 
-                const { data: diaryRows, error: diaryError } = await diaryQuery;
-                if (diaryError) throw diaryError;
+            const { data: diaryRows, error: diaryError } = await diaryQuery;
+            if (diaryError) throw diaryError;
 
-                const imagePaths = asArray(diaryRows).flatMap((row) => asArray(row.image_paths));
-                await removeStoragePathsInChunks(imagePaths);
-            }
+            const imagePaths = asArray(diaryRows).flatMap((row) => asArray(row.image_paths));
+            await removeStoragePathsInChunks(imagePaths);
 
             const { error } = await supabase.rpc('delete_user_account');
             if (error) throw error;
