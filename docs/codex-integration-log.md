@@ -1,6 +1,191 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-03 - Live Supabase account audit, invite cleanup, and short family codes
+
+Source handoff:
+Direct user request in Codex to proceed item-by-item after adding a Supabase service/secret key to `app/.env.local`: verify `coolspid@naver.com` cloud rows, delete unused Storage upload remnants, diagnose a `coolspid@gmail.com` family-join timeout, simplify family invite codes, then commit and push.
+
+Checked:
+- Used the service/secret key only from local env and did not print the key value.
+- Verified Auth users:
+  - `coolspid@naver.com`: created and confirmed on 2026-06-03, last sign-in recorded.
+  - `coolspid@gmail.com`: created and confirmed on 2026-06-03, last sign-in recorded.
+- Verified both users are now members of family `278f691d-8c5f-4971-bf4e-0d4d68102350` (`우리 가족`).
+- Verified stored rows for that family:
+  - `schedule`: 2
+  - `dailytasks`: 1
+  - `payment`: 1
+  - `asset`: 2
+  - `transactionhistory`: 0
+  - `ops`: 1
+  - `opschecklist`: 0
+  - `opsparticipant`: 0
+  - `diary`: 1
+  - `diary_comments`: 0
+  - `family_children`: 1
+  - `notice`: 0
+- Verified the diary row has one image path in private `diary-photos`, and the object exists as `image/jpeg` with size 57,343 bytes. This object was uploaded before the current one-year cacheControl change and still reports `max-age=3600`.
+- Verified `app-assets/diary-samples` after cleanup contains only the three JPG preview assets and PDF samples.
+- Verified a temporary authenticated user could join the current family with the new short code in 188 ms; the temporary `family_members` row and temporary Auth user were deleted afterwards.
+
+Applied:
+- Deleted unused public Storage PNG remnants from `app-assets/diary-samples`:
+  - `book-cover.png`
+  - `book-page1.png`
+  - `book-page2.png`
+  - `premium-book-sample.png`
+  - `sample-child.png`
+  - `sample-smile.png`
+- Updated current family invite code from the old long format to short format; current code is `WH8325`.
+- Changed generated family invite codes from `FA-1234-5678` to two uppercase letters plus four digits, e.g. `AF0201`.
+- Added invite-code collision retry when creating a family.
+- Added family-join timeout reconciliation: if the RPC times out in the UI but the DB membership appears shortly afterward, the app refetches family context and treats the join as successful.
+- Increased family create/join UI timeout to avoid the outer UI timer firing before the store-level family operation and reconciliation can finish.
+- Updated the join-code input placeholder to `AF0201`.
+
+Verification:
+- Live Supabase DB/Auth/Storage read checks completed with the local service/secret key.
+- Live Storage delete check completed; removed PNGs are no longer listed.
+- Live temporary family-join RPC check completed and cleaned up.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-03 - Supabase storage audit and account deletion copy update
+
+Source handoff:
+Direct user request in Codex to proceed item-by-item: confirm whether cloud data for `coolspid@naver.com` is stored in Supabase, confirm diary image compression, explain duplicated PNG/JPG app-assets, and update account deletion timing copy.
+
+Checked:
+- Read project coordination rules and Supabase skill guidance before Supabase-related inspection.
+- Confirmed app storage routing from code:
+  - weekly schedule: `schedule`
+  - daily tasks: `dailytasks`
+  - payment management: `payment`, `asset`, `transactionhistory`
+  - family events: `ops`, `opschecklist`, `opsparticipant`
+  - diary: `diary`, `diary_comments`, and private `diary-photos` Storage paths
+- Confirmed the current local browser session is logged out and shows `계정 연결`, so it cannot read `coolspid@naver.com` cloud rows.
+- Confirmed Supabase MCP tools were not exposed in this session, Supabase CLI is not installed, and no service/admin key is present in project env files.
+- Confirmed Chrome automation was unavailable because Chrome was not running and the native host registry entry is missing.
+- Confirmed the current diary image upload path compresses images before Storage upload and prefers WebP with JPEG fallback.
+- Checked current Supabase Storage documentation for standard uploads, content type, signed URLs, and image transformations before relying on the storage behavior.
+- Confirmed `FamilyDiaryTab` uses only public JPG preview assets for `book-cover`, `book-page1`, and `book-page2`.
+- Confirmed `app-assets/diary-samples` upload history still includes duplicate PNGs for those three preview images, plus standalone PNG sample assets that current app code does not reference.
+
+Applied:
+- Updated the account deletion final confirmation copy in `app/src/components/Login.jsx` from `보통 20~30초` to `최대 30초까지`.
+- Updated the account deletion processing detail copy to the same `최대 30초까지` wording.
+
+Verification:
+- Local dev server started on `http://127.0.0.1:5175/` and rendered the app in logged-out mode.
+- Supabase changelog fetch showed recent breaking-change entries, none directly requiring a change to the current Storage upload/signed URL usage.
+- Direct live DB verification for `coolspid@naver.com` was not possible without a logged-in user session, Supabase MCP, Dashboard SQL access, or a temporary admin/management token.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- To conclusively verify `coolspid@naver.com` live data, run a read-only Dashboard SQL query or provide a temporary authorized access path.
+- Remove unused remote Storage objects when an authorized Supabase Storage path is available:
+  - `app-assets/diary-samples/book-cover.png`
+  - `app-assets/diary-samples/book-page1.png`
+  - `app-assets/diary-samples/book-page2.png`
+  - optionally unused standalone sample PNGs if they are no longer needed.
+
+Previous integration:
+2026-06-03 - Diary image compression and preload path
+
+Source handoff:
+Direct user request in Codex to confirm diary images are compressed before Supabase Storage upload, load correctly, and avoid visible loading when opening diary photos.
+
+Checked:
+- Reviewed `FamilyDiaryTab` image selection, diary save, gallery, photo viewer, and Supabase Storage upload paths.
+- Confirmed the previous file-selection path compressed newly selected files, but the shared upload helper could still upload any pre-existing local data URL/blob without re-compressing it.
+- Confirmed private `diary-photos` images use signed URLs, so repeated URL signing could create different URLs and prevent browser cache reuse between thumbnails and photo viewer.
+- Checked current Supabase Storage documentation for private signed URLs and image transformation/optimization behavior before changing the storage path.
+
+Applied:
+- Added browser-side diary image compression in `app/src/lib/diaryStorage.js`:
+  - max long edge: 1000px
+  - target size: 450 KiB
+  - preferred output: WebP when supported, JPEG fallback
+  - iterative quality fallback down to 0.48 when needed
+- Moved compression into the shared upload path so Supabase Storage receives compressed blobs even when images come from older local diary data or pending sync.
+- Updated file selection to use the same compression helper before storing preview data URLs locally.
+- Increased Storage `cacheControl` for immutable generated photo paths to one year.
+- Added signed URL caching with an expiry safety window so thumbnails and photo viewer reuse the same URL.
+- Added browser image preloading/decoding before opening the photo viewer and eager loading for the main viewer image.
+- Preloads current, previous, and next gallery photo sources while viewing a photo to reduce visible loading when navigating.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Browser DOM check on `http://127.0.0.1:5175/` loaded with no console errors before the synthetic upload attempt.
+- Browser automation could not complete a synthetic file injection because this in-app browser evaluation environment blocked module loading and several DOM event constructors; no real Supabase write test was performed.
+
+Files changed:
+- `app/src/lib/diaryStorage.js`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Open follow-ups:
+- Run an installed APK test with a real logged-in family account and upload one large photo to verify the object MIME type and stored object size in Supabase Storage.
+- Existing previously uploaded diary photos will remain at their old size until re-uploaded or replaced.
+
+Previous integration:
+2026-06-03 - Full debug pass and stale log cleanup
+
+Source handoff:
+Direct user request in Codex to run another overall code debugging pass before app deployment.
+
+Checked:
+- Confirmed the app worktree has no new untracked clutter under `app`; remaining untracked folders are workspace attachments, `.vscode`, `artifacts`, and `temp`.
+- Re-ran static scans for TODO/FIXME/HACK markers, dangerous DOM APIs, service-role/secret patterns, external links, clipboard usage, console logging, and alert usage.
+- Confirmed no dangerous DOM APIs or obvious service-role/secret patterns were found in app source.
+- Confirmed public policy links are centralized in `app/src/lib/policyLinks.js` and use `noopener,noreferrer` through `window.open`.
+- Checked tracked root log artifacts and found `app/build_log.txt` and `app/lint_output.txt` contained stale Antigravity scratch-path failure output that no longer matched the current app state.
+
+Applied:
+- Removed tracked stale debug logs:
+  - `app/build_log.txt`
+  - `app/lint_output.txt`
+- Moved ignored old root runtime logs out of `app` into `temp/debug-pass-20260603/old-root-logs`.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `npm audit --omit=dev` completed with `found 0 vulnerabilities`.
+- `npm ls --depth=0` completed successfully.
+- Development server check on `http://127.0.0.1:5175/` returned HTTP 200.
+- Browser smoke check on `http://127.0.0.1:5175/`:
+  - initial reload: no console errors or warnings
+  - no family sharing settings modal auto-opened on first screen
+  - bottom tabs checked: weekly, daily, monthly, payment, family, diary
+  - tab switching produced no console errors or warnings
+  - account connection button opened the login/signup surface in logged-out state and did not auto-open family sharing settings
+- Production preview check on `http://127.0.0.1:4177/` returned HTTP 200 and rendered with no console errors or warnings.
+- `npx cap doctor android` completed with `Android looking great`.
+- `.\gradlew.bat :app:assembleDebug` completed with `BUILD SUCCESSFUL`.
+
+Files changed:
+- `app/build_log.txt` removed
+- `app/lint_output.txt` removed
+- `docs/codex-integration-log.md`
+- `temp/debug-pass-20260603/old-root-logs` updated with ignored archived logs
+
+Open follow-ups:
+- Gradle still reports the existing `flatDir` warning and Gradle 9 deprecation notice; current debug build succeeds, but this should be revisited before a future Gradle major upgrade.
+- No destructive Supabase account deletion flow was run during this pass.
+- Final release should still include an installed APK pass on a real Android device.
+
+Previous integration:
 2026-06-02 - Pre-release smoke check and texture refactor
 
 Source handoff:

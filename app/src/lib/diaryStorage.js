@@ -1,4 +1,11 @@
 export const DIARY_PHOTO_BUCKET = 'diary-photos';
+export const DIARY_IMAGE_MAX_DIMENSION = 1000;
+export const DIARY_IMAGE_TARGET_BYTES = 450 * 1024;
+export const DIARY_IMAGE_QUALITY = 0.72;
+export const DIARY_SIGNED_URL_EXPIRES_IN = 1800;
+
+const signedUrlCache = new Map();
+let webpSupportPromise = null;
 
 const toSafeString = (value, fallback = '') => {
   if (typeof value === 'string') return value;
@@ -54,6 +61,102 @@ const dataUrlToBlob = async (imageSource) => {
   return response.blob();
 };
 
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(toSafeString(reader.result));
+  reader.onerror = () => reject(new Error('이미지 파일을 읽을 수 없습니다.'));
+  reader.readAsDataURL(blob);
+});
+
+const canUseBrowserImageCompression = () => (
+  typeof document !== 'undefined'
+  && typeof Image !== 'undefined'
+  && typeof URL !== 'undefined'
+);
+
+const canvasToBlob = (canvas, type, quality) => new Promise((resolve) => {
+  canvas.toBlob(resolve, type, quality);
+});
+
+const supportsWebpOutput = () => {
+  if (!canUseBrowserImageCompression()) return Promise.resolve(false);
+  if (!webpSupportPromise) {
+    webpSupportPromise = new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      canvas.toBlob((blob) => resolve(Boolean(blob && blob.type === 'image/webp')), 'image/webp', 0.8);
+    });
+  }
+  return webpSupportPromise;
+};
+
+const loadBlobImage = (blob) => new Promise((resolve, reject) => {
+  const objectUrl = URL.createObjectURL(blob);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(image);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error('이미지를 압축할 수 없습니다.'));
+  };
+  image.src = objectUrl;
+});
+
+export const compressDiaryImageBlob = async (blob, {
+  maxDimension = DIARY_IMAGE_MAX_DIMENSION,
+  targetBytes = DIARY_IMAGE_TARGET_BYTES,
+  quality = DIARY_IMAGE_QUALITY
+} = {}) => {
+  if (!blob || !toSafeString(blob.type).startsWith('image/')) return blob;
+  if (toSafeString(blob.type).toLowerCase().includes('gif')) return blob;
+  if (!canUseBrowserImageCompression()) return blob;
+
+  const image = await loadBlobImage(blob);
+  const originalWidth = image.naturalWidth || image.width;
+  const originalHeight = image.naturalHeight || image.height;
+  if (!originalWidth || !originalHeight) return blob;
+
+  const scale = Math.min(1, maxDimension / Math.max(originalWidth, originalHeight));
+  const width = Math.max(1, Math.round(originalWidth * scale));
+  const height = Math.max(1, Math.round(originalHeight * scale));
+  const useWebp = await supportsWebpOutput();
+  const outputType = useWebp ? 'image/webp' : 'image/jpeg';
+
+  if (scale === 1 && blob.type === outputType && blob.size <= targetBytes) {
+    return blob;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { alpha: outputType === 'image/webp' });
+  if (!context) return blob;
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const qualitySteps = [quality, 0.64, 0.56, 0.48];
+  let bestBlob = null;
+  for (const nextQuality of qualitySteps) {
+    const compressedBlob = await canvasToBlob(canvas, outputType, nextQuality);
+    if (!compressedBlob) continue;
+    if (!bestBlob || compressedBlob.size < bestBlob.size) {
+      bestBlob = compressedBlob;
+    }
+    if (compressedBlob.size <= targetBytes) break;
+  }
+
+  if (!bestBlob) return blob;
+  return bestBlob.size < blob.size ? bestBlob : blob;
+};
+
+export const compressDiaryImageFileToDataUrl = async (file) => {
+  const compressedBlob = await compressDiaryImageBlob(file);
+  return blobToDataUrl(compressedBlob);
+};
+
 const getBlobExtension = (blob) => {
   const mime = toSafeString(blob?.type, 'image/jpeg').toLowerCase();
   if (mime.includes('png')) return 'png';
@@ -99,12 +202,13 @@ export const uploadDiaryImagesToStorage = async ({
       continue;
     }
 
-    const blob = await dataUrlToBlob(source);
+    const sourceBlob = await dataUrlToBlob(source);
+    const blob = await compressDiaryImageBlob(sourceBlob);
     const storagePath = createStoragePath({ familyId, diaryId, index, blob });
     const { error } = await client.storage
       .from(DIARY_PHOTO_BUCKET)
       .upload(storagePath, blob, {
-        cacheControl: '3600',
+        cacheControl: '31536000',
         contentType: blob.type || 'image/jpeg',
         upsert: false
       });
@@ -140,7 +244,7 @@ export const removeDiaryImagesFromStorage = async ({
 export const createDiaryImageSignedUrl = async ({
   client,
   path,
-  expiresIn = 1800
+  expiresIn = DIARY_SIGNED_URL_EXPIRES_IN
 }) => {
   const rawPath = toSafeString(path).trim();
   const storagePath = getDiaryStoragePath(rawPath);
@@ -152,10 +256,39 @@ export const createDiaryImageSignedUrl = async ({
     return rawPath;
   }
 
+  const cacheKey = `${storagePath}:${expiresIn}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 60000) {
+    return cached.url;
+  }
+
   const { data, error } = await client.storage
     .from(DIARY_PHOTO_BUCKET)
     .createSignedUrl(storagePath, expiresIn);
 
   if (error) throw error;
-  return data?.signedUrl || '';
+  const signedUrl = data?.signedUrl || '';
+  if (signedUrl) {
+    signedUrlCache.set(cacheKey, {
+      url: signedUrl,
+      expiresAt: Date.now() + (expiresIn * 1000)
+    });
+  }
+  return signedUrl;
+};
+
+export const getCachedDiaryImageSignedUrl = ({
+  path,
+  expiresIn = DIARY_SIGNED_URL_EXPIRES_IN
+}) => {
+  const storagePath = getDiaryStoragePath(path);
+  if (!storagePath) return '';
+
+  const cacheKey = `${storagePath}:${expiresIn}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + 60000) {
+    return cached.url;
+  }
+
+  return '';
 };

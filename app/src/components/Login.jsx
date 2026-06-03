@@ -23,6 +23,7 @@ const getAuthErrorMessage = (error, mode) => {
 };
 
 const UI_ACTION_TIMEOUT_MS = 15000;
+const FAMILY_UI_ACTION_TIMEOUT_MS = 45000;
 const ACCOUNT_DELETE_TIMEOUT_MS = 60000;
 
 const withUiTimeout = (promise, message, timeoutMs = UI_ACTION_TIMEOUT_MS) => {
@@ -156,14 +157,15 @@ export default function Login({ onClose }) {
         try {
             const familyId = await withUiTimeout(
                 createFamily(familyName.trim() || '우리 가족'),
-                '가족 그룹 생성 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+                '가족 그룹 생성 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+                FAMILY_UI_ACTION_TIMEOUT_MS
             );
             if (familyId) {
                 if (hasUnsyncedLocalData()) {
                     setCloudSyncPromptOpen(true);
                 } else {
-                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.');
-                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.');
+                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
+                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     setStatusMsg('가족 그룹이 생성되었습니다. 초대 코드를 다른 보호자에게 공유할 수 있어요.');
                 }
             } else {
@@ -185,15 +187,16 @@ export default function Login({ onClose }) {
         try {
             const joined = await withUiTimeout(
                 joinFamily(inviteCode),
-                '가족 합류 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
+                '가족 합류 응답이 지연되고 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+                FAMILY_UI_ACTION_TIMEOUT_MS
             );
             if (joined) {
                 setInviteCode('');
                 if (hasUnsyncedLocalData()) {
                     setCloudSyncPromptOpen(true);
                 } else {
-                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.');
-                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.');
+                    await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
+                    await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     setStatusMsg('가족 그룹에 합류했습니다.');
                 }
             } else {
@@ -497,7 +500,7 @@ export default function Login({ onClose }) {
                                         autoCapitalize="characters"
                                         autoCorrect="off"
                                         className="w-full rounded-xl border border-navy/12 bg-white py-3 pl-3 pr-12 text-[14px] font-black tracking-wide text-navy outline-none transition-all focus:border-navy/20 focus:ring-0"
-                                        placeholder="FA-1234-5678"
+                                        placeholder="AF0201"
                                     />
                                     <button
                                         type="button"
@@ -580,11 +583,11 @@ export default function Login({ onClose }) {
                 <NativeSafeTextDialog
                     open={deleteTextOpen}
                     title="최종 확인"
-                    message="탈퇴를 원하시면 아래 빈칸에 '탈퇴'라고 입력해 주세요. 계정과 사진, 공유 데이터 정리에는 보통 20~30초가 걸릴 수 있습니다."
+                    message="탈퇴를 원하시면 아래 빈칸에 '탈퇴'라고 입력해 주세요. 계정과 사진, 공유 데이터 정리에는 최대 30초까지 걸릴 수 있습니다."
                     errorMessage={errorMsg}
                     isProcessing={isDeletingAccount}
                     processingMessage="계정과 클라우드 데이터를 삭제 중입니다."
-                    processingDetail="사진 파일과 가족 공유 데이터를 정리하는 중입니다. 보통 20~30초 정도 걸릴 수 있으니 완료 메시지가 나올 때까지 잠시 기다려 주세요."
+                    processingDetail="사진 파일과 가족 공유 데이터를 정리하는 중입니다. 최대 30초까지 걸릴 수 있으니 완료 메시지가 나올 때까지 잠시 기다려 주세요."
                     value={deleteConfirmText}
                     onChange={setDeleteConfirmText}
                     placeholder="탈퇴"

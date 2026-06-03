@@ -127,9 +127,15 @@ const normalizeCurrentChild = (childId) => {
 };
 
 const createFamilyInviteCode = () => {
-    const segment = () => Math.floor(1000 + Math.random() * 9000).toString();
-    return `FA-${segment()}-${segment()}`;
+    const letter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
+    const digits = () => Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${letter()}${letter()}${digits()}`;
 };
+
+const isUniqueInviteCodeError = (error) => (
+    toSafeString(error?.code) === '23505' &&
+    toSafeString(error?.message).toLowerCase().includes('invite_code')
+);
 
 const isCloudReady = (state) => isCloudReadyState(state, supabase);
 
@@ -145,6 +151,14 @@ const createClientUuid = () => (
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+
+const wait = (delayMs) => new Promise((resolve) => {
+    globalThis.setTimeout(resolve, delayMs);
+});
+
+const isFamilyJoinTimeoutError = (error) => (
+    toSafeString(error?.message).includes('가족 합류 시간이 초과되었습니다.')
 );
 
 const loadPendingMutations = () => {
@@ -979,6 +993,39 @@ const setLocalGuestDataForCurrentChild = (set, get, extraState = {}) => {
     });
 };
 
+const getJoinedFamilyForInviteCode = async ({ code, userId }) => {
+    if (!supabase || !userId || !code) return null;
+
+    const { data: memberData, error: memberError } = await supabase
+        .from('family_members')
+        .select('family_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (memberError) throw memberError;
+    if (!memberData?.family_id) return null;
+
+    const { data: familyData, error: familyError } = await supabase
+        .from('families')
+        .select('id, invite_code')
+        .eq('id', memberData.family_id)
+        .maybeSingle();
+
+    if (familyError) throw familyError;
+
+    const familyCode = toSafeString(familyData?.invite_code).trim().toUpperCase();
+    return familyCode === code ? familyData.id : null;
+};
+
+const waitForJoinedFamilyForInviteCode = async ({ code, userId, attempts = 8, delayMs = 1500 }) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const familyId = await getJoinedFamilyForInviteCode({ code, userId });
+        if (familyId) return familyId;
+        if (attempt < attempts - 1) await wait(delayMs);
+    }
+    return null;
+};
+
 const persistGuestData = (config) => (set, get, api) => config((args) => {
     const prevState = get();
     set(args);
@@ -1411,22 +1458,35 @@ export const useStore = create(persistGuestData((set, get) => ({
             syncStatus: { ...DEFAULT_SYNC_STATUS, phase: 'linking', message: '가족 그룹을 생성하는 중입니다.' }
         });
         try {
-            const inviteCode = createFamilyInviteCode();
-            const { data: familyData, error: familyError } = await withRejectingTimeout(
-                supabase
-                    .from('families')
-                    .insert([{
-                        name: toSafeString(familyName, '가족 스케줄러') || '가족 스케줄러',
-                        invite_code: inviteCode,
-                        created_by: session.user.id
-                    }])
-                    .select('id')
-                    .single(),
-                FAMILY_ACTION_TIMEOUT_MS,
-                '가족 그룹 생성 시간이 초과되었습니다.'
-            );
+            let familyData = null;
+            let lastFamilyError = null;
 
-            if (familyError) throw familyError;
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+                const inviteCode = createFamilyInviteCode();
+                const { data, error } = await withRejectingTimeout(
+                    supabase
+                        .from('families')
+                        .insert([{
+                            name: toSafeString(familyName, '가족 스케줄러') || '가족 스케줄러',
+                            invite_code: inviteCode,
+                            created_by: session.user.id
+                        }])
+                        .select('id')
+                        .single(),
+                    FAMILY_ACTION_TIMEOUT_MS,
+                    '가족 그룹 생성 시간이 초과되었습니다.'
+                );
+
+                if (!error) {
+                    familyData = data;
+                    break;
+                }
+
+                lastFamilyError = error;
+                if (!isUniqueInviteCodeError(error)) break;
+            }
+
+            if (!familyData) throw lastFamilyError || new Error('가족 그룹 생성에 실패했습니다.');
 
             const { error: memberError } = await withRejectingTimeout(
                 supabase
@@ -1475,14 +1535,26 @@ export const useStore = create(persistGuestData((set, get) => ({
         }
     },
     joinFamily: async (inviteCode) => {
-        if (!supabase) return false;
+        const { session } = get();
+        if (!session || !supabase) return false;
         set({
             isFamilyLoading: true,
             storageMode: STORAGE_MODE.LINKING,
             syncStatus: { ...DEFAULT_SYNC_STATUS, phase: 'linking', message: '가족 그룹에 합류하는 중입니다.' }
         });
+        const code = toSafeString(inviteCode).trim().toUpperCase();
         try {
-            const code = toSafeString(inviteCode).trim().toUpperCase();
+            const existingFamilyId = await getJoinedFamilyForInviteCode({ code, userId: session.user.id });
+            if (existingFamilyId) {
+                await withRejectingTimeout(
+                    get().fetchFamilyContext(),
+                    FAMILY_ACTION_TIMEOUT_MS,
+                    '가족 합류 후 상태 확인 시간이 초과되었습니다.'
+                );
+                set({ syncStatus: DEFAULT_SYNC_STATUS });
+                return true;
+            }
+
             const { error } = await withRejectingTimeout(
                 supabase.rpc('join_family_by_code', { code_input: code }),
                 FAMILY_ACTION_TIMEOUT_MS,
@@ -1516,6 +1588,18 @@ export const useStore = create(persistGuestData((set, get) => ({
                     backupKey: null
                 }
             });
+            if (isFamilyJoinTimeoutError(error)) {
+                try {
+                    const joinedFamilyId = await waitForJoinedFamilyForInviteCode({ code, userId: session.user.id });
+                    if (joinedFamilyId) {
+                        await get().fetchFamilyContext();
+                        set({ syncStatus: DEFAULT_SYNC_STATUS });
+                        return true;
+                    }
+                } catch (reconcileError) {
+                    console.warn('Family join timeout reconciliation failed:', reconcileError);
+                }
+            }
             return false;
         } finally {
             set({ isFamilyLoading: false });

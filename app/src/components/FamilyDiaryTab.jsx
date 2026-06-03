@@ -4,7 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
 import { supabase } from '../lib/supabase';
 import {
+  DIARY_SIGNED_URL_EXPIRES_IN,
+  compressDiaryImageFileToDataUrl,
   createDiaryImageSignedUrl,
+  getCachedDiaryImageSignedUrl,
   getDiaryStoragePath,
   isDirectImageSource,
   isStorageImagePath,
@@ -127,9 +130,66 @@ const createClientDiaryId = () => (
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 );
 
+const preloadBrowserImage = (src) => new Promise((resolve, reject) => {
+  const imageSource = toSafeString(src).trim();
+  if (!imageSource || typeof Image === 'undefined') {
+    resolve(imageSource);
+    return;
+  }
+
+  const image = new Image();
+  let settled = false;
+  const finish = (callback, value) => {
+    if (settled) return;
+    settled = true;
+    callback(value);
+  };
+
+  image.onload = () => finish(resolve, imageSource);
+  image.onerror = () => finish(reject, new Error('이미지를 불러올 수 없습니다.'));
+  image.decoding = 'async';
+  image.src = imageSource;
+
+  if (image.decode) {
+    image.decode()
+      .then(() => finish(resolve, imageSource))
+      .catch(() => {
+        // onerror handles broken sources; decode can reject for already-loaded cached images.
+      });
+  }
+});
+
+const primeDiaryImageSource = async (src) => {
+  const imageSource = toSafeString(src).trim();
+  if (!imageSource) return '';
+
+  const storagePath = getDiaryStoragePath(imageSource);
+  const resolvedSrc = storagePath
+    ? await createDiaryImageSignedUrl({
+      client: supabase,
+      path: storagePath,
+      expiresIn: DIARY_SIGNED_URL_EXPIRES_IN
+    })
+    : imageSource;
+
+  if (resolvedSrc) {
+    await preloadBrowserImage(resolvedSrc);
+  }
+
+  return resolvedSrc;
+};
+
 function useSignedUrl(imagePath) {
+  const getInitialSignedUrl = () => {
+    const path = toSafeString(imagePath).trim();
+    const storagePath = getDiaryStoragePath(path);
+    if (!path) return '';
+    if (isDirectImageSource(path) && !storagePath) return path;
+    return getCachedDiaryImageSignedUrl({ path: storagePath || path, expiresIn: DIARY_SIGNED_URL_EXPIRES_IN });
+  };
+
   const [signedUrl, setSignedUrl] = useState(() => (
-    isDirectImageSource(imagePath) && !getDiaryStoragePath(imagePath) ? imagePath : ''
+    getInitialSignedUrl()
   ));
 
   useEffect(() => {
@@ -157,8 +217,14 @@ function useSignedUrl(imagePath) {
       };
     }
 
-    applySignedUrl('');
-    createDiaryImageSignedUrl({ client: supabase, path: storagePath || path, expiresIn: 1800 })
+    const cachedUrl = getCachedDiaryImageSignedUrl({ path: storagePath || path, expiresIn: DIARY_SIGNED_URL_EXPIRES_IN });
+    if (cachedUrl) {
+      applySignedUrl(cachedUrl);
+    } else {
+      applySignedUrl('');
+    }
+
+    createDiaryImageSignedUrl({ client: supabase, path: storagePath || path, expiresIn: DIARY_SIGNED_URL_EXPIRES_IN })
       .then((nextSignedUrl) => {
         if (!isMounted) return;
         setSignedUrl(nextSignedUrl);
@@ -177,10 +243,19 @@ function useSignedUrl(imagePath) {
   return signedUrl;
 }
 
-const DiaryImage = ({ src, alt, className = '', onClick }) => {
+const DiaryImage = ({ src, alt, className = '', onClick, loading = 'lazy' }) => {
   const resolvedSrc = useSignedUrl(src);
-  const [failedSrc, setFailedSrc] = useState('');
-  const imageFailed = Boolean(resolvedSrc && failedSrc === resolvedSrc);
+  const [failedImage, setFailedImage] = useState({ source: '', resolvedSrc: '' });
+  const imageFailed = Boolean(
+    resolvedSrc
+    && failedImage.source === src
+    && failedImage.resolvedSrc === resolvedSrc
+  );
+
+  useEffect(() => {
+    if (!resolvedSrc) return;
+    preloadBrowserImage(resolvedSrc).catch(() => {});
+  }, [resolvedSrc]);
 
   if (!resolvedSrc || imageFailed) {
     return (
@@ -194,10 +269,11 @@ const DiaryImage = ({ src, alt, className = '', onClick }) => {
     <img
       src={resolvedSrc}
       alt={alt}
-      loading="lazy"
+      loading={loading}
       decoding="async"
+      fetchPriority={loading === 'eager' ? 'high' : undefined}
       onClick={onClick}
-      onError={() => setFailedSrc(resolvedSrc)}
+      onError={() => setFailedImage({ source: src, resolvedSrc })}
       className={className}
     />
   );
@@ -379,6 +455,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   // Photo Upload State
   const [selectedImages, setSelectedImages] = useState([]);
   const fileInputRef = useRef(null);
+  const photoOpenRequestRef = useRef(0);
 
   // Calendar Page States
   const [calendarMonthDate, setCalendarMonthDate] = useState(() => {
@@ -409,6 +486,28 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const closePaywall = useCallback(() => {
     setPaywallOpen(false);
     setPaywallMode('default');
+  }, []);
+
+  const openPhotoViewer = useCallback((photo) => {
+    const requestId = photoOpenRequestRef.current + 1;
+    photoOpenRequestRef.current = requestId;
+    const nextPhoto = { ...photo };
+    const imageSource = toSafeString(nextPhoto.imageUrl).trim();
+
+    if (!imageSource) {
+      setViewingPhoto(nextPhoto);
+      return;
+    }
+
+    primeDiaryImageSource(imageSource)
+      .catch((error) => {
+        console.warn('Diary image preload failed:', error);
+      })
+      .finally(() => {
+        if (photoOpenRequestRef.current === requestId) {
+          setViewingPhoto(nextPhoto);
+        }
+      });
   }, []);
 
   // Gallery Scroll Observer & Indicator Logic
@@ -533,38 +632,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       return;
     }
 
-    const processFile = (file) => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-            const MAX_SIZE = 1000;
-            if (width > height && width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
-            } else if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height;
-              height = MAX_SIZE;
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.6));
-          };
-          img.src = reader.result;
-        };
-        reader.readAsDataURL(file);
+    Promise.all(files.map(file => compressDiaryImageFileToDataUrl(file)))
+      .then(dataUrls => {
+        setSelectedImages(prev => [...prev, ...dataUrls].slice(0, maxPhotos));
+      })
+      .catch((error) => {
+        console.warn('Diary image compression failed:', error);
+        alert('사진 압축에 실패했습니다. 다른 사진으로 다시 시도해주세요.');
       });
-    };
-
-    Promise.all(files.map(processFile)).then(dataUrls => {
-      setSelectedImages(prev => [...prev, ...dataUrls].slice(0, maxPhotos));
-    });
     
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -841,11 +916,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   record.imageUrls && record.imageUrls.length > 0 ? (
                     <div className={`mb-4 flex ${record.imageUrls.length === 1 ? '' : 'overflow-x-auto gap-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden'}`} style={{ scrollbarWidth: 'none' }}>
                       {record.imageUrls.map((imgUrl, idx) => (
-                        <DiaryImage key={idx} src={imgUrl} alt={`Attached ${idx+1}`} onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
+                        <DiaryImage key={idx} src={imgUrl} alt={`Attached ${idx+1}`} onClick={() => openPhotoViewer({ ...record, title: displayTitle, text: displayText, imageUrl: imgUrl, photoId: `${record.id}-${idx}` })} className={`cursor-pointer ${record.imageUrls.length === 1 ? 'w-full' : 'w-[85%] shrink-0 snap-center'} h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5`} />
                       ))}
                     </div>
                   ) : record.imageUrl ? (
-                    <DiaryImage src={record.imageUrl} alt="Attached" onClick={() => setViewingPhoto({ ...record, title: displayTitle, text: displayText, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
+                    <DiaryImage src={record.imageUrl} alt="Attached" onClick={() => openPhotoViewer({ ...record, title: displayTitle, text: displayText, photoId: record.id })} className="cursor-pointer mb-4 w-full h-[220px] object-cover rounded-lg border border-slate-300/60 bg-navy/5" />
                   ) : (
                     <div className="mb-4 aspect-video bg-navy/5 border-2 border-dashed border-navy/20 rounded-lg flex items-center justify-center text-navy/30">
                       <Camera size={32} strokeWidth={1.5} />
@@ -1142,6 +1217,23 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     return Object.keys(grouped).map(k => ({ month: k, photos: grouped[k] }));
   }, [records]);
 
+  const galleryPhotos = useMemo(() => galleryData.flatMap(group => group.photos), [galleryData]);
+
+  useEffect(() => {
+    if (!viewingPhoto) return;
+
+    const currentIndex = galleryPhotos.findIndex(photo => photo.photoId === viewingPhoto.photoId);
+    const sources = [
+      viewingPhoto.imageUrl,
+      galleryPhotos[currentIndex - 1]?.imageUrl,
+      galleryPhotos[currentIndex + 1]?.imageUrl
+    ].filter(Boolean);
+
+    sources.forEach((source) => {
+      primeDiaryImageSource(source).catch(() => {});
+    });
+  }, [galleryPhotos, viewingPhoto]);
+
   const renderGalleryPage = () => {
     const activeVisibleMonth = visibleMonth || galleryData[0]?.month || '';
 
@@ -1176,7 +1268,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   {group.photos.map((photo) => (
                     <div
                       key={photo.photoId}
-                      onClick={() => setViewingPhoto({ ...photo, viewerSource: 'gallery' })}
+                      onClick={() => openPhotoViewer({ ...photo, viewerSource: 'gallery' })}
                       className={`${isSinglePhoto ? 'h-40 w-40' : 'aspect-square'} bg-background border border-navy/10 rounded-xl flex items-center justify-center relative group overflow-hidden cursor-pointer`}
                     >
                       <DiaryImage src={photo.imageUrl} alt={photo.title} className="w-full h-full object-cover" />
@@ -1207,7 +1299,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const renderPhotoModal = () => {
     if (!viewingPhoto) return null;
 
-    const mediaPhotos = galleryData.flatMap(g => g.photos);
+    const mediaPhotos = galleryPhotos;
     const currentIndex = mediaPhotos.findIndex(p => p.photoId === viewingPhoto.photoId);
     const isGalleryPhotoViewer = viewingPhoto.viewerSource === 'gallery';
     const viewerTitle = limitText(viewingPhoto.title, DIARY_TITLE_MAX_LENGTH);
@@ -1221,14 +1313,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const handlePrev = (e) => {
       e.stopPropagation();
       if (currentIndex > 0) {
-        setViewingPhoto({ ...mediaPhotos[currentIndex - 1], viewerSource: viewingPhoto.viewerSource });
+        openPhotoViewer({ ...mediaPhotos[currentIndex - 1], viewerSource: viewingPhoto.viewerSource });
       }
     };
 
     const handleNext = (e) => {
       e.stopPropagation();
       if (currentIndex < mediaPhotos.length - 1) {
-        setViewingPhoto({ ...mediaPhotos[currentIndex + 1], viewerSource: viewingPhoto.viewerSource });
+        openPhotoViewer({ ...mediaPhotos[currentIndex + 1], viewerSource: viewingPhoto.viewerSource });
       }
     };
 
@@ -1254,7 +1346,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
           <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} style={HIDDEN_SCROLLBAR_STYLE} className="w-full max-w-[340px] max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden px-1 py-2 flex flex-col items-center gap-4 relative z-[205]">
             <div className={`w-full bg-white p-3 rounded-2xl border-[3px] border-white relative ${photoCardShadowClass}`}>
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-white/90 backdrop-blur-md shadow-md -rotate-2 rounded-[2px]"></div>
-              <DiaryImage src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
+              <DiaryImage src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} loading="eager" className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
             </div>
             {isGalleryPhotoViewer ? (
               <p className="relative z-[206] text-accent-red font-black text-[17px] leading-none tracking-tight">{viewingPhoto.date}</p>
