@@ -22,6 +22,7 @@ export const LOCAL_STORAGE_KEYS = {
     GUEST_SYNC_BACKUP_PREFIX: 'spy_guestSyncBackup',
     CLOUD_CACHE_PREFIX: 'spy_cloudCache',
     CLOUD_DIARY_CACHE_PREFIX: 'spy_cloudDiaryCache',
+    FAMILY_CONTEXT: 'spy_familyContext',
     PENDING_MUTATIONS: 'spy_pendingMutations',
     CHILD_PROFILES: 'spy_childProfiles',
     CHILD_COUNT: 'spy_childCount',

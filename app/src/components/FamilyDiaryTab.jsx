@@ -866,14 +866,25 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                     </button>
                     
                     {activeMenuId === record.id && (
-                      <div className="absolute right-0 top-6 bg-white border border-navy/5 rounded-lg shadow-[4px_4px_0_0_rgba(26,35,126,1)] w-28 z-20 overflow-hidden">
-                        <button onClick={() => handleOpenComposer(record)} className="w-full px-3 py-2 text-[12px] font-bold text-navy flex items-center gap-2 hover:bg-navy/5 text-left border-b border-navy/10">
-                          <Edit2 size={14} /> 수정하기
-                        </button>
-                        <button onClick={() => handleDeleteRecord(record.id)} className="w-full px-3 py-2 text-[12px] font-bold text-accent-red flex items-center gap-2 hover:bg-accent-red/5 text-left">
-                          <Trash2 size={14} /> 삭제하기
-                        </button>
-                      </div>
+                      <>
+                        <button
+                          type="button"
+                          aria-label="다이어리 메뉴 닫기"
+                          className="fixed inset-0 z-[60] cursor-default bg-transparent"
+                          onClick={() => setActiveMenuId(null)}
+                        />
+                        <div
+                          className="absolute right-0 top-6 z-[61] w-28 overflow-hidden rounded-lg bg-white shadow-[0_12px_30px_rgba(15,23,42,0.14)]"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <button onClick={() => handleOpenComposer(record)} className="w-full px-3 py-2 text-[12px] font-bold text-navy flex items-center gap-2 hover:bg-navy/5 text-left border-b border-slate-100">
+                            <Edit2 size={14} /> 수정하기
+                          </button>
+                          <button onClick={() => handleDeleteRecord(record.id)} className="w-full px-3 py-2 text-[12px] font-bold text-accent-red flex items-center gap-2 hover:bg-accent-red/5 text-left">
+                            <Trash2 size={14} /> 삭제하기
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>

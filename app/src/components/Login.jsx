@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { ClipboardPaste, Copy, Key, Lock, LogOut, ShieldAlert, UserPlus, X, Users } from 'lucide-react';
+import { CheckCircle2, ClipboardPaste, Copy, Key, Lock, LogOut, Mail, ShieldAlert, UserPlus, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from '../lib/policyLinks';
 import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './NativeSafeControls';
@@ -115,6 +115,10 @@ export default function Login({ onClose }) {
     const isCreatingFamily = familyAction === 'create';
     const isJoiningFamily = familyAction === 'join';
     const isLeavingFamily = familyAction === 'leave';
+    const currentUserId = session?.user?.id || '';
+    const currentUserEmail = session?.user?.email || '이메일 확인 중';
+    const currentMember = familyMembers.find(member => member.user_id === currentUserId);
+    const currentRoleLabel = currentMember?.role ? currentMember.role.toUpperCase() : null;
 
     const handleAuth = async (e) => {
         e.preventDefault();
@@ -383,6 +387,23 @@ export default function Login({ onClose }) {
                         </p>
                     </div>
 
+                    <div className="mb-4 rounded-2xl border border-navy/10 bg-white p-4">
+                        <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-navy/55">
+                            <Mail size={14} className="text-navy/40" />
+                            현재 계정
+                        </p>
+                        <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-navy/5 px-3 py-2">
+                            <span className="min-w-0 flex-1 truncate text-[12px] font-black text-navy">
+                                {currentUserEmail}
+                            </span>
+                            {currentRoleLabel && (
+                                <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-black text-navy/55">
+                                    {currentRoleLabel}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     {currentFamilyId ? (
                         <div className="space-y-4">
                             <div className="rounded-2xl border border-navy/10 bg-white p-4">
@@ -406,12 +427,19 @@ export default function Login({ onClose }) {
                             <div className="rounded-2xl border border-navy/10 bg-white p-4">
                                 <p className="mb-2 text-[12px] font-black text-navy/55">구성원</p>
                                 <div className="space-y-1.5">
-                                    {familyMembers.map((member) => (
-                                        <div key={member.user_id} className="flex items-center justify-between rounded-xl bg-navy/5 px-3 py-2 text-[12px] font-bold text-navy">
-                                            <span>{member.display_name || '보호자'}</span>
-                                            <span className="text-[10px] uppercase text-navy/45">{member.role}</span>
+                                    {familyMembers.map((member) => {
+                                        const isCurrentMember = member.user_id === currentUserId;
+
+                                        return (
+                                        <div key={member.user_id} className={`flex items-center justify-between rounded-xl px-3 py-2 text-[12px] font-bold text-navy ${isCurrentMember ? 'bg-navy/10' : 'bg-navy/5'}`}>
+                                            <span className="flex min-w-0 items-center gap-1.5">
+                                                {isCurrentMember && <CheckCircle2 size={14} className="shrink-0 text-emerald-500" />}
+                                                <span className="truncate">{member.display_name || '보호자'}</span>
+                                            </span>
+                                            <span className="shrink-0 text-[10px] uppercase text-navy/45">{member.role}</span>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 

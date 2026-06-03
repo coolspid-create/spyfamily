@@ -1,6 +1,41 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-04 - Family share identity display and diary menu cleanup
+
+Source handoff:
+Direct user request in Codex while the local app was open at `http://127.0.0.1:5175/`: show the current account email in family sharing settings, mark which family member is the current user, review family sharing settings unexpectedly clearing, and remove the blue box around the diary edit/delete menu while closing that menu from any background tap.
+
+Checked:
+- Read Supabase skill guidance and fetched the Supabase changelog before touching auth/family-share behavior.
+- Confirmed `Login.jsx` already has access to the current Supabase session email and current user id.
+- Confirmed `familyMembers` rows expose `user_id` and `role`, so the current user can be marked by comparing `member.user_id` to `session.user.id`.
+- Found a likely cause for the apparent family-share reset: `fetchFamilyContext()` cleared `currentFamilyId`, invite code, and members on any family context fetch error, including transient timeout/network errors after a valid family context had already been loaded.
+- Confirmed there was no local family-context fallback, so a first-load transient failure could make an existing family share look disconnected until a successful refetch.
+- Confirmed the diary edit/delete menu used a navy offset shadow and border-like styling that looked like a blue box.
+
+Applied:
+- Added a current account panel to the family sharing settings modal showing the logged-in email and current role when available.
+- Added a green check icon beside the current user's row in the family member list.
+- Changed `fetchFamilyContext()` so transient load failures preserve the existing family context when one is already present, while still showing a cloud error state.
+- Added a small current-user-scoped local cache for the last valid family context and clear it only on true no-membership states, family leave, logout/account cleanup.
+- Removed the diary edit/delete menu's navy offset box styling.
+- Added a transparent full-screen close layer while the diary edit/delete menu is open, so tapping anywhere outside the menu closes it.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `Invoke-WebRequest http://127.0.0.1:5175/` returned HTTP 200.
+- In-app browser load check succeeded. The current browser session was logged out/local and had no diary records, so the logged-in family modal and record action menu were verified by source/build rather than a live account-record click path.
+
+Files changed:
+- `app/src/components/Login.jsx`
+- `app/src/store/useStore.js`
+- `app/src/lib/storageRepository.js`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-03 - Live Supabase account audit, invite cleanup, and short family codes
 
 Source handoff:

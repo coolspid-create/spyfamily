@@ -44,6 +44,7 @@ const CHILD_PROFILE_SYNC_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.CHILD_PROFILE_SYNC_S
 const LAST_SYNC_AT_KEY = LOCAL_STORAGE_KEYS.LAST_SYNC_AT;
 const CLOUD_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_CACHE_PREFIX;
 const CLOUD_DIARY_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_DIARY_CACHE_PREFIX;
+const FAMILY_CONTEXT_CACHE_KEY = LOCAL_STORAGE_KEYS.FAMILY_CONTEXT;
 const DIARY_COMMENT_MAX_LENGTH = 50;
 const AUTH_SIGN_OUT_TIMEOUT_MS = 2500;
 const FAMILY_ACTION_TIMEOUT_MS = 12000;
@@ -429,6 +430,7 @@ const clearLocalAccountData = () => {
             LOCAL_DIARY_SYNC_SIGNATURE_KEY,
             CHILD_PROFILE_SYNC_SIGNATURE_KEY,
             LAST_SYNC_AT_KEY,
+            FAMILY_CONTEXT_CACHE_KEY,
             LOCAL_STORAGE_KEYS.PENDING_MUTATIONS
         ]);
         ['spy_childProfiles', 'spy_childCount', 'spy_currentChild'].forEach((key) => {
@@ -971,6 +973,40 @@ const loadCloudDiaryCache = (familyId) => {
     return normalizeDiaryRecords(cached.records);
 };
 
+const saveFamilyContextCache = ({ currentFamilyId, familyInviteCode, familyMembers }, userId) => {
+    if (!currentFamilyId || !userId) return;
+    try {
+        localRepository.saveJson(FAMILY_CONTEXT_CACHE_KEY, {
+            createdAt: new Date().toISOString(),
+            userId,
+            currentFamilyId,
+            familyInviteCode: familyInviteCode || null,
+            familyMembers: Array.isArray(familyMembers) ? familyMembers : []
+        });
+    } catch (error) {
+        console.warn('Family context cache could not be saved locally:', error);
+    }
+};
+
+const loadFamilyContextCache = (userId) => {
+    if (!userId) return null;
+    const cached = localRepository.loadJson(FAMILY_CONTEXT_CACHE_KEY, null);
+    if (!cached?.currentFamilyId || cached.userId !== userId) return null;
+    return {
+        currentFamilyId: cached.currentFamilyId,
+        familyInviteCode: cached.familyInviteCode || null,
+        familyMembers: Array.isArray(cached.familyMembers) ? cached.familyMembers : []
+    };
+};
+
+const clearFamilyContextCache = () => {
+    try {
+        localRepository.removeKeys([FAMILY_CONTEXT_CACHE_KEY]);
+    } catch (error) {
+        console.warn('Family context cache could not be cleared locally:', error);
+    }
+};
+
 const loadLocalGuestDataForChild = (childId) => {
     const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
     if (!guestDataStr) return normalizeGuestData({});
@@ -1348,6 +1384,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (memberError) throw memberError;
 
             if (!memberData) {
+                clearFamilyContextCache();
                 set({
                     currentFamilyId: null,
                     familyInviteCode: null,
@@ -1428,13 +1465,26 @@ export const useStore = create(persistGuestData((set, get) => ({
             }
 
             set(nextContext);
+            saveFamilyContextCache(nextContext, session.user.id);
             return memberData.family_id;
         } catch (error) {
             console.warn('Family context could not be loaded:', error);
+            const currentState = get();
+            const hasExistingFamilyContext = Boolean(currentState.currentFamilyId);
+            const cachedFamilyContext = hasExistingFamilyContext ? null : loadFamilyContextCache(session.user.id);
+            const fallbackFamilyId = currentState.currentFamilyId || cachedFamilyContext?.currentFamilyId || null;
+
             set({
-                currentFamilyId: null,
-                familyInviteCode: null,
-                familyMembers: [],
+                ...(hasExistingFamilyContext
+                    ? {}
+                    : cachedFamilyContext
+                        ? cachedFamilyContext
+                        : {
+                            currentFamilyId: null,
+                            familyInviteCode: null,
+                            familyMembers: []
+                        }),
+                isGuestMode: !fallbackFamilyId,
                 storageMode: session ? STORAGE_MODE.CLOUD_ERROR : STORAGE_MODE.LOCAL,
                 syncStatus: {
                     phase: 'failed',
@@ -1443,7 +1493,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     backupKey: null
                 }
             });
-            return null;
+            return fallbackFamilyId;
         } finally {
             set({ isFamilyLoading: false });
         }
@@ -1628,6 +1678,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 storageMode: STORAGE_MODE.LOCAL,
                 syncStatus: DEFAULT_SYNC_STATUS
             });
+            clearFamilyContextCache();
             return true;
         } catch (error) {
             set({
