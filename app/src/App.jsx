@@ -145,12 +145,6 @@ function App() {
     };
   }, [showLocalTooltip]);
 
-  useEffect(() => {
-    const handlePopState = () => setActiveTab(getTabFromPath());
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -210,6 +204,21 @@ function App() {
   const isAuthChecking = useStore(state => state.isAuthChecking);
   const [isShareAuthOpen, setIsShareAuthOpen] = useState(false);
   const [showAuthSplash, setShowAuthSplash] = useState(false);
+  const shareAuthHistoryMarkerRef = useRef(null);
+
+  const closeShareAuth = useCallback(() => {
+    shareAuthHistoryMarkerRef.current = null;
+    setIsShareAuthOpen(false);
+  }, []);
+
+  const requestCloseShareAuth = useCallback(() => {
+    const marker = shareAuthHistoryMarkerRef.current;
+    if (marker && window.history.state?.shareAuthMarker === marker) {
+      window.history.back();
+      return;
+    }
+    closeShareAuth();
+  }, [closeShareAuth]);
 
   const openShareAuth = () => {
     if (!FAMILY_SHARING_ENABLED) {
@@ -219,8 +228,26 @@ function App() {
       alert('가족 공유는 서버 설정 후 사용할 수 있습니다. 현재 데이터는 이 기기에 저장됩니다.');
       return;
     }
+    if (!isShareAuthOpen) {
+      const marker = `family-share-${Date.now()}`;
+      shareAuthHistoryMarkerRef.current = marker;
+      window.history.pushState({ ...(window.history.state || {}), shareAuthMarker: marker }, '', window.location.href);
+    }
     setIsShareAuthOpen(true);
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const marker = shareAuthHistoryMarkerRef.current;
+      if (marker && window.history.state?.shareAuthMarker !== marker) {
+        shareAuthHistoryMarkerRef.current = null;
+        setIsShareAuthOpen(false);
+      }
+      setActiveTab(getTabFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!FAMILY_SHARING_ENABLED || !isSupabaseConfigured || !supabase) {
@@ -677,7 +704,7 @@ function App() {
       <AnimatePresence>
         {FAMILY_SHARING_ENABLED && isShareAuthOpen && (
           <Suspense fallback={null}>
-            <Login onClose={() => setIsShareAuthOpen(false)} />
+            <Login onClose={requestCloseShareAuth} />
           </Suspense>
         )}
       </AnimatePresence>

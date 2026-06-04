@@ -1,6 +1,109 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-04 - Native clipboard support for Android invite-code paste
+
+Source handoff:
+Direct user request in Codex after clipboard paste was unavailable in the installed app: use the native Capacitor clipboard path rather than relying only on the browser `navigator.clipboard` API.
+
+Checked:
+- Confirmed the app was using Capacitor 8 and did not yet include `@capacitor/clipboard`.
+- Checked the official Capacitor Clipboard API docs for the install/sync flow and `Clipboard.read()` / `Clipboard.write()` usage.
+- Found clipboard usage in the family invite-code copy/paste flow and the support account copy flow.
+
+Applied:
+- Added `@capacitor/clipboard@8.0.1` and synced the Android project so the native clipboard plugin is registered.
+- Added `app/src/lib/clipboard.js` to route Android/iOS builds through Capacitor native clipboard reads/writes while keeping browser fallbacks for web.
+- Updated the family invite-code copy and paste actions to use the shared clipboard helper.
+- Updated the support modal account-number copy action to use the same helper and avoid unhandled clipboard errors.
+
+Verification:
+- `npm view @capacitor/clipboard version peerDependencies --json` confirmed the latest plugin supports Capacitor core `>=8.0.0`.
+- `npm install @capacitor/clipboard` completed successfully.
+- `npx cap sync android` registered `@capacitor/clipboard@8.0.1`.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- Final `npx cap sync android` copied the latest `dist` assets and kept the clipboard plugin registered.
+- In-app browser reload of `http://127.0.0.1:5175/diary` showed the app root rendered with no console errors.
+- `.\gradlew.bat assembleDebug` completed successfully and included the native clipboard plugin module.
+- Created test APK `artifacts/FamilyScheduler-test-b070df0-workingtree-clipboard-20260604-133555-debug.apk` with SHA256 `6EF41818FEBD7FBC18FC17DC718D4413BC31B7E51BBB2330CAF4D2B131075710`.
+- `git diff --check` completed successfully, with only existing CRLF normalization warnings.
+
+Remaining risks:
+- Native clipboard read/write still needs confirmation after installing the generated Android build because desktop browser verification cannot exercise Android WebView's native clipboard bridge.
+- `npm install` reported existing npm audit findings; `npm audit fix` was not run because dependency remediation was outside this focused clipboard change.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/capacitor.build.gradle`
+- `app/android/capacitor.settings.gradle`
+- `app/src/lib/clipboard.js`
+- `app/src/components/Login.jsx`
+- `app/src/components/SupportModal.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-04 - Popup height audit with live family join and leave flow
+
+Source handoff:
+Direct user request in Codex to check whether other popups have the same unreachable-close / too-tall-screen issue, including creating arbitrary test accounts and exercising family join and leave.
+
+Checked:
+- Created temporary Supabase Auth users for an owner and member in an automated Chrome test profile.
+- Exercised the app UI on a 390x640 mobile viewport: login, family creation, invite code read, family modal close by X, family modal close by browser back, member login, invite join, family leave confirmation, post-leave no-family state, account delete warning, account delete final text dialog, diary composer, diary PDF export modal, and diary book paywall.
+- Confirmed the temporary Auth users and temporary test families were removed after the test run.
+- Confirmed the in-app Browser automation surface still returned a blank DOM in this thread, so the live interaction pass used a temporary headless Chrome CDP session instead.
+
+Applied:
+- Added viewport-bounded scrolling and top-right close buttons to the common native confirm/text dialogs.
+- Added viewport-bounded scrolling to the login/signup modal, support modal, diary PDF export modal, and diary premium/paywall modal.
+- Ensured popup scroll containers hide their scrollbars even when scrolling is needed.
+- Kept the family share modal's back-button close behavior from the previous fix.
+
+Verification:
+- `npm run lint` completed successfully before the broader automated flow.
+- `node temp/popup-flow-check.mjs` completed successfully across the live owner/member family join and leave flow and additional popup checks.
+- Supabase cleanup audit reported no remaining `codex.owner.*@example.com` or `codex.member.*@example.com` users and no remaining test families from the run.
+- Final `npm run lint` completed successfully.
+- Final `npm run build` completed successfully.
+- `Invoke-WebRequest http://127.0.0.1:5175/diary` returned HTTP 200.
+
+Files changed:
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/components/SupportModal.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-04 - Family share modal close and compact layout
+
+Source handoff:
+Direct user request in Codex after seeing the family share settings screen following family leave: the modal was too tall, the close control was not reachable, and browser/app back should return to the main screen.
+
+Checked:
+- Confirmed the signed-in family share settings modal was vertically centered with `overflow-hidden`, so a tall post-leave state could clip the top and hide the close button.
+- Confirmed the modal close state is controlled by `App.jsx` through `isShareAuthOpen`.
+
+Applied:
+- Changed the signed-in family share modal to align from the top, constrain height to the viewport, and scroll within the modal when needed.
+- Reduced header, card, input, and button vertical spacing in the family share settings screen.
+- Added an explicit accessible close button label in the signed-in family share modal.
+- Added a family share modal history marker so browser/app back closes the popup before navigating the main app.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `Invoke-WebRequest http://127.0.0.1:5175/diary` returned HTTP 200 after restarting the local dev server.
+- In-app browser automation could reach the `http://127.0.0.1:5175/diary` tab, but the automation DOM remained blank with no console errors, so the modal interaction path was verified by source review plus build/HTTP checks in this pass.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-04 - Family share identity display and diary menu cleanup
 
 Source handoff:

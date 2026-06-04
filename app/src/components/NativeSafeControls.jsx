@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 
 const pad2 = (value) => String(value).padStart(2, '0');
 const CALENDAR_DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -743,16 +743,24 @@ export function NativeSafeConfirmDialog({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[300] mx-auto flex max-w-[420px] items-center justify-center bg-navy/45 px-6"
+                    className="fixed inset-0 z-[300] mx-auto flex max-w-[420px] items-start justify-center overflow-y-auto bg-navy/45 px-5 py-6 no-scrollbar [&::-webkit-scrollbar]:hidden"
                 >
                     <motion.div
                         initial={{ opacity: 0, y: 12, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 12, scale: 0.98 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="w-full rounded-2xl border border-navy/10 bg-white p-5 shadow-2xl shadow-navy/20"
+                        className="relative max-h-[calc(100dvh-48px)] w-full overflow-y-auto rounded-2xl border border-navy/10 bg-white p-5 shadow-2xl shadow-navy/20 overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden"
                     >
-                        <h2 className="text-[16px] font-black text-navy">{title}</h2>
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            aria-label={`${title} 닫기`}
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-navy/5 text-navy/40 transition-colors hover:bg-navy/10 hover:text-navy"
+                        >
+                            <X size={16} />
+                        </button>
+                        <h2 className="pr-8 text-[16px] font-black text-navy">{title}</h2>
                         <p className="mt-2 text-[13px] font-semibold leading-relaxed text-navy/65">{message}</p>
                         <div className="mt-5 flex gap-2.5">
                             <button
@@ -807,16 +815,25 @@ export function NativeSafeTextDialog({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[300] mx-auto flex max-w-[420px] items-center justify-center bg-navy/45 px-6"
+                    className="fixed inset-0 z-[300] mx-auto flex max-w-[420px] items-start justify-center overflow-y-auto bg-navy/45 px-5 py-6 no-scrollbar [&::-webkit-scrollbar]:hidden"
                 >
                     <motion.div
                         initial={{ opacity: 0, y: 12, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 12, scale: 0.98 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="w-full rounded-2xl border border-navy/10 bg-white p-5 shadow-2xl shadow-navy/20"
+                        className="relative max-h-[calc(100dvh-48px)] w-full overflow-y-auto rounded-2xl border border-navy/10 bg-white p-5 shadow-2xl shadow-navy/20 overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden"
                     >
-                        <h2 className="text-[16px] font-black text-navy">{title}</h2>
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            disabled={cancelDisabled}
+                            aria-label={`${title} 닫기`}
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-navy/5 text-navy/40 transition-colors hover:bg-navy/10 hover:text-navy disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            <X size={16} />
+                        </button>
+                        <h2 className="pr-8 text-[16px] font-black text-navy">{title}</h2>
                         {message && (
                             <p className="mt-2 text-[13px] font-semibold leading-relaxed text-navy/65">{message}</p>
                         )}

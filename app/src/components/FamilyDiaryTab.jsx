@@ -336,7 +336,7 @@ const CollapsibleDiaryText = ({
       animate={{ height: targetHeight }}
       transition={DIARY_TEXT_EXPAND_TRANSITION}
       style={shouldScrollExpandedText ? HIDDEN_SCROLLBAR_STYLE : undefined}
-      className={`block ${shouldScrollExpandedText ? 'overflow-y-auto [&::-webkit-scrollbar]:hidden' : 'overflow-hidden'}`}
+      className={`block ${shouldScrollExpandedText ? 'overflow-y-auto no-scrollbar [&::-webkit-scrollbar]:hidden' : 'overflow-hidden'}`}
     >
       <span ref={contentRef} className="block whitespace-pre-wrap break-words">
         {text}
@@ -1354,7 +1354,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             </button>
           )}
 
-          <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} style={HIDDEN_SCROLLBAR_STYLE} className="w-full max-w-[340px] max-h-[92vh] overflow-y-auto [&::-webkit-scrollbar]:hidden px-1 py-2 flex flex-col items-center gap-4 relative z-[205]">
+          <motion.div key={viewingPhoto.photoId} initial={{ opacity: 0, scale: 0.95, x: 20 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.95, x: -20 }} transition={{ duration: 0.2 }} style={HIDDEN_SCROLLBAR_STYLE} className="w-full max-w-[340px] max-h-[92vh] overflow-y-auto no-scrollbar [&::-webkit-scrollbar]:hidden px-1 py-2 flex flex-col items-center gap-4 relative z-[205]">
             <div className={`w-full bg-white p-3 rounded-2xl border-[3px] border-white relative ${photoCardShadowClass}`}>
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-white/90 backdrop-blur-md shadow-md -rotate-2 rounded-[2px]"></div>
               <DiaryImage src={viewingPhoto.imageUrl} alt={viewerTitle || '첨부 사진'} loading="eager" className="w-full max-h-[45vh] object-contain rounded-md bg-gray-50" />
@@ -1562,8 +1562,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       <>
         <AnimatePresence>
           {pdfExportOpen && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-2xl border border-navy/5 overflow-hidden">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 left-0 right-0 z-[100] mx-auto flex max-w-[420px] items-start justify-center overflow-y-auto border-x-[3px] border-navy bg-navy/80 p-4 shadow-2xl no-scrollbar [&::-webkit-scrollbar]:hidden">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="max-h-[calc(100dvh-32px)] w-full max-w-[340px] overflow-y-auto rounded-2xl border border-navy/5 bg-white overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden">
               <div className="bg-navy px-4 py-3 flex items-center justify-between">
                 <h2 className="font-bold text-[15px] text-white">사진첩 제작</h2>
                 <button onClick={() => !isExporting && setPdfExportOpen(false)} aria-label="사진첩 제작 닫기" className="text-white/70 hover:text-white"><X size={20} /></button>
@@ -1767,8 +1767,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     return (
       <AnimatePresence>
         {paywallOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[300] bg-navy/80 flex items-center justify-center p-4 border-x-[3px] border-navy shadow-2xl">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-[340px] rounded-3xl border border-navy/5 overflow-hidden flex flex-col items-center p-6 relative">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 left-0 right-0 z-[300] mx-auto flex max-w-[420px] items-start justify-center overflow-y-auto border-x-[3px] border-navy bg-navy/80 p-4 shadow-2xl no-scrollbar [&::-webkit-scrollbar]:hidden">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="relative flex max-h-[calc(100dvh-32px)] w-full max-w-[340px] flex-col items-center overflow-y-auto rounded-3xl border border-navy/5 bg-white p-6 overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden">
               <button onClick={closePaywall} aria-label="프리미엄 안내 닫기" className="absolute top-4 right-4 text-navy/40 hover:text-navy/70 transition-colors">
                 <X size={24} />
               </button>

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Copy, Check, Coffee, Heart, Smartphone } from 'lucide-react';
+import { writeClipboardText } from '../lib/clipboard';
 
 const SupportModal = ({ isOpen, onClose }) => {
     const [copied, setCopied] = useState(false);
+    const [copyFailed, setCopyFailed] = useState(false);
     
     // 이 부분을 실제 계좌 정보로 수정하시면 됩니다!
     const accountInfo = {
@@ -12,10 +14,16 @@ const SupportModal = ({ isOpen, onClose }) => {
         name: '신동인'
     };
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(accountInfo.number);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        try {
+            await writeClipboardText(accountInfo.number, '후원 계좌번호');
+            setCopyFailed(false);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setCopied(false);
+            setCopyFailed(true);
+        }
     };
 
     return (
@@ -28,7 +36,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-navy/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6"
+                        className="fixed inset-0 z-[200] bg-navy/60 backdrop-blur-sm"
                     />
 
                     {/* Modal */}
@@ -36,7 +44,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                         initial={{ scale: 0.9, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm bg-white rounded-3xl shadow-2xl z-[201] overflow-hidden border-2 border-navy/5"
+                        className="fixed left-1/2 top-4 z-[201] max-h-[calc(100dvh-32px)] w-[90%] max-w-sm -translate-x-1/2 overflow-y-auto rounded-3xl border-2 border-navy/5 bg-white shadow-2xl overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden"
                     >
                         {/* Header Image/Icon Section */}
                         <div className="bg-navy p-8 flex flex-col items-center relative overflow-hidden">
@@ -123,7 +131,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                             {/* Alternative Hint */}
                             <div className="flex items-center justify-center gap-2 text-[11px] text-navy/40 font-bold">
                                 <Smartphone size={14} />
-                                <span>계좌번호가 자동으로 복사되었습니다.</span>
+                                <span>{copyFailed ? '복사할 수 없어 계좌번호를 직접 선택해 주세요.' : '계좌번호가 자동으로 복사되었습니다.'}</span>
                             </div>
 
                             {/* Done Button */}
