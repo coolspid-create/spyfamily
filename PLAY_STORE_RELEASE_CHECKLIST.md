@@ -1,5 +1,7 @@
 # 가족 X 스케줄러 Play Store 출시 준비
 
+> 현재 파일은 `1.1.6` 로컬 전용/간소화 출시 기준의 기록입니다. Supabase 계정, 가족 공유, 다이어리 사진 저장 기능이 켜진 현재 업데이트 준비에는 `play-store/play-console-update-1.2.0-checklist.md`를 우선 기준으로 사용하세요.
+
 ## 현재 처리 완료
 
 - `codex/play-store-readiness` 브랜치에서 출시 준비 작업 진행

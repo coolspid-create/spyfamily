@@ -1,6 +1,173 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-08 - Verify 1.2.0 update preserves local data
+
+Source handoff:
+Direct user request in Codex to confirm whether updating from the existing local-storage release to 1.2.0 keeps previously saved local data and can link it to the new cloud flow.
+
+Checked:
+- Confirmed Android release identity remains the same app package, `com.coolspid.familyxscheduler`, with only the version changing to `versionCode 18` / `versionName 1.2.0`.
+- Reviewed local storage keys used by the app: `spy_guestData_child*` for weekly schedule, payments, family events, daily tasks, notices, funds, and missions; `family-diary-records-v1` plus legacy `memory-mvp-records-v2` fallback for diary records; child profile keys `spy_childProfiles`, `spy_childCount`, and `spy_currentChild`.
+- Confirmed normal app startup reads existing local storage and does not clear it.
+- Confirmed local data clearing is limited to explicit account deletion/data deletion flows, not app update or ordinary app launch.
+- Confirmed family creation/join detects unsynced local data and opens a cloud sync prompt before switching fully to cloud data.
+- Confirmed the sync flow creates a local backup key before uploading and reports failure while preserving local backup if cloud sync fails.
+
+Verification:
+- Started the local 1.2.0 app and injected 1.1.6-style localStorage data in an isolated browser profile.
+- Confirmed the current app rendered preserved sample data for weekly schedule, today tasks, monthly calendar, payment management, family events, and diary.
+- Confirmed the injected `spy_guestData_child1` and `family-diary-records-v1` keys still existed after app load.
+- Stopped the temporary dev server and removed the temporary browser profile/tooling after verification.
+
+Remaining risks:
+- This was a local browser/WebView-style storage preservation simulation, not an on-device Play Store update install over a real production device.
+- Actual cloud upload still depends on the user signing in, creating or joining a family, and accepting the sync prompt; skipping the prompt keeps local data as a device backup but switches the visible app to cloud data.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-08 - Revise Play Store 1.2.0 release notes
+
+Source handoff:
+Direct user request in Codex to rewrite the 1.2.0 release notes as a compressed summary of the large update since 1.1.6, focusing on family sharing, cloud storage, and diary features.
+
+Applied:
+- Rewrote `play-store/release-notes-1.2.0-ko-KR.txt` to emphasize the 1.2.0 large update.
+- Updated the release note candidate in `play-store/play-console-update-1.2.0-checklist.md` to match.
+
+Verification:
+- Release note text is concise and Play Console-ready.
+
+Remaining risks:
+- No build was rerun because this change only updates release note text.
+
+Files changed:
+- `play-store/release-notes-1.2.0-ko-KR.txt`
+- `play-store/play-console-update-1.2.0-checklist.md`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-08 - Build Play Store release AAB for 1.2.0
+
+Source handoff:
+Direct user request in Codex to create the actual update AAB for version 1.2.0 and prepare release notes.
+
+Applied:
+- Bumped app package version from `1.1.6` to `1.2.0`.
+- Bumped Android release metadata to `versionCode 18` and `versionName "1.2.0"`.
+- Rebuilt the production web bundle and synced it into the Capacitor Android project.
+- Built the signed release Android App Bundle.
+- Copied the upload artifact to `artifacts/aab/FamilyScheduler-1.2.0-v18-release.aab`.
+- Added Play Console-ready Korean release notes at `play-store/release-notes-1.2.0-ko-KR.txt`.
+- Updated the 1.2.0 Play Console checklist versioning and release note section.
+
+Verification:
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully and generated PWA `v1.2.0`.
+- `npx cap sync android` completed successfully.
+- `.\gradlew.bat clean bundleRelease` completed successfully.
+- Android packaged release manifest confirms package `com.coolspid.familyxscheduler`, `versionCode 18`, and `versionName 1.2.0`.
+- `jarsigner -verify` reported `jar verified`.
+- AAB SHA256: `7E05E256FA2711B95A98C058CB2A696DF0762D40CD9C564D8D0A050653C58CCE`.
+
+Remaining risks:
+- Gradle reported non-blocking warnings about `flatDir`, deprecated Gradle features, and the self-signed upload certificate chain expected for a local upload key.
+- The AAB should still be uploaded first to an internal test track and checked with Play Console pre-launch reports before production rollout.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/build.gradle`
+- `play-store/play-console-update-1.2.0-checklist.md`
+- `play-store/release-notes-1.2.0-ko-KR.txt`
+- `artifacts/aab/FamilyScheduler-1.2.0-v18-release.aab`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-08 - Play Store phone screenshot asset set
+
+Source handoff:
+Direct user request in Codex to create 8 Play Console phone screenshots: one generated overview page plus seven app-menu screenshots with temporary sample data.
+
+Applied:
+- Generated the first overview screenshot using the built-in image generation workflow, then resized it to a Play Console-compatible 1080 x 1920 PNG without cropping the main content.
+- Captured seven real app UI screenshots in an isolated browser profile with temporary localStorage sample data only.
+- Covered the visible main app areas as: overview, weekly schedule, today tasks, monthly calendar, payment management, family events, diary timeline, and diary photo gallery.
+- Added a preview contact sheet outside the upload folder for quick visual review.
+
+Verification:
+- Confirmed the upload folder contains exactly 8 PNG screenshots.
+- Confirmed every screenshot is 1080 x 1920, 9:16, and under 8 MB.
+- Confirmed the real app screenshots were captured from the local Vite app in a separate browser context so existing user/browser local data was not overwritten.
+
+Remaining risks:
+- The first overview page is AI-generated and should be visually reviewed before upload for final copy taste and any generated-text oddities.
+- The sample data is illustrative only and is not intended to represent real user data.
+
+Files changed:
+- `play-store/screenshots/phone/01-overview-imagegen.png`
+- `play-store/screenshots/phone/02-weekly-schedule.png`
+- `play-store/screenshots/phone/03-today-tasks.png`
+- `play-store/screenshots/phone/04-monthly-calendar.png`
+- `play-store/screenshots/phone/05-payment-management.png`
+- `play-store/screenshots/phone/06-family-events.png`
+- `play-store/screenshots/phone/07-diary-timeline.png`
+- `play-store/screenshots/phone/08-diary-photos.png`
+- `play-store/screenshots/phone-preview-contact-sheet.png`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-04 - Play Console policy readiness updates for family sharing
+
+Source handoff:
+Direct user request in Codex to check what can be directly fixed before uploading the current Supabase-backed family sharing update to Play Store, then apply the available fixes.
+
+Checked:
+- Confirmed the current app has account signup/login, Supabase Auth/Database/Storage/Reatime usage, family sharing, diary text/comments/photos, and account deletion behavior, so the old Play Store checklist for a local-only simplified release is no longer sufficient.
+- Confirmed the default Android manifest still only declares `android.permission.INTERNET`.
+- Confirmed the support/donation modal is gated behind `VITE_ENABLE_SUPPORT === 'true'`, so it is not exposed unless that release flag is enabled.
+- Confirmed the public policy URLs were live but still used the older `가족 × 스케줄러` app name before this pass.
+
+Applied:
+- Updated the local privacy policy and account/data deletion pages to use the current app name `가족일정`.
+- Added a public family sharing content policy page for user-generated family content, prohibited content, reporting, and deletion requests.
+- Added a new app policy constant for the content policy URL.
+- Added `콘텐츠 신고/정책` links to the main app footer and auth modal policy links.
+- Added a signup notice that account creation proceeds under the privacy policy and family sharing content policy.
+- Added `play-store/play-console-update-1.2.0-checklist.md` with current Data safety, account deletion, app access, UGC, target audience, payments, permissions, versioning, and release note guidance.
+- Marked the older root `PLAY_STORE_RELEASE_CHECKLIST.md` as the historical 1.1.6 local-only checklist.
+- Updated and pushed the separate `coolspid-create/family-scheduler-policy` repository so the public policy URLs now serve the current app name and the new content policy page.
+
+Verification:
+- Public privacy policy returned HTTP 200, title `가족일정 개인정보처리방침`, current app name present, old app name absent, and content policy link present.
+- Public delete/account page returned HTTP 200, title `가족일정 계정 및 데이터 삭제 안내`, current app name present, old app name absent, and content policy link present.
+- Public content policy page returned HTTP 200, title `가족일정 가족 공유 콘텐츠 정책`, current app name present, and report email present.
+- Policy repo `main` commit `7414b04` and `gh-pages` commit `2fa3abe` contain the published changes.
+- `npm run lint` completed successfully.
+- `npm run build` completed successfully.
+- `npx cap sync android` copied the latest `dist` assets into Android.
+- Confirmed both `app/dist/community-guidelines.html` and `app/android/app/src/main/assets/public/community-guidelines.html` exist.
+- `git diff --check` completed successfully, with only CRLF normalization warnings.
+
+Remaining risks:
+- Play Console fields themselves were not changed in the console; the user still needs to update Data safety, Data deletion, App access, UGC/content rating, target audience, and versioning in Play Console.
+- The exact Data safety selections should be reviewed against the final release build and any real production environment flags before submission.
+- The app still needs a release version bump and signed release AAB before Play Store upload.
+
+Files changed:
+- `PLAY_STORE_RELEASE_CHECKLIST.md`
+- `app/public/privacy.html`
+- `app/public/delete-account.html`
+- `app/public/community-guidelines.html`
+- `app/src/lib/policyLinks.js`
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `play-store/play-console-update-1.2.0-checklist.md`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-04 - Native clipboard support for Android invite-code paste
 
 Source handoff:

@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { CheckCircle2, ClipboardPaste, Copy, Key, Lock, LogOut, Mail, ShieldAlert, UserPlus, X, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from '../lib/policyLinks';
+import { CONTENT_POLICY_URL, DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from '../lib/policyLinks';
 import { readClipboardText, writeClipboardText } from '../lib/clipboard';
 import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './NativeSafeControls';
 
@@ -777,6 +777,11 @@ export default function Login({ onClose }) {
                                     </>
                                 )}
                             </button>
+                            {isSignUp && (
+                                <p className="mt-3 px-1 text-center text-[10px] font-bold leading-relaxed text-navy/42">
+                                    회원가입을 진행하면 개인정보처리방침과 가족 공유 콘텐츠 정책에 동의한 것으로 간주됩니다.
+                                </p>
+                            )}
                         </form>
                     </motion.div>
                 </AnimatePresence>
@@ -784,7 +789,7 @@ export default function Login({ onClose }) {
 
                 {!accountDeleteComplete && (
                 <div className="mt-5 border-t border-navy/6 pt-3 text-center">
-                    <div className="flex items-center justify-center gap-3 text-[9px] font-bold">
+                    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[9px] font-bold">
                         <a
                             href={PRIVACY_POLICY_URL}
                             target="_blank"
@@ -796,6 +801,19 @@ export default function Login({ onClose }) {
                             className="text-navy/40 hover:text-accent-red transition-colors underline underline-offset-2"
                         >
                             개인정보처리방침
+                        </a>
+                        <span className="text-navy/20">|</span>
+                        <a
+                            href={CONTENT_POLICY_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                openExternalPolicyPage(CONTENT_POLICY_URL);
+                            }}
+                            className="text-navy/40 hover:text-accent-red transition-colors underline underline-offset-2"
+                        >
+                            콘텐츠 신고/정책
                         </a>
                         <span className="text-navy/20">|</span>
                         <a

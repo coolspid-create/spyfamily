@@ -8,7 +8,7 @@ import FamilyDiaryTab from './components/FamilyDiaryTab';
 import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon, ShieldCheck } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
+import { CONTENT_POLICY_URL, DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './components/NativeSafeControls';
@@ -627,6 +627,19 @@ function App() {
           className="hover:text-navy underline underline-offset-2"
         >
           개인정보처리방침
+        </a>
+        <span className="mx-2 text-navy/20">|</span>
+        <a
+          href={CONTENT_POLICY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => {
+            event.preventDefault();
+            openExternalPolicyPage(CONTENT_POLICY_URL);
+          }}
+          className="hover:text-navy underline underline-offset-2"
+        >
+          콘텐츠 신고/정책
         </a>
         <span className="mx-2 text-navy/20">|</span>
         <a
