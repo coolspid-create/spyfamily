@@ -55,6 +55,9 @@ export default function Login({ onClose }) {
     const [isDeletingAccount, setIsDeletingAccount] = useState(false);
     const [accountDeleteComplete, setAccountDeleteComplete] = useState(false);
     const [familyAction, setFamilyAction] = useState(null);
+    const [cloudSyncAction, setCloudSyncAction] = useState(null);
+    const [isSigningOut, setIsSigningOut] = useState(false);
+    const [isRetryingPending, setIsRetryingPending] = useState(false);
     const inviteInputRef = useRef(null);
 
     const signIn = useStore(state => state.signIn);
@@ -70,7 +73,8 @@ export default function Login({ onClose }) {
     const createFamily = useStore(state => state.createFamily);
     const joinFamily = useStore(state => state.joinFamily);
     const leaveFamily = useStore(state => state.leaveFamily);
-    const hasUnsyncedLocalData = useStore(state => state.hasUnsyncedLocalData);
+    const shouldPromptLocalCloudSync = useStore(state => state.shouldPromptLocalCloudSync);
+    const markLocalCloudSyncSkipped = useStore(state => state.markLocalCloudSyncSkipped);
     const syncGuestDataToCloud = useStore(state => state.syncGuestDataToCloud);
     const retryPendingMutations = useStore(state => state.retryPendingMutations);
     const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
@@ -80,10 +84,29 @@ export default function Login({ onClose }) {
     const isCreatingFamily = familyAction === 'create';
     const isJoiningFamily = familyAction === 'join';
     const isLeavingFamily = familyAction === 'leave';
+    const isCloudSyncing = cloudSyncAction === 'sync';
+    const isSkippingCloudSync = cloudSyncAction === 'skip';
     const currentUserId = session?.user?.id || '';
     const currentUserEmail = session?.user?.email || '이메일 확인 중';
     const currentMember = familyMembers.find(member => member.user_id === currentUserId);
     const currentRoleLabel = currentMember?.role ? currentMember.role.toUpperCase() : null;
+
+    const openCloudSyncPromptIfNeeded = async () => {
+        try {
+            const result = await withUiTimeout(
+                shouldPromptLocalCloudSync(),
+                '로컬 데이터 동기화 여부를 확인하는 중 응답이 지연되었습니다.',
+                FAMILY_UI_ACTION_TIMEOUT_MS
+            );
+            if (result?.prompt) {
+                setCloudSyncPromptOpen(true);
+                return true;
+            }
+        } catch (error) {
+            console.warn('Local cloud sync prompt check failed:', error);
+        }
+        return false;
+    };
 
     const handleAuth = async (e) => {
         e.preventDefault();
@@ -130,9 +153,8 @@ export default function Login({ onClose }) {
                 FAMILY_UI_ACTION_TIMEOUT_MS
             );
             if (familyId) {
-                if (hasUnsyncedLocalData()) {
-                    setCloudSyncPromptOpen(true);
-                } else {
+                const promptOpened = await openCloudSyncPromptIfNeeded();
+                if (!promptOpened) {
                     await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     setStatusMsg('가족 그룹이 생성되었습니다. 초대 코드를 다른 보호자에게 공유할 수 있어요.');
@@ -161,9 +183,8 @@ export default function Login({ onClose }) {
             );
             if (joined) {
                 setInviteCode('');
-                if (hasUnsyncedLocalData()) {
-                    setCloudSyncPromptOpen(true);
-                } else {
+                const promptOpened = await openCloudSyncPromptIfNeeded();
+                if (!promptOpened) {
                     await withUiTimeout(fetchDataFromDB(), '가족 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     await withUiTimeout(fetchDiariesFromDB(), '다이어리 데이터를 불러오는 중 응답이 지연되었습니다.', FAMILY_UI_ACTION_TIMEOUT_MS);
                     setStatusMsg('가족 그룹에 합류했습니다.');
@@ -180,36 +201,62 @@ export default function Login({ onClose }) {
     };
 
     const handleConfirmCloudSync = async () => {
+        if (cloudSyncAction) return;
         setErrorMsg('');
-        const result = await syncGuestDataToCloud();
-        if (!result?.ok) {
-            setErrorMsg(`동기화 실패: ${result?.error || '다시 시도해 주세요.'}`);
-            return;
-        }
+        setCloudSyncAction('sync');
+        try {
+            const result = await syncGuestDataToCloud();
+            if (!result?.ok) {
+                if (result?.blocked) {
+                    await fetchDataFromDB();
+                    await fetchDiariesFromDB();
+                    setCloudSyncPromptOpen(false);
+                    setStatusMsg('가족 공유에 이미 데이터가 있어 로컬 데이터는 백업으로 남기고 클라우드 데이터를 사용합니다.');
+                    return;
+                }
+                setErrorMsg(`동기화 실패: ${result?.error || '다시 시도해 주세요.'}`);
+                return;
+            }
 
-        await fetchDiariesFromDB();
-        setCloudSyncPromptOpen(false);
-        setStatusMsg('이 기기의 로컬 데이터를 가족 공유 계정으로 동기화했습니다.');
+            await fetchDiariesFromDB();
+            setCloudSyncPromptOpen(false);
+            setStatusMsg('이 기기의 로컬 데이터를 가족 공유 계정으로 동기화했습니다.');
+        } finally {
+            setCloudSyncAction(null);
+        }
     };
 
     const handleSkipCloudSync = async () => {
-        await fetchDataFromDB();
-        await fetchDiariesFromDB();
-        setCloudSyncPromptOpen(false);
-        setStatusMsg('로컬 데이터는 이 기기에 백업으로 남겨두고 클라우드 데이터를 사용합니다.');
+        if (cloudSyncAction) return;
+        setCloudSyncAction('skip');
+        markLocalCloudSyncSkipped();
+        try {
+            await fetchDataFromDB();
+            await fetchDiariesFromDB();
+            setCloudSyncPromptOpen(false);
+            setStatusMsg('로컬 데이터는 이 기기에 백업으로 남겨두고 클라우드 데이터를 사용합니다.');
+        } finally {
+            setCloudSyncAction(null);
+        }
     };
 
     const handleRetryPendingMutations = async () => {
+        if (isRetryingPending) return;
         setErrorMsg('');
         setStatusMsg('');
-        const result = await retryPendingMutations();
-        if (!result?.ok) {
-            setErrorMsg(`다시 저장하지 못한 항목이 있습니다: ${result?.error || '네트워크 상태를 확인해 주세요.'}`);
-            return;
+        setIsRetryingPending(true);
+        try {
+            const result = await retryPendingMutations();
+            if (!result?.ok) {
+                setErrorMsg(`다시 저장하지 못한 항목이 있습니다: ${result?.error || '네트워크 상태를 확인해 주세요.'}`);
+                return;
+            }
+            await fetchDataFromDB();
+            await fetchDiariesFromDB();
+            setStatusMsg('로컬 대기 항목을 클라우드에 다시 저장했습니다.');
+        } finally {
+            setIsRetryingPending(false);
         }
-        await fetchDataFromDB();
-        await fetchDiariesFromDB();
-        setStatusMsg('로컬 대기 항목을 클라우드에 다시 저장했습니다.');
     };
 
     const handleCopyInviteCode = async () => {
@@ -242,14 +289,23 @@ export default function Login({ onClose }) {
     };
 
     const handleSignOut = async () => {
+        if (isSigningOut) return;
         setErrorMsg('');
         setStatusMsg('');
-        const result = await signOut();
-        if (result?.ok === false) {
-            setErrorMsg(`로그아웃 처리 중 오류가 발생했습니다: ${result?.error || '다시 시도해 주세요.'}`);
-            return;
+        setIsSigningOut(true);
+        let shouldResetSigningOut = true;
+        try {
+            const result = await signOut();
+            if (result?.ok === false) {
+                setErrorMsg(`로그아웃 처리 중 오류가 발생했습니다: ${result?.error || '다시 시도해 주세요.'}`);
+                return;
+            }
+            shouldResetSigningOut = false;
+            setIsSigningOut(false);
+            onClose?.();
+        } finally {
+            if (shouldResetSigningOut) setIsSigningOut(false);
         }
-        onClose?.();
     };
 
     const handleConfirmLeaveFamily = async () => {
@@ -425,10 +481,14 @@ export default function Login({ onClose }) {
                                     <button
                                         type="button"
                                         onClick={handleRetryPendingMutations}
-                                        disabled={isLoading || isFamilyLoading}
-                                        className="mt-3 w-full rounded-xl bg-navy py-2.5 text-[12px] font-black text-white disabled:opacity-60"
+                                        disabled={isLoading || isFamilyLoading || isRetryingPending}
+                                        aria-busy={isRetryingPending}
+                                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-navy py-2.5 text-[12px] font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        로컬 대기 항목 다시 저장
+                                        {isRetryingPending && (
+                                            <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white" />
+                                        )}
+                                        {isRetryingPending ? '다시 저장 중...' : '로컬 대기 항목 다시 저장'}
                                     </button>
                                 </div>
                             )}
@@ -443,7 +503,7 @@ export default function Login({ onClose }) {
                                 <button
                                     type="button"
                                     onClick={() => setFamilyLeaveConfirmOpen(true)}
-                                    disabled={isLeavingFamily}
+                                    disabled={isLeavingFamily || isSigningOut}
                                     className="flex-1 rounded-xl border border-accent-red/25 bg-accent-red/5 py-2.5 text-[13px] font-black text-accent-red disabled:opacity-60"
                                 >
                                     가족 탈퇴
@@ -451,9 +511,16 @@ export default function Login({ onClose }) {
                                 <button
                                     type="button"
                                     onClick={handleSignOut}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-navy py-2.5 text-[13px] font-black text-white"
+                                    disabled={isSigningOut}
+                                    aria-busy={isSigningOut}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-navy py-2.5 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-70"
                                 >
-                                    <LogOut size={15} /> 로그아웃
+                                    {isSigningOut ? (
+                                        <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white" />
+                                    ) : (
+                                        <LogOut size={15} />
+                                    )}
+                                    {isSigningOut ? '로그아웃 중...' : '로그아웃'}
                                 </button>
                             </div>
                         </div>
@@ -528,9 +595,16 @@ export default function Login({ onClose }) {
                             <button
                                 type="button"
                                 onClick={handleSignOut}
-                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy transition-colors hover:bg-navy/10"
+                                disabled={isSigningOut}
+                                aria-busy={isSigningOut}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy transition-colors hover:bg-navy/10 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                <LogOut size={15} /> 로그아웃
+                                {isSigningOut ? (
+                                    <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-navy/25 border-t-navy" />
+                                ) : (
+                                    <LogOut size={15} />
+                                )}
+                                {isSigningOut ? '로그아웃 중...' : '로그아웃'}
                             </button>
                         </div>
                     )}
@@ -547,9 +621,12 @@ export default function Login({ onClose }) {
                 <NativeSafeConfirmDialog
                     open={cloudSyncPromptOpen}
                     title="로컬 데이터 동기화"
-                    message="이 기기에 저장된 기존 일정, 결제, 할 일, 다이어리 기록을 가족 공유 계정으로 동기화하시겠습니까? 동기화하지 않아도 로컬 데이터는 이 기기에 백업으로 남아 있습니다."
-                    confirmLabel="동기화"
-                    cancelLabel="나중에"
+                    message="가족 공유 공간이 비어 있어 이 기기의 일정, 결제, 할 일, 다이어리 기록을 올릴 수 있습니다. 동기화하지 않아도 로컬 데이터는 이 기기에 백업으로 남아 있습니다."
+                    confirmLabel={isCloudSyncing ? '동기화 중...' : '동기화'}
+                    cancelLabel={isSkippingCloudSync ? '불러오는 중...' : '나중에'}
+                    isProcessing={Boolean(cloudSyncAction)}
+                    processingMessage={isSkippingCloudSync ? '가족 공유 데이터를 불러오는 중입니다.' : '로컬 데이터를 가족 공유로 동기화 중입니다.'}
+                    processingDetail="완료될 때까지 창을 닫지 말고 잠시만 기다려 주세요."
                     onConfirm={handleConfirmCloudSync}
                     onCancel={handleSkipCloudSync}
                 />
@@ -561,6 +638,9 @@ export default function Login({ onClose }) {
                     cancelLabel="취소"
                     destructive
                     confirmDisabled={isLeavingFamily}
+                    isProcessing={isLeavingFamily}
+                    processingMessage="가족 그룹에서 나가는 중입니다."
+                    processingDetail="완료되면 이 기기는 로컬 저장 모드로 전환됩니다."
                     onConfirm={handleConfirmLeaveFamily}
                     onCancel={() => setFamilyLeaveConfirmOpen(false)}
                 />

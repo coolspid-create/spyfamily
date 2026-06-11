@@ -20,6 +20,7 @@ export const LOCAL_STORAGE_KEYS = {
     CHILD_PROFILE_SYNC_SIGNATURE: 'spy_childProfilesLastSynced',
     LAST_SYNC_AT: 'spy_lastSyncAt',
     GUEST_SYNC_BACKUP_PREFIX: 'spy_guestSyncBackup',
+    LOCAL_CLOUD_SYNC_SKIP_SIGNATURE: 'spy_localCloudSyncSkipSignature',
     CLOUD_CACHE_PREFIX: 'spy_cloudCache',
     CLOUD_DIARY_CACHE_PREFIX: 'spy_cloudDiaryCache',
     FAMILY_CONTEXT: 'spy_familyContext',

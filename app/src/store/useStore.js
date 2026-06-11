@@ -42,6 +42,7 @@ const LEGACY_DIARY_RECORDS_STORAGE_KEY = LOCAL_STORAGE_KEYS.LEGACY_DIARY_RECORDS
 const LOCAL_DIARY_SYNC_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.DIARY_SYNC_SIGNATURE;
 const CHILD_PROFILE_SYNC_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.CHILD_PROFILE_SYNC_SIGNATURE;
 const LAST_SYNC_AT_KEY = LOCAL_STORAGE_KEYS.LAST_SYNC_AT;
+const LOCAL_CLOUD_SYNC_SKIP_SIGNATURE_KEY = LOCAL_STORAGE_KEYS.LOCAL_CLOUD_SYNC_SKIP_SIGNATURE;
 const CLOUD_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_CACHE_PREFIX;
 const CLOUD_DIARY_CACHE_PREFIX = LOCAL_STORAGE_KEYS.CLOUD_DIARY_CACHE_PREFIX;
 const FAMILY_CONTEXT_CACHE_KEY = LOCAL_STORAGE_KEYS.FAMILY_CONTEXT;
@@ -125,6 +126,23 @@ const normalizeChildCount = (count) => {
 const normalizeCurrentChild = (childId) => {
     const normalized = toSafeString(childId, 'child1');
     return /^child[1-3]$/.test(normalized) ? normalized : 'child1';
+};
+
+const normalizeContentPart = (value) => (
+    toSafeString(value).trim().replace(/\s+/g, ' ').toLowerCase()
+);
+
+const createContentKey = (...parts) => parts.map(normalizeContentPart).join('|');
+
+const dedupeRowsByContent = (rows, keyFn) => {
+    const seen = new Set();
+    return asArray(rows).filter((row) => {
+        const key = keyFn(row);
+        if (!key) return true;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 };
 
 const createFamilyInviteCode = () => {
@@ -281,6 +299,182 @@ const normalizeNotices = (notices) => asArray(notices).map((notice, index) => ({
     checked: normalizeBoolean(notice?.checked ?? notice?.is_checked)
 }));
 
+const createScheduleContentKey = ({
+    childId,
+    day,
+    time,
+    title,
+    agent,
+    location,
+    contactName,
+    contactPhone,
+    isEarly,
+    isUrgent
+}) => createContentKey(
+    'schedule',
+    childId,
+    day,
+    normalizeTime(time, ''),
+    title,
+    agent,
+    location,
+    contactName,
+    contactPhone,
+    normalizeBoolean(isEarly) ? '1' : '0',
+    normalizeBoolean(isUrgent) ? '1' : '0'
+);
+
+const createScheduleCloudContentKey = (row) => createScheduleContentKey({
+    childId: row?.child_id,
+    day: row?.day_of_week,
+    time: row?.start_time,
+    title: row?.title,
+    agent: row?.pickup_agent || row?.drop_agent || '자율',
+    location: row?.location,
+    contactName: row?.contact_name,
+    contactPhone: row?.contact_phone,
+    isEarly: row?.is_early,
+    isUrgent: row?.is_urgent
+});
+
+const createScheduleLocalContentKey = (day, item) => createScheduleContentKey({
+    day,
+    time: item?.time,
+    title: item?.title,
+    agent: item?.agent,
+    location: item?.location,
+    contactName: item?.contactName,
+    contactPhone: item?.contactPhone,
+    isEarly: item?.isEarly,
+    isUrgent: item?.isUrgent
+});
+
+const createPaymentCloudContentKey = (row) => createContentKey(
+    'payment',
+    row?.child_id,
+    row?.source,
+    toSafeNumber(row?.amount),
+    normalizeMethod(row?.method),
+    normalizeDayNumber(row?.payment_day),
+    row?.discount_info,
+    normalizeBoolean(row?.is_completed) ? '1' : '0'
+);
+
+const createPaymentLocalContentKey = (payment) => createContentKey(
+    'payment',
+    payment?.source,
+    toSafeNumber(payment?.amount),
+    normalizeMethod(payment?.method),
+    normalizeDayNumber(payment?.day),
+    payment?.discount,
+    normalizeBoolean(payment?.isCompleted) ? '1' : '0'
+);
+
+const createOpsCloudContentKey = (row) => createContentKey(
+    'ops',
+    row?.child_id,
+    row?.title,
+    normalizeDateDashes(row?.execution_date),
+    row?.description,
+    row?.priority,
+    row?.status
+);
+
+const createOpsLocalContentKey = (op) => createContentKey(
+    'ops',
+    op?.title,
+    normalizeDateDashes(op?.date),
+    op?.description,
+    op?.priority,
+    op?.status,
+    normalizeBoolean(op?.participants?.mom) ? '1' : '0',
+    normalizeBoolean(op?.participants?.dad) ? '1' : '0',
+    asArray(op?.checklist).map(item => (
+        `${normalizeContentPart(item?.task)}:${normalizeBoolean(item?.checked) ? '1' : '0'}`
+    )).join(',')
+);
+
+const createDailyTaskCloudContentKey = (row) => createContentKey(
+    'daily',
+    row?.child_id,
+    row?.task_name,
+    normalizeDateDashes(row?.assigned_date),
+    normalizeBoolean(row?.is_completed) ? '1' : '0'
+);
+
+const createDailyTaskLocalContentKey = (task) => createContentKey(
+    'daily',
+    task?.task_name,
+    normalizeDateDashes(task?.assigned_date),
+    normalizeBoolean(task?.is_completed) ? '1' : '0'
+);
+
+const createTransactionCloudContentKey = (row) => createContentKey(
+    'history',
+    row?.child_id,
+    row?.month,
+    row?.date_formatted,
+    row?.source,
+    toSafeNumber(row?.amount),
+    normalizeMethod(row?.method, '')
+);
+
+const createTransactionLocalContentKey = (record) => createContentKey(
+    'history',
+    record?.month,
+    record?.date_formatted,
+    record?.source,
+    toSafeNumber(record?.amount),
+    normalizeMethod(record?.method, '')
+);
+
+const createNoticeCloudContentKey = (row) => createContentKey(
+    'notice',
+    row?.text,
+    normalizeBoolean(row?.is_checked) ? '1' : '0'
+);
+
+const createNoticeLocalContentKey = (notice) => createContentKey(
+    'notice',
+    notice?.text,
+    normalizeBoolean(notice?.checked) ? '1' : '0'
+);
+
+const createAssetCloudContentKey = (row) => createContentKey(
+    'asset',
+    toSafeString(row?.name).replace('성남', '지역')
+);
+
+const createAssetLocalContentKey = (fund) => createContentKey(
+    'asset',
+    toSafeString(fund?.name).replace('성남', '지역')
+);
+
+const createMissionLocalContentKey = (mission) => createContentKey(
+    'mission',
+    mission?.type,
+    mission?.title,
+    mission?.day,
+    mission?.year,
+    mission?.month
+);
+
+const dedupeWeeklyDataByContent = (weeklyData) => WEEK_DAYS.reduce((deduped, day) => {
+    deduped[day] = dedupeRowsByContent(weeklyData?.[day], item => createScheduleLocalContentKey(day, item));
+    return deduped;
+}, {});
+
+const dedupeGuestDataByContent = (guestData) => ({
+    weeklyData: dedupeWeeklyDataByContent(guestData?.weeklyData),
+    missionsData: dedupeRowsByContent(guestData?.missionsData, createMissionLocalContentKey),
+    funds: dedupeRowsByContent(guestData?.funds, createAssetLocalContentKey),
+    payments: dedupeRowsByContent(guestData?.payments, createPaymentLocalContentKey),
+    opsData: dedupeRowsByContent(guestData?.opsData, createOpsLocalContentKey),
+    transactionHistory: dedupeRowsByContent(guestData?.transactionHistory, createTransactionLocalContentKey),
+    notices: dedupeRowsByContent(guestData?.notices, createNoticeLocalContentKey),
+    dailyTasks: dedupeRowsByContent(guestData?.dailyTasks, createDailyTaskLocalContentKey)
+});
+
 const createDateLabelFromIso = (isoDate) => {
     const [, month, day] = normalizeDateDashes(isoDate, getLocalDateString()).split('-');
     return `${parseInt(month, 10)}월 ${parseInt(day, 10)}일`;
@@ -364,10 +558,31 @@ const normalizeDiaryRecords = (records) => (
     };
 });
 
+const createDiaryRecordContentKey = (record) => createContentKey(
+    'diary',
+    record?.child,
+    record?.isoDate,
+    record?.time,
+    record?.mood,
+    record?.title,
+    record?.text,
+    asArray(record?.imagePaths).join(','),
+    asArray(record?.imageUrls).length,
+    asArray(record?.comments).length
+);
+
+const dedupeDiaryRecordsByContent = (records) => (
+    dedupeRowsByContent(normalizeDiaryRecords(records), createDiaryRecordContentKey)
+);
+
 const loadLocalDiaryRecords = () => {
     try {
         const saved = localStorage.getItem(DIARY_RECORDS_STORAGE_KEY) || localStorage.getItem(LEGACY_DIARY_RECORDS_STORAGE_KEY);
-        return saved ? normalizeDiaryRecords(JSON.parse(saved)) : INITIAL_DIARIES;
+        const records = dedupeDiaryRecordsByContent(saved ? JSON.parse(saved) : INITIAL_DIARIES);
+        if (saved) {
+            localStorage.setItem(DIARY_RECORDS_STORAGE_KEY, JSON.stringify(records));
+        }
+        return records;
     } catch (error) {
         console.warn('Local diary records could not be loaded safely:', error);
         return INITIAL_DIARIES;
@@ -376,7 +591,7 @@ const loadLocalDiaryRecords = () => {
 
 const saveLocalDiaryRecords = (records) => {
     try {
-        localStorage.setItem(DIARY_RECORDS_STORAGE_KEY, JSON.stringify(normalizeDiaryRecords(records)));
+        localStorage.setItem(DIARY_RECORDS_STORAGE_KEY, JSON.stringify(dedupeDiaryRecordsByContent(records)));
     } catch (error) {
         console.error('Local diary save failed:', error);
     }
@@ -455,7 +670,7 @@ const removeStoragePathsInChunks = async (paths) => {
     await removeDiaryImagesFromStorage({ client: supabase, paths });
 };
 
-const normalizeGuestData = (data) => ({
+const normalizeGuestData = (data) => dedupeGuestDataByContent({
     weeklyData: normalizeWeeklyData(data?.weeklyData),
     missionsData: normalizeMissions(data?.missionsData),
     funds: normalizeFunds(data?.funds),
@@ -482,6 +697,46 @@ const hasMeaningfulGuestData = (guestData) => {
 };
 
 const getChildIdsForLocalSnapshot = () => ['child1', 'child2', 'child3'];
+
+const getLocalCloudSyncSignature = (state = {}) => {
+    const guestDataByChild = getChildIdsForLocalSnapshot().reduce((snapshot, childId) => {
+        snapshot[childId] = localStorage.getItem(`spy_guestData_${childId}`) || '';
+        return snapshot;
+    }, {});
+
+    return JSON.stringify({
+        familyId: state.currentFamilyId || null,
+        guestDataByChild,
+        diaries: getLocalDiarySyncSignature(),
+        childProfiles: getChildProfileSyncSignature(state)
+    });
+};
+
+const isLocalCloudSyncSkipped = (state = {}) => {
+    if (!state.currentFamilyId) return false;
+    try {
+        return localStorage.getItem(LOCAL_CLOUD_SYNC_SKIP_SIGNATURE_KEY) === getLocalCloudSyncSignature(state);
+    } catch {
+        return false;
+    }
+};
+
+const markLocalCloudSyncSkippedSignature = (state = {}) => {
+    if (!state.currentFamilyId) return;
+    try {
+        localStorage.setItem(LOCAL_CLOUD_SYNC_SKIP_SIGNATURE_KEY, getLocalCloudSyncSignature(state));
+    } catch (error) {
+        console.warn('Local cloud sync skip marker could not be saved:', error);
+    }
+};
+
+const clearLocalCloudSyncSkippedSignature = () => {
+    try {
+        localStorage.removeItem(LOCAL_CLOUD_SYNC_SKIP_SIGNATURE_KEY);
+    } catch (error) {
+        console.warn('Local cloud sync skip marker could not be cleared:', error);
+    }
+};
 
 const hasUnsyncedGuestData = () => getChildIdsForLocalSnapshot().some((childId) => {
     const guestDataStr = localStorage.getItem(`spy_guestData_${childId}`);
@@ -539,11 +794,14 @@ const hasUnsyncedChildProfiles = (state = {}) => {
     }
 };
 
-const hasUnsyncedLocalDataForCloud = (state = {}) => (
-    hasUnsyncedGuestData() ||
-    hasUnsyncedLocalDiaries() ||
-    hasUnsyncedChildProfiles(state)
-);
+const hasUnsyncedLocalDataForCloud = (state = {}) => {
+    if (isLocalCloudSyncSkipped(state)) return false;
+    return (
+        hasUnsyncedGuestData() ||
+        hasUnsyncedLocalDiaries() ||
+        hasUnsyncedChildProfiles(state)
+    );
+};
 
 const createSnapshotLocalId = (domain, childId, localId) => (
     `${domain}:${childId}:${toSafeString(localId) || createClientUuid()}`
@@ -713,6 +971,13 @@ const buildGuestCloudSnapshot = (state) => {
     Object.keys(tables).forEach((tableName) => {
         tables[tableName] = dedupeRowsByLocalId(tables[tableName]);
     });
+    tables.schedule = dedupeRowsByContent(tables.schedule, createScheduleCloudContentKey);
+    tables.asset = dedupeRowsByContent(tables.asset, createAssetCloudContentKey);
+    tables.payment = dedupeRowsByContent(tables.payment, createPaymentCloudContentKey);
+    tables.ops = dedupeRowsByContent(tables.ops, createOpsCloudContentKey);
+    tables.dailytasks = dedupeRowsByContent(tables.dailytasks, createDailyTaskCloudContentKey);
+    tables.transactionhistory = dedupeRowsByContent(tables.transactionhistory, createTransactionCloudContentKey);
+    tables.notice = dedupeRowsByContent(tables.notice, createNoticeCloudContentKey);
 
     return {
         snapshot: {
@@ -771,6 +1036,41 @@ const withoutLocalId = (row) => {
 
 const insertWithLocalIdFallback = async (table, rows, { select = false } = {}) => {
     return supabaseRepository.insertWithLocalIdFallback(table, rows, { select });
+};
+
+const CLOUD_SYNC_DATA_TABLES = ['schedule', 'payment', 'ops', 'dailytasks', 'transactionhistory', 'notice', 'diary'];
+
+const inspectMeaningfulCloudFamilyData = async (familyId) => {
+    if (!supabase || !familyId) return { hasData: false, counts: {}, assetCount: 0 };
+
+    const counts = {};
+    for (const table of CLOUD_SYNC_DATA_TABLES) {
+        const { count, error } = await scopeFamilyQuery(
+            supabase.from(table).select('id', { count: 'exact', head: true }),
+            familyId
+        );
+        if (error) throw error;
+        counts[table] = count || 0;
+    }
+
+    const { data: assetRows, error: assetError } = await scopeFamilyQuery(
+        supabase.from('asset').select('id, name, balance'),
+        familyId
+    );
+    if (assetError) throw assetError;
+
+    const defaultAssetNames = new Set(INITIAL_FUNDS.map(fund => fund.name));
+    const meaningfulAssets = dedupeRowsByContent(assetRows || [], createAssetCloudContentKey)
+        .filter(row => (
+            toSafeNumber(row?.balance) !== 0 ||
+            !defaultAssetNames.has(toSafeString(row?.name).replace('성남', '지역'))
+        ));
+
+    return {
+        hasData: Object.values(counts).some(value => value > 0) || meaningfulAssets.length > 0,
+        counts,
+        assetCount: meaningfulAssets.length
+    };
 };
 
 const verifyGuestSnapshotSync = async ({ snapshot, currentFamilyId }) => {
@@ -936,7 +1236,16 @@ const loadCloudCacheSnapshot = (familyId, childId) => {
     if (!familyId || !childId) return null;
     const cached = localRepository.loadJson(getCloudCacheKey(familyId, childId), null);
     if (!cached?.data) return null;
-    return normalizeGuestData(cached.data);
+    const normalized = normalizeGuestData(cached.data);
+    try {
+        localRepository.saveJson(getCloudCacheKey(familyId, childId), {
+            ...cached,
+            data: normalized
+        });
+    } catch (error) {
+        console.warn('Cloud cache cleanup could not be saved locally:', error);
+    }
+    return normalized;
 };
 
 const setCloudCacheForCurrentChild = (set, get, familyId, extraState = {}) => {
@@ -959,7 +1268,7 @@ const saveCloudDiaryCache = (familyId, records) => {
     try {
         localRepository.saveJson(getCloudDiaryCacheKey(familyId), {
             createdAt: new Date().toISOString(),
-            records: normalizeDiaryRecords(records)
+            records: dedupeDiaryRecordsByContent(records)
         });
     } catch (error) {
         console.warn('Cloud diary cache could not be saved locally:', error);
@@ -970,7 +1279,16 @@ const loadCloudDiaryCache = (familyId) => {
     if (!familyId) return null;
     const cached = localRepository.loadJson(getCloudDiaryCacheKey(familyId), null);
     if (!Array.isArray(cached?.records)) return null;
-    return normalizeDiaryRecords(cached.records);
+    const records = dedupeDiaryRecordsByContent(cached.records);
+    try {
+        localRepository.saveJson(getCloudDiaryCacheKey(familyId), {
+            ...cached,
+            records
+        });
+    } catch (error) {
+        console.warn('Cloud diary cache cleanup could not be saved locally:', error);
+    }
+    return records;
 };
 
 const saveFamilyContextCache = ({ currentFamilyId, familyInviteCode, familyMembers }, userId) => {
@@ -1012,7 +1330,9 @@ const loadLocalGuestDataForChild = (childId) => {
     if (!guestDataStr) return normalizeGuestData({});
 
     try {
-        return normalizeGuestData(JSON.parse(guestDataStr));
+        const normalized = normalizeGuestData(JSON.parse(guestDataStr));
+        localStorage.setItem(`spy_guestData_${childId}`, JSON.stringify(normalized));
+        return normalized;
     } catch (error) {
         console.warn('Local guest data could not be loaded safely:', error);
         return normalizeGuestData({});
@@ -1028,6 +1348,80 @@ const setLocalGuestDataForCurrentChild = (set, get, extraState = {}) => {
         ...extraState
     });
 };
+
+const cleanupDuplicateLocalCaches = () => {
+    if (typeof localStorage === 'undefined') return { changed: false, keys: [] };
+
+    try {
+        const updates = [];
+        const backup = {
+            createdAt: new Date().toISOString(),
+            keys: {}
+        };
+        const queueJsonUpdate = (key, value) => {
+            const currentRaw = localStorage.getItem(key);
+            if (currentRaw === null) return;
+            const nextRaw = JSON.stringify(value);
+            if (currentRaw === nextRaw) return;
+            backup.keys[key] = currentRaw;
+            updates.push({ key, value: nextRaw });
+        };
+
+        getChildIdsForLocalSnapshot().forEach((childId) => {
+            const key = `spy_guestData_${childId}`;
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            try {
+                queueJsonUpdate(key, normalizeGuestData(JSON.parse(raw)));
+            } catch (error) {
+                console.warn('Local guest data cleanup skipped for unreadable cache:', error);
+            }
+        });
+
+        [DIARY_RECORDS_STORAGE_KEY, LEGACY_DIARY_RECORDS_STORAGE_KEY].forEach((key) => {
+            const raw = localStorage.getItem(key);
+            if (!raw) return;
+            try {
+                queueJsonUpdate(key, dedupeDiaryRecordsByContent(JSON.parse(raw)));
+            } catch (error) {
+                console.warn('Local diary cleanup skipped for unreadable cache:', error);
+            }
+        });
+
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(`${CLOUD_CACHE_PREFIX}_`))
+            .forEach((key) => {
+                const cached = localRepository.loadJson(key, null);
+                if (!cached?.data) return;
+                queueJsonUpdate(key, {
+                    ...cached,
+                    data: normalizeGuestData(cached.data)
+                });
+            });
+
+        Object.keys(localStorage)
+            .filter(key => key.startsWith(`${CLOUD_DIARY_CACHE_PREFIX}_`))
+            .forEach((key) => {
+                const cached = localRepository.loadJson(key, null);
+                if (!Array.isArray(cached?.records)) return;
+                queueJsonUpdate(key, {
+                    ...cached,
+                    records: dedupeDiaryRecordsByContent(cached.records)
+                });
+            });
+
+        if (updates.length === 0) return { changed: false, keys: [] };
+
+        localStorage.setItem(`spy_localCleanupBackup_${Date.now()}`, JSON.stringify(backup));
+        updates.forEach(({ key, value }) => localStorage.setItem(key, value));
+        return { changed: true, keys: updates.map(update => update.key) };
+    } catch (error) {
+        console.warn('Duplicate local cache cleanup could not be completed:', error);
+        return { changed: false, keys: [] };
+    }
+};
+
+cleanupDuplicateLocalCaches();
 
 const getJoinedFamilyForInviteCode = async ({ code, userId }) => {
     if (!supabase || !userId || !code) return null;
@@ -1129,6 +1523,32 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
     isCloudReady: () => isCloudReady(get()),
     hasUnsyncedLocalData: () => hasUnsyncedLocalDataForCloud(get()),
+    markLocalCloudSyncSkipped: () => markLocalCloudSyncSkippedSignature(get()),
+    shouldPromptLocalCloudSync: async () => {
+        const state = get();
+        if (!hasUnsyncedLocalDataForCloud(state)) {
+            return { prompt: false, reason: 'no-local-data' };
+        }
+        if (!isCloudReady(state)) {
+            return { prompt: false, reason: 'cloud-not-ready' };
+        }
+
+        const cloudStatus = await inspectMeaningfulCloudFamilyData(state.currentFamilyId);
+        if (cloudStatus.hasData) {
+            markLocalCloudSyncSkippedSignature(state);
+            set({
+                syncStatus: {
+                    phase: 'skipped',
+                    message: '가족 공유에 이미 데이터가 있어 로컬 데이터 자동 병합을 중단했습니다.',
+                    error: null,
+                    backupKey: null
+                }
+            });
+            return { prompt: false, reason: 'cloud-has-data', cloudStatus };
+        }
+
+        return { prompt: true, reason: 'empty-cloud', cloudStatus };
+    },
     queuePendingMutation: (mutation) => {
         const queuedMutation = {
             id: mutation.id || createClientUuid(),
@@ -1717,7 +2137,10 @@ export const useStore = create(persistGuestData((set, get) => ({
             return;
         }
 
-        const normalizedDiaries = normalizeDiaryRecords(data);
+        const normalizedDiaries = dedupeRowsByContent(
+            normalizeDiaryRecords(data),
+            createDiaryRecordContentKey
+        );
         saveCloudDiaryCache(currentFamilyId, normalizedDiaries);
         set({ diaries: normalizedDiaries });
     },
@@ -3477,8 +3900,9 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
 
     // ----    // 7. General Data Fetching
-    syncGuestDataToCloud: async () => {
+    syncGuestDataToCloud: async (options = {}) => {
         let backupKey = null;
+        const allowMerge = options?.allowMerge === true;
         set({
             isLoading: true,
             storageMode: STORAGE_MODE.SYNCING,
@@ -3508,6 +3932,33 @@ export const useStore = create(persistGuestData((set, get) => ({
             const backup = createLocalCloudSyncBackup(syncState);
             backupKey = backup.key;
             localStorage.setItem(backup.key, JSON.stringify(backup.payload));
+
+            if (!allowMerge) {
+                const cloudStatus = await inspectMeaningfulCloudFamilyData(currentFamilyId);
+                if (cloudStatus.hasData) {
+                    markLocalCloudSyncSkippedSignature(syncState);
+                    set({
+                        storageMode: STORAGE_MODE.CLOUD,
+                        syncStatus: {
+                            phase: 'blocked',
+                            message: '가족 공유에 이미 데이터가 있어 로컬 데이터 자동 병합을 중단했습니다.',
+                            error: null,
+                            backupKey
+                        }
+                    });
+                    await get().fetchDataFromDB();
+                    await get().fetchDiariesFromDB();
+                    return {
+                        ok: false,
+                        blocked: true,
+                        reason: 'cloud-has-data',
+                        error: '가족 공유에 이미 데이터가 있어 로컬 데이터 자동 병합을 중단했습니다.',
+                        backupKey,
+                        cloudStatus
+                    };
+                }
+            }
+
             set({
                 syncStatus: {
                     phase: 'uploading',
@@ -3564,6 +4015,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 localStorage.setItem(`spy_guestDataLastSynced_${childId}`, guestDataStr);
             });
             markChildProfilesSynced(syncState);
+            clearLocalCloudSyncSkippedSignature();
 
             set({
                 syncStatus: {
@@ -3658,7 +4110,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     }
                     return a;
                 });
-                const formattedFunds = assetsData.map(a => {
+                const formattedFunds = dedupeRowsByContent(assetsData, createAssetCloudContentKey).map(a => {
                     const d = new Date(a.last_updated);
                     const updatedStr = `${d.getFullYear().toString().slice(-2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
                     return {
@@ -3681,7 +4133,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             ).eq('child_id', currentChild).order('created_at', { ascending: false });
             let formattedHistory = [];
             if (historyData) {
-                formattedHistory = historyData.map(h => ({
+                formattedHistory = dedupeRowsByContent(historyData, createTransactionCloudContentKey).map(h => ({
                     id: h.id,
                     localId: h.local_id,
                     paymentId: h.payment_id,
@@ -3704,7 +4156,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
                 const formattedPayments = [];
-                for (const p of paymentsData) {
+                for (const p of dedupeRowsByContent(paymentsData, createPaymentCloudContentKey)) {
                     let isCompleted = p.is_completed;
 
                     if (isCompleted) {
@@ -3743,7 +4195,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                     currentFamilyId
                 ).eq('child_id', currentChild);
                 if (opsData) {
-                    const parsedOps = opsData.map(o => {
+                    const parsedOps = dedupeRowsByContent(opsData, createOpsCloudContentKey).map(o => {
                         const momParticipant = o.opsparticipant?.find(p => p.agent_id === 'mom');
                         const dadParticipant = o.opsparticipant?.find(p => p.agent_id === 'dad');
 
@@ -3789,7 +4241,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             ).eq('child_id', currentChild).order('start_time', { ascending: true });
             if (scheduleData) {
                 const newWeekly = { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': [] };
-                scheduleData.forEach(s => {
+                dedupeRowsByContent(scheduleData, createScheduleCloudContentKey).forEach(s => {
                     if (newWeekly[s.day_of_week]) {
                         newWeekly[s.day_of_week].push({
                             id: s.id,
@@ -3815,7 +4267,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             ).order('created_at', { ascending: true });
             if (noticeData) {
                 set({
-                    notices: noticeData.map(n => ({
+                    notices: dedupeRowsByContent(noticeData, createNoticeCloudContentKey).map(n => ({
                         id: n.id,
                         localId: n.local_id,
                         text: n.text,
@@ -3839,7 +4291,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 // If the table doesn't exist yet, simply ignore to prevent app crashing before migration runs
             } else if (dailyData) {
                 set({
-                    dailyTasks: dailyData.map(task => ({
+                    dailyTasks: dedupeRowsByContent(dailyData, createDailyTaskCloudContentKey).map(task => ({
                         ...task,
                         localId: task.local_id
                     }))

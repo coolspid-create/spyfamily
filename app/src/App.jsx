@@ -99,7 +99,6 @@ function App() {
   const fetchDataFromDB = useStore(state => state.fetchDataFromDB);
   const fetchFamilyContext = useStore(state => state.fetchFamilyContext);
   const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
-  const hasUnsyncedLocalData = useStore(state => state.hasUnsyncedLocalData);
   const currentFamilyId = useStore(state => state.currentFamilyId);
   const currentChild = useStore(state => state.currentChild);
   const setCurrentChild = useStore(state => state.setCurrentChild);
@@ -118,9 +117,24 @@ function App() {
   const [renameChildTargetId, setRenameChildTargetId] = useState(null);
   const [renameChildValue, setRenameChildValue] = useState('');
   const [cloudSyncPromptOpen, setCloudSyncPromptOpen] = useState(false);
+  const [cloudSyncAction, setCloudSyncAction] = useState(null);
+  const [isHeaderSigningOut, setIsHeaderSigningOut] = useState(false);
   const isSupportEnabled = import.meta.env.VITE_ENABLE_SUPPORT === 'true';
 
   const localTooltipRef = useRef(null);
+
+  const maybeOpenCloudSyncPrompt = useCallback(async () => {
+    try {
+      const result = await useStore.getState().shouldPromptLocalCloudSync();
+      if (result?.prompt) {
+        setCloudSyncPromptOpen(true);
+        return true;
+      }
+    } catch (error) {
+      console.warn('Local cloud sync prompt check failed:', error);
+    }
+    return false;
+  }, []);
 
   const switchTab = useCallback((tab) => {
     setActiveTab(tab);
@@ -267,9 +281,12 @@ function App() {
       setSession(session);
       if (session) {
         const familyId = await fetchFamilyContext();
-        await fetchDataFromDB();
-        if (familyId) {
-          await fetchDiariesFromDB();
+        const promptOpened = familyId ? await maybeOpenCloudSyncPrompt() : false;
+        if (!promptOpened) {
+          await fetchDataFromDB();
+          if (familyId) {
+            await fetchDiariesFromDB();
+          }
         }
         return;
       }
@@ -286,9 +303,8 @@ function App() {
       setSession(session);
       if (session && event === 'SIGNED_IN') {
         const familyId = await useStore.getState().fetchFamilyContext();
-        if (familyId && useStore.getState().hasUnsyncedLocalData()) {
-          setCloudSyncPromptOpen(true);
-        } else {
+        const promptOpened = familyId ? await maybeOpenCloudSyncPrompt() : false;
+        if (!promptOpened) {
           await fetchDataFromDB();
           if (familyId) await fetchDiariesFromDB();
         }
@@ -299,7 +315,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchFamilyContext, fetchDataFromDB, fetchDiariesFromDB, hasUnsyncedLocalData]);
+  }, [setSession, fetchFamilyContext, fetchDataFromDB, fetchDiariesFromDB, maybeOpenCloudSyncPrompt]);
 
   useEffect(() => {
     if (!FAMILY_SHARING_ENABLED || !isSupabaseConfigured || !supabase || !session || !currentFamilyId) {
@@ -343,18 +359,48 @@ function App() {
   }, [isAuthChecking, showAuthSplash]);
 
   const confirmGuestCloudSync = async () => {
+    if (cloudSyncAction) return;
+    setCloudSyncAction('sync');
     const { syncGuestDataToCloud, fetchDiariesFromDB } = useStore.getState();
-    const result = await syncGuestDataToCloud();
-    if (!result?.ok) return;
-    await fetchDiariesFromDB();
-    setCloudSyncPromptOpen(false);
-    setIsShareAuthOpen(false);
+    try {
+      const result = await syncGuestDataToCloud();
+      if (!result?.ok) {
+        if (result?.blocked) {
+          setCloudSyncPromptOpen(false);
+          setIsShareAuthOpen(false);
+        }
+        return;
+      }
+      await fetchDiariesFromDB();
+      setCloudSyncPromptOpen(false);
+      setIsShareAuthOpen(false);
+    } finally {
+      setCloudSyncAction(null);
+    }
   };
 
-  const cancelGuestCloudSync = () => {
-    fetchDataFromDB();
-    setCloudSyncPromptOpen(false);
-    setIsShareAuthOpen(false);
+  const cancelGuestCloudSync = async () => {
+    if (cloudSyncAction) return;
+    setCloudSyncAction('skip');
+    useStore.getState().markLocalCloudSyncSkipped();
+    try {
+      await fetchDataFromDB();
+      await fetchDiariesFromDB();
+      setCloudSyncPromptOpen(false);
+      setIsShareAuthOpen(false);
+    } finally {
+      setCloudSyncAction(null);
+    }
+  };
+
+  const handleHeaderSignOut = async () => {
+    if (isHeaderSigningOut) return;
+    setIsHeaderSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsHeaderSigningOut(false);
+    }
   };
 
   useEffect(() => {
@@ -513,11 +559,19 @@ function App() {
               <div className="flex flex-row gap-1.5 items-center">
                 {session ? (
                   <button
-                    onClick={signOut}
-                    className="text-navy/40 hover:text-rose-500 hover:bg-rose-50 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 transition-transform active:scale-95 cursor-pointer"
-                    title="가족 공유 해제"
+                    type="button"
+                    onClick={handleHeaderSignOut}
+                    disabled={isHeaderSigningOut}
+                    aria-busy={isHeaderSigningOut}
+                    aria-label={isHeaderSigningOut ? '가족 공유 해제 처리 중' : '가족 공유 해제'}
+                    className="text-navy/40 hover:text-rose-500 hover:bg-rose-50 transition-all flex items-center justify-center bg-navy/5 w-[26px] h-[26px] rounded-full border border-navy/10 active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    title={isHeaderSigningOut ? '가족 공유 해제 처리 중' : '가족 공유 해제'}
                   >
-                    <LogOut size={11} className="ml-0.5" />
+                    {isHeaderSigningOut ? (
+                      <span aria-hidden="true" className="h-3 w-3 animate-spin rounded-full border-2 border-current/25 border-t-current" />
+                    ) : (
+                      <LogOut size={11} className="ml-0.5" />
+                    )}
                   </button>
                 ) : (
                   null
@@ -760,8 +814,12 @@ function App() {
       <NativeSafeConfirmDialog
         open={cloudSyncPromptOpen}
         title="가족 공유 동기화"
-        message="이 기기에 저장된 데이터를 가족 공유 계정으로 동기화하시겠습니까?"
-        confirmLabel="동기화"
+        message="가족 공유 공간이 비어 있어 이 기기의 로컬 데이터를 올릴 수 있습니다. 업로드하지 않으면 로컬 데이터는 이 기기에 백업으로 남고, 가족 공유 데이터만 표시됩니다."
+        confirmLabel={cloudSyncAction === 'sync' ? '동기화 중...' : '동기화'}
+        cancelLabel={cloudSyncAction === 'skip' ? '불러오는 중...' : '나중에'}
+        isProcessing={Boolean(cloudSyncAction)}
+        processingMessage={cloudSyncAction === 'skip' ? '가족 공유 데이터를 불러오는 중입니다.' : '로컬 데이터를 가족 공유로 동기화 중입니다.'}
+        processingDetail="완료될 때까지 창을 닫지 말고 잠시만 기다려 주세요."
         onConfirm={confirmGuestCloudSync}
         onCancel={cancelGuestCloudSync}
       />

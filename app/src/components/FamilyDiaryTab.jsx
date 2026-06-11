@@ -451,6 +451,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const [customAuthors, setCustomAuthors] = useState({});
   const [deleteRecordTargetId, setDeleteRecordTargetId] = useState(null);
   const [activeReactionMenu, setActiveReactionMenu] = useState(null);
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+  const [savingCommentIds, setSavingCommentIds] = useState({});
 
   // Photo Upload State
   const [selectedImages, setSelectedImages] = useState([]);
@@ -645,6 +648,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const handleSaveRecord = async () => {
+    if (isSavingRecord) return;
     const safeTitle = limitText(titleInput, DIARY_TITLE_MAX_LENGTH).trim();
     const safeText = limitText(textInput, DIARY_TEXT_MAX_LENGTH);
 
@@ -656,6 +660,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const existingRecord = editingRecordId ? records.find(record => record.id === editingRecordId) : null;
     let uploadedPaths = [];
 
+    setIsSavingRecord(true);
     try {
       const {
         imagePaths,
@@ -706,6 +711,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths });
       console.error('Diary save failed:', error);
       alert('다이어리 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+    } finally {
+      setIsSavingRecord(false);
     }
   };
 
@@ -715,8 +722,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const confirmDeleteRecord = async () => {
-    if (!deleteRecordTargetId) return;
+    if (!deleteRecordTargetId || isDeletingRecord) return;
     const targetRecord = records.find(record => record.id === deleteRecordTargetId);
+    setIsDeletingRecord(true);
     try {
       await removeDiary(deleteRecordTargetId);
       const imagePaths = getRecordImagePaths(targetRecord);
@@ -727,6 +735,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     } catch (error) {
       console.error('Diary delete failed:', error);
       alert('기록 삭제에 실패했습니다.');
+    } finally {
+      setIsDeletingRecord(false);
     }
   };
 
@@ -745,6 +755,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const handleAddComment = async (recordId) => {
+    if (savingCommentIds[recordId]) return;
     const text = limitText(commentInputs[recordId], DIARY_COMMENT_MAX_LENGTH).trim();
     if (!text) return;
 
@@ -760,6 +771,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const min = now.getMinutes().toString().padStart(2, '0');
     const timeStr = getFormattedTime(`${hh}:${min}`);
 
+    setSavingCommentIds(prev => ({ ...prev, [recordId]: true }));
     try {
       await addDiaryComment(recordId, {
         id: `comment-${Date.now()}`,
@@ -771,6 +783,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     } catch (error) {
       console.error('Diary comment save failed:', error);
       alert('댓글 저장에 실패했습니다.');
+    } finally {
+      setSavingCommentIds(prev => {
+        const next = { ...prev };
+        delete next[recordId];
+        return next;
+      });
     }
   };
 
@@ -847,6 +865,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               const displayText = limitText(record.text, DIARY_TEXT_MAX_LENGTH);
               const canToggleText = shouldCollapseDiaryText(displayText);
               const isTextExpanded = expandedTextIds.has(record.id);
+              const isCommentSaving = Boolean(savingCommentIds[record.id]);
 
               return (
               <motion.div layout key={record.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }} className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md relative">
@@ -1011,16 +1030,24 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                       value={commentInputs[record.id] || ''}
                       maxLength={DIARY_COMMENT_MAX_LENGTH}
                       onChange={(e) => handleCommentInputChange(record.id, e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment(record.id)}
-                      className="flex-1 min-w-0 bg-navy/5 border border-navy/10 rounded-full px-4 py-2 text-[12px] text-navy outline-none focus:border-navy/20 focus:bg-white transition-all"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isCommentSaving) handleAddComment(record.id);
+                      }}
+                      disabled={isCommentSaving}
+                      className="flex-1 min-w-0 bg-navy/5 border border-navy/10 rounded-full px-4 py-2 text-[12px] text-navy outline-none focus:border-navy/20 focus:bg-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <button
                       onClick={() => handleAddComment(record.id)}
-                      disabled={!commentInputs[record.id]?.trim()}
+                      disabled={!commentInputs[record.id]?.trim() || isCommentSaving}
+                      aria-busy={isCommentSaving}
                       aria-label={`${displayTitle} 댓글 등록`}
                       className="w-8 h-8 shrink-0 flex items-center justify-center rounded-full bg-navy text-white disabled:bg-navy/20 disabled:text-navy/40 transition-colors"
                     >
-                      <Send size={14} className="-ml-0.5" />
+                      {isCommentSaving ? (
+                        <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/35 border-t-current" />
+                      ) : (
+                        <Send size={14} className="-ml-0.5" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1409,9 +1436,26 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       {composerOpen && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-background flex flex-col border-x-[3px] border-navy shadow-2xl">
           <div className="bg-navy px-4 py-3 flex items-center justify-between shrink-0 shadow-md">
-            <button onClick={() => setComposerOpen(false)} aria-label="다이어리 작성 닫기" className="p-2 -ml-2 text-white/70 hover:text-white"><X size={20} /></button>
+            <button
+              onClick={() => !isSavingRecord && setComposerOpen(false)}
+              disabled={isSavingRecord}
+              aria-label="다이어리 작성 닫기"
+              className="p-2 -ml-2 text-white/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X size={20} />
+            </button>
             <h2 className="font-bold text-[16px] text-white">{editingRecordId ? '다이어리 수정하기' : '다이어리 남기기'}</h2>
-            <button onClick={handleSaveRecord} className="text-[13px] font-bold text-navy px-3 py-1.5 bg-white rounded-md hover:bg-gray-100 transition-colors">저장</button>
+            <button
+              onClick={handleSaveRecord}
+              disabled={isSavingRecord}
+              aria-busy={isSavingRecord}
+              className="inline-flex min-w-[56px] items-center justify-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-[13px] font-bold text-navy transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSavingRecord && (
+                <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-navy/25 border-t-navy" />
+              )}
+              {isSavingRecord ? '저장 중...' : '저장'}
+            </button>
           </div>
 
           <div style={HIDDEN_SCROLLBAR_STYLE} className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar [&::-webkit-scrollbar]:hidden">
@@ -1930,8 +1974,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         open={Boolean(deleteRecordTargetId)}
         title="기록 삭제"
         message="정말 이 기록을 삭제하시겠습니까?"
-        confirmLabel="삭제"
+        confirmLabel={isDeletingRecord ? '삭제 중...' : '삭제'}
         destructive
+        confirmDisabled={isDeletingRecord}
+        isProcessing={isDeletingRecord}
+        processingMessage="다이어리 기록을 삭제하는 중입니다."
+        processingDetail="사진이 포함된 기록은 파일 정리까지 잠시 걸릴 수 있습니다."
         onConfirm={confirmDeleteRecord}
         onCancel={() => setDeleteRecordTargetId(null)}
       />

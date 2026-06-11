@@ -733,9 +733,16 @@ export function NativeSafeConfirmDialog({
     cancelLabel = '취소',
     destructive = false,
     confirmDisabled = false,
+    cancelDisabled = false,
+    isProcessing = false,
+    processingMessage,
+    processingDetail,
     onConfirm,
     onCancel,
 }) {
+    const isConfirmDisabled = confirmDisabled || isProcessing;
+    const isCancelDisabled = cancelDisabled || isProcessing;
+
     return (
         <AnimatePresence>
             {open && (
@@ -755,28 +762,63 @@ export function NativeSafeConfirmDialog({
                         <button
                             type="button"
                             onClick={onCancel}
+                            disabled={isCancelDisabled}
                             aria-label={`${title} 닫기`}
-                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-navy/5 text-navy/40 transition-colors hover:bg-navy/10 hover:text-navy"
+                            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-navy/5 text-navy/40 transition-colors hover:bg-navy/10 hover:text-navy disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             <X size={16} />
                         </button>
                         <h2 className="pr-8 text-[16px] font-black text-navy">{title}</h2>
                         <p className="mt-2 text-[13px] font-semibold leading-relaxed text-navy/65">{message}</p>
+                        {isProcessing && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="mt-3 rounded-xl border border-navy/10 bg-navy/5 p-3 text-left"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <span
+                                        aria-hidden="true"
+                                        className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-navy/20 border-t-navy"
+                                    />
+                                    <div>
+                                        <p className="text-[12px] font-black leading-relaxed text-navy">
+                                            {processingMessage || '처리 중입니다.'}
+                                        </p>
+                                        {processingDetail && (
+                                            <p className="mt-1 text-[11px] font-bold leading-relaxed text-navy/55">
+                                                {processingDetail}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="mt-5 flex gap-2.5">
                             <button
                                 type="button"
                                 onClick={onCancel}
-                                className="flex-1 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy/55"
+                                disabled={isCancelDisabled}
+                                className="flex-1 rounded-xl border border-navy/10 bg-navy/5 py-2.5 text-[13px] font-black text-navy/55 disabled:cursor-not-allowed disabled:opacity-45"
                             >
                                 {cancelLabel}
                             </button>
                             <button
                                 type="button"
                                 onClick={onConfirm}
-                                disabled={confirmDisabled}
-                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed disabled:opacity-45 ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
+                                disabled={isConfirmDisabled}
+                                aria-busy={isProcessing}
+                                className={`flex-1 rounded-xl py-2.5 text-[13px] font-black text-white shadow-md disabled:cursor-not-allowed ${isProcessing ? 'opacity-90' : 'disabled:opacity-45'} ${destructive ? 'bg-accent-red' : 'bg-navy'}`}
                             >
-                                {confirmLabel}
+                                <span className="inline-flex items-center justify-center gap-2">
+                                    {isProcessing && (
+                                        <span
+                                            aria-hidden="true"
+                                            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white"
+                                        />
+                                    )}
+                                    {confirmLabel}
+                                </span>
                             </button>
                         </div>
                     </motion.div>

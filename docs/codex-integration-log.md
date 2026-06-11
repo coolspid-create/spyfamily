@@ -1,6 +1,154 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-11 - Prepare 1.2.1 Android release bundle
+
+Source handoff:
+Direct user request in Codex to push the current work and create a 1.2.1 AAB file.
+
+Applied:
+- Bumped the web package version from `1.2.0` to `1.2.1`.
+- Bumped Android `versionName` from `1.2.0` to `1.2.1`.
+- Bumped Android `versionCode` from `18` to `19`.
+- Built the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release AAB and copied it to `artifacts/aab/FamilyScheduler-1.2.1-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+
+Remaining risks:
+- Gradle reported deprecation warnings for future Gradle 9 compatibility, but the release bundle build completed successfully.
+- The AAB artifact itself is intentionally left untracked because Android build outputs and release bundles are ignored by `.gitignore`.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/build.gradle`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-11 - Clean existing duplicate cloud rows and local caches
+
+Source handoff:
+Direct user request in Codex to proceed with deleting existing Supabase duplicate rows and cleaning local/cache duplicates after confirming the update only hid duplicates at load time.
+
+Applied:
+- Added local content-key dedupe for weekly schedules, missions, funds, payments, family events, transaction history, notices, today tasks, and diary records.
+- Normalized and deduped local guest data whenever it is loaded from `spy_guestData_*`.
+- Normalized and deduped cloud fallback caches under `spy_cloudCache_*` and `spy_cloudDiaryCache_*`.
+- Added a one-time startup cleanup pass for existing local guest data, diary records, and cloud fallback caches. When it changes local data, it first stores the previous raw values under `spy_localCleanupBackup_*`.
+- Ran a live Supabase duplicate cleanup with a JSON backup saved to `artifacts/supabase-duplicate-cleanup-2026-06-11T10-56-57-961Z.json`.
+
+Supabase cleanup result:
+- Deleted exact duplicate rows: `schedule` 44, `ops` 1, `transactionhistory` 4, `asset` 2.
+- Skipped groups: 0.
+- Rechecked all target tables after deletion; duplicate groups were 0 for `schedule`, `payment`, `ops`, `dailytasks`, `transactionhistory`, `notice`, `asset`, and `diary`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- Browser reload on `http://127.0.0.1:5175/diary`
+- Browser console errors after reload: 0
+
+Remaining risks:
+- The cleanup only removes exact content duplicates according to the app's current normalization keys. Similar-looking records with meaningful field differences are intentionally kept.
+- Local cleanup runs per device on app startup/update; it cannot modify another installed device's local storage until that device launches the updated app.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-11 - Full app debug pass after feedback changes
+
+Source handoff:
+Direct user request in Codex to debug the whole app after recent family sharing, duplicate-prevention, and busy-feedback work.
+
+Debugged:
+- Re-ran static checks and production build after the latest changes.
+- Smoke-tested the main app routes in the in-app browser: weekly schedule, today tasks, monthly calendar, payment, family events, and diary.
+- Smoke-tested the account modal and diary composer modal surfaces.
+- Reviewed the account sync/skip flow and fixed a skipped-cloud-sync path that refreshed schedule data but not diary data.
+- Adjusted account modal sign-out cleanup so successful close does not reset modal-local loading state after closing.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- Browser route smoke on `/`, `/daily`, `/monthly`, `/payment`, `/family`, `/diary`
+- Browser modal smoke for account login modal and diary composer
+- Browser console errors: 0 during route/modal smoke checks
+
+Remaining risks:
+- No automated unit/e2e test suite exists in `app/package.json`; verification is lint/build plus focused browser smoke.
+- Destructive or live-data-changing actions such as actual account deletion, family leave, and production Supabase data cleanup were not executed during this debug pass.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-11 - Add busy feedback for delayed user actions
+
+Source handoff:
+Direct user request in Codex to reinforce user-visible feedback for buttons that can feel unresponsive, especially account-related actions.
+
+Applied:
+- Extended `NativeSafeConfirmDialog` with processing state, spinner, disabled cancel/close behavior, `aria-busy`, and optional processing detail copy.
+- Added processing feedback to local-to-cloud family sync prompts in both the app shell and account modal.
+- Added busy/disabled feedback for header family-share sign-out, account modal sign-out, and pending cloud mutation retry.
+- Added processing feedback to family leave confirmation.
+- Added diary save, diary delete, and diary comment submission busy states, including disabled duplicate submissions and spinner affordances.
+
+Verification:
+- Ran `npm run lint`.
+- Ran `npm run build`.
+- Reloaded the local app in the in-app browser and confirmed the app renders with 0 console errors.
+
+Remaining risks:
+- Browser automation input was blocked by the browser virtual clipboard layer during the final login-form re-test; earlier login feedback verification succeeded before these additive changes, and current build/render checks pass.
+- Actual slow-network behavior should still be checked on device because perceived latency depends on WebView and network conditions.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-11 - Prevent local and family cloud data from double-merging
+
+Source handoff:
+Direct user report in Codex that family sharing unexpectedly prompted during use and local data mixed with existing Supabase family data, causing duplicate schedules and related records.
+
+Applied:
+- Added a local cloud-sync skip signature so a user choice to keep local data as backup does not keep re-opening the sync prompt for the same family/local snapshot.
+- Added a cloud-data preflight check before showing the local-to-cloud sync prompt. If the family already has meaningful cloud data, the app now skips automatic merging and loads family cloud data instead.
+- Added the same preflight block inside `syncGuestDataToCloud()` so even a direct sync call cannot merge local data into a populated family unless an explicit future `allowMerge` option is used.
+- Added content-based dedupe during local snapshot preparation and cloud fetch formatting for schedules, payments, family events, today tasks, transaction history, notices, funds, and diary records.
+- Updated sync prompt copy to clarify that upload is only offered when the family sharing space is empty.
+
+Verification:
+- Ran a read-only Supabase duplicate scan. Existing data contained duplicate content groups in `schedule` (44), `ops` (1), and `transactionhistory` (4), all within one family; no rows were deleted in this pass.
+- Ran `npm run lint`.
+- Ran `npm run build`.
+
+Remaining risks:
+- Existing duplicate Supabase rows are now hidden by app-side dedupe and protected from new automatic merging, but the duplicate database rows still exist until a separate confirmed cleanup pass deletes exact duplicates.
+- The current fix intentionally blocks automatic merging into populated families; if a real merge/import tool is needed later, it should use an explicit review step rather than the normal sync prompt.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/Login.jsx`
+- `app/src/lib/storageRepository.js`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-08 - Verify 1.2.0 update preserves local data
 
 Source handoff:
