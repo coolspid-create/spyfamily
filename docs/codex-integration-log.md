@@ -1,6 +1,37 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-12 - Fix payment duplicates split by completion status
+
+Source handoff:
+Direct user report in Codex that payment management still showed duplicate rows where this month's processed payment remained completed and the same payment also remained as an unprocessed duplicate.
+
+Applied:
+- Changed payment duplicate identity so completion state no longer makes the same recurring payment appear as a separate item.
+- Added local payment merge logic that preserves completed state when duplicate local payment records differ only by completion status.
+- Added cloud payment merge logic that prefers the row referenced by the current month's transaction history, then completed rows, then the oldest row.
+- Cleaned existing Supabase payment duplicates by keeping the payment row referenced by transaction history and deleting the unprocessed duplicates.
+
+Supabase cleanup result:
+- Found 4 payment duplicate groups when completion status was ignored.
+- Reassigned history rows: 0, because existing history already pointed to the rows kept.
+- Deleted duplicate payment rows: 4.
+- Rechecked payment rows; duplicate groups excluding completion status: 0.
+- Rechecked current-month transaction history; 5 of 5 rows still reference existing payment rows.
+- Backup saved to `artifacts/supabase-payment-duplicate-cleanup-2026-06-11T23-12-03-247Z.json`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+
+Remaining risks:
+- Similar-looking payment rows with different amount, day, method, source, child, or discount are intentionally treated as different payment items.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-11 - Prepare 1.2.1 Android release bundle
 
 Source handoff:

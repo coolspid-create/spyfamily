@@ -349,26 +349,100 @@ const createScheduleLocalContentKey = (day, item) => createScheduleContentKey({
     isUrgent: item?.isUrgent
 });
 
-const createPaymentCloudContentKey = (row) => createContentKey(
+const createPaymentContentKey = ({
+    childId,
+    source,
+    amount,
+    method,
+    day,
+    discount
+}) => createContentKey(
     'payment',
-    row?.child_id,
-    row?.source,
-    toSafeNumber(row?.amount),
-    normalizeMethod(row?.method),
-    normalizeDayNumber(row?.payment_day),
-    row?.discount_info,
-    normalizeBoolean(row?.is_completed) ? '1' : '0'
+    childId,
+    source,
+    toSafeNumber(amount),
+    normalizeMethod(method),
+    normalizeDayNumber(day),
+    discount
 );
 
-const createPaymentLocalContentKey = (payment) => createContentKey(
-    'payment',
-    payment?.source,
-    toSafeNumber(payment?.amount),
-    normalizeMethod(payment?.method),
-    normalizeDayNumber(payment?.day),
-    payment?.discount,
-    normalizeBoolean(payment?.isCompleted) ? '1' : '0'
-);
+const createPaymentCloudContentKey = (row) => createPaymentContentKey({
+    childId: row?.child_id,
+    source: row?.source,
+    amount: row?.amount,
+    method: row?.method,
+    day: row?.payment_day,
+    discount: row?.discount_info
+});
+
+const createPaymentLocalContentKey = (payment) => createPaymentContentKey({
+    source: payment?.source,
+    amount: payment?.amount,
+    method: payment?.method,
+    day: payment?.day,
+    discount: payment?.discount
+});
+
+const mergeLocalPaymentsByContent = (payments) => {
+    const merged = new Map();
+    asArray(payments).forEach((payment) => {
+        const key = createPaymentLocalContentKey(payment);
+        const existing = merged.get(key);
+        if (!existing) {
+            merged.set(key, payment);
+            return;
+        }
+        merged.set(key, {
+            ...existing,
+            isCompleted: normalizeBoolean(existing.isCompleted) || normalizeBoolean(payment.isCompleted),
+            completedAt: existing.completedAt || payment.completedAt,
+            justCompleted: normalizeBoolean(existing.justCompleted) || normalizeBoolean(payment.justCompleted)
+        });
+    });
+    return [...merged.values()];
+};
+
+const mergeCloudPaymentsByContent = (payments, historyRows, currentMonth) => {
+    const historyByPaymentId = new Map();
+    asArray(historyRows).forEach((history) => {
+        if (!history?.payment_id) return;
+        const list = historyByPaymentId.get(history.payment_id) || [];
+        list.push(history);
+        historyByPaymentId.set(history.payment_id, list);
+    });
+
+    const groups = new Map();
+    asArray(payments).forEach((payment) => {
+        const key = createPaymentCloudContentKey(payment);
+        const list = groups.get(key) || [];
+        list.push(payment);
+        groups.set(key, list);
+    });
+
+    const sortByCreatedAt = (rows) => [...rows].sort((a, b) => {
+        const aTime = Date.parse(a?.created_at || a?.updated_at || '') || 0;
+        const bTime = Date.parse(b?.created_at || b?.updated_at || '') || 0;
+        if (aTime !== bTime) return aTime - bTime;
+        return toSafeString(a?.id).localeCompare(toSafeString(b?.id));
+    });
+
+    return [...groups.values()].map((group) => {
+        const sorted = sortByCreatedAt(group);
+        const paymentWithCurrentHistory = sorted.find(payment => (
+            asArray(historyByPaymentId.get(payment.id)).some(history => history.month === currentMonth)
+        ));
+        const completedPayment = sorted.find(payment => normalizeBoolean(payment?.is_completed));
+        const canonical = paymentWithCurrentHistory || completedPayment || sorted[0];
+        const hasCurrentMonthHistory = sorted.some(payment => (
+            asArray(historyByPaymentId.get(payment.id)).some(history => history.month === currentMonth)
+        ));
+
+        return {
+            ...canonical,
+            is_completed: hasCurrentMonthHistory || sorted.some(payment => normalizeBoolean(payment?.is_completed))
+        };
+    });
+};
 
 const createOpsCloudContentKey = (row) => createContentKey(
     'ops',
@@ -468,7 +542,7 @@ const dedupeGuestDataByContent = (guestData) => ({
     weeklyData: dedupeWeeklyDataByContent(guestData?.weeklyData),
     missionsData: dedupeRowsByContent(guestData?.missionsData, createMissionLocalContentKey),
     funds: dedupeRowsByContent(guestData?.funds, createAssetLocalContentKey),
-    payments: dedupeRowsByContent(guestData?.payments, createPaymentLocalContentKey),
+    payments: mergeLocalPaymentsByContent(guestData?.payments),
     opsData: dedupeRowsByContent(guestData?.opsData, createOpsLocalContentKey),
     transactionHistory: dedupeRowsByContent(guestData?.transactionHistory, createTransactionLocalContentKey),
     notices: dedupeRowsByContent(guestData?.notices, createNoticeLocalContentKey),
@@ -4156,7 +4230,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
                 const formattedPayments = [];
-                for (const p of dedupeRowsByContent(paymentsData, createPaymentCloudContentKey)) {
+                for (const p of mergeCloudPaymentsByContent(paymentsData, historyData, currentMonthStr)) {
                     let isCompleted = p.is_completed;
 
                     if (isCompleted) {
