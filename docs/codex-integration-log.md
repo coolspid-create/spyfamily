@@ -1,6 +1,35 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-12 - Prepare 1.2.2 Android release bundle
+
+Source handoff:
+Direct user request in Codex to update the app to 1.2.2 and create an AAB file.
+
+Applied:
+- Bumped the web package version from `1.2.1` to `1.2.2`.
+- Bumped Android `versionName` from `1.2.1` to `1.2.2`.
+- Bumped Android `versionCode` from `19` to `20`.
+- Built the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release AAB and copied it to `artifacts/aab/FamilyScheduler-1.2.2-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+
+Remaining risks:
+- Gradle reported existing deprecation warnings for future Gradle 9 compatibility, but the release bundle build completed successfully.
+- The AAB artifact itself is intentionally left untracked because Android build outputs and release bundles are ignored by `.gitignore`.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/build.gradle`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-12 - Fix payment duplicates split by completion status
 
 Source handoff:
