@@ -1,6 +1,285 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-13 - Prepare 1.2.3 release AAB
+
+Source handoff:
+Direct user confirmation in Codex that the Android paste-menu external box issue is resolved, followed by a request to clean up, create the 1.2.3 update AAB, and push.
+
+Applied:
+- Bumped app package version from `1.2.2` to `1.2.3`.
+- Bumped Android release metadata from `versionCode 20` / `versionName 1.2.2` to `versionCode 21` / `versionName 1.2.3`.
+- Rebuilt the web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.3-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+
+Remaining risks:
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+- The 1.2.3 AAB is a release artifact for upload/review; Play Console rollout is still a separate manual step.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/build.gradle`
+- `docs/codex-integration-log.md`
+- `artifacts/aab/FamilyScheduler-1.2.3-release.aab`
+
+Previous integration:
+2026-06-13 - Make Android paste action-mode window background transparent
+
+Source handoff:
+Direct user report in Codex with Android screenshot showing the paste toolbar remains usable but still paints a large app-background-colored external box around the native menu.
+
+Applied:
+- Changed the post-splash Android app theme `android:windowBackground` and `android:background` from app colors to transparent so the native paste/action-mode popup cannot paint a large beige or navy backing rectangle over the WebView.
+- Kept the previous fix that removed action-mode cancellation, so the paste toolbar should remain visible instead of disappearing after opening.
+- Rebuilt and synced the Android project, then copied a debug APK to `artifacts/apk/FamilyScheduler-test-9152436-paste-window-transparent-20260613-154253-debug.apk`.
+
+Verification:
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+
+Remaining risks:
+- This specific Android paste toolbar rendering can only be confirmed on an installed APK.
+- If a box still appears after this APK, the remaining likely cause is the platform floating-toolbar popup background itself, and the next change should add an explicit transparent action-mode style instead of changing menu lifecycle.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/android/app/src/main/res/values/styles.xml`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Fix Android paste menu flicker and viewport scroll churn
+
+Source handoff:
+Direct user report in Codex that the paste menu no longer turned blue, but still showed a large surrounding box and now appeared briefly for about 0.5 seconds before disappearing repeatedly.
+
+Applied:
+- Removed the Activity-level action mode cancellation that forced the native paste menu to close immediately after opening.
+- Stopped listening to `visualViewport.scroll` inside the diary composer because Android text-selection/paste toolbar movement can emit viewport scroll events and retrigger composer scroll corrections.
+- Limited composer `visualViewport` height override to real keyboard resize cases by requiring a keyboard inset of at least 120px.
+- Rebuilt and synced the Android project, then copied a debug APK to `artifacts/apk/FamilyScheduler-test-9152436-paste-menu-fix-20260613-150658-debug.apk`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+- `git diff --check`
+
+Remaining risks:
+- The native Android paste toolbar must be verified on the installed APK because desktop browser tests cannot reproduce WebView's platform text-selection popup.
+- If a large native popup background still appears after this APK, the next fix should target Android action-mode popup/window styling instead of cancelling action mode.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Build diary delete fix test APK
+
+Source handoff:
+Direct user request in Codex to run Capacitor sync and create a test APK after the diary delete stuck-state fix.
+
+Applied:
+- Rebuilt the latest web bundle containing the diary delete modal unlock/local-first delete changes.
+- Synced the built web assets into the Android Capacitor project.
+- Built a debug APK and copied it to `artifacts/apk/FamilyScheduler-test-9152436-diary-delete-fix-20260613-144359-debug.apk`.
+
+Verification:
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+
+Remaining risks:
+- This is a debug/test APK, not a Play Store release artifact.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+- The Android installed app should be used to confirm the original cloud/photo diary delete stuck case no longer locks the UI.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Fix diary delete modal stuck on processing
+
+Source handoff:
+Direct user report in Codex with Android screenshot showing the diary record delete dialog stuck on `삭제 중...`, leaving no active menus and requiring force close.
+
+Applied:
+- Changed diary deletion to remove the record from local UI/cache immediately, before waiting for Supabase.
+- Added a 12 second timeout around the Supabase diary delete request and queues a `diary:delete` pending mutation when cloud deletion fails or times out.
+- Prevented the delete confirmation modal from holding the screen while cloud deletion or photo cleanup continues.
+- Moved deleted diary photo cleanup to a background task so Storage cleanup cannot keep the modal locked.
+- Blocked opening another delete modal while an existing delete request is still being finalized.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+- Local Playwright check on `http://127.0.0.1:5176/`: created a test diary, opened its item menu, confirmed delete, verified the `기록 삭제` modal disappeared, `삭제 중...` was not visible, and the test diary text was removed.
+
+Remaining risks:
+- The Android installed WebView should still be tested with a real cloud/photo diary because native network and Storage timing cannot be fully reproduced in the local browser.
+- Photo cleanup now happens in the background; if Storage cleanup fails, the record is still removed and the cleanup failure is only logged.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-12 - Build diary-fix4 APK with viewport-height composer and native action-mode cancel
+
+Source handoff:
+Direct user report in Codex that the paste popup's surrounding blank box remained and diary typing still stayed behind the keyboard.
+
+Applied:
+- Changed the diary composer modal to follow the mobile `visualViewport` height so the scrollable form area shrinks above the keyboard instead of being covered by it.
+- Changed diary body focus/input handling to scroll the diary text card only when it falls outside the visible composer area, matching the requested natural upward scroll while typing.
+- Replaced the non-compilable WebView selection callback attempt with Activity-level action-mode cancellation so the native text-selection toolbar does not leave a large external overlay.
+- Built a replacement test APK at `artifacts/apk/FamilyScheduler-test-9152436-diary-fix4-20260612-142344-debug.apk`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+- `git diff --check`
+
+Remaining risks:
+- Actual Android keyboard and text-selection UI still require device testing because the native IME/toolbar cannot be fully reproduced in the desktop browser.
+- If the device still shows a native popup, the next stronger option is disabling WebView long-press selection, but that would also remove the normal long-press copy/paste menu.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-12 - Remove diary keyboard blank padding and action-mode override
+
+Source handoff:
+Direct user report in Codex with Android screenshot showing the bottom-menu gap fixed, but a large blank external box still covering the diary composer while the text-selection popup/keyboard is open.
+
+Applied:
+- Removed the Android action-mode style override added in the previous pass because it could influence the native text-selection popup container.
+- Removed the diary composer keyboard-height bottom padding; the composer now keeps only normal safe-area bottom padding so selection popups cannot expose a large blank scroll area.
+- Changed diary focus handling to scroll the title/body card itself into view, aligned near the top of the visible composer area, instead of centering the textarea or scrolling by the full textarea bottom.
+- Built a replacement test APK at `artifacts/apk/FamilyScheduler-test-9152436-diary-fix3-20260612-140106-debug.apk`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+
+Remaining risks:
+- Actual Android keyboard and text-selection UI still require device testing because the native IME/toolbar cannot be fully reproduced in the desktop browser.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/android/app/src/main/res/values/styles.xml`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-12 - Fix diary-fix APK viewport regression
+
+Source handoff:
+Direct user report in Codex with Android screenshots showing a new bottom gap after WebView changes and a blank diary composer area when the keyboard opens.
+
+Applied:
+- Removed IME height from the Android root content padding and restored consumed window inset handling so WebView safe-area padding does not double-count the bottom system area.
+- Kept the manifest-level `adjustResize` hint for keyboard behavior without adding extra native bottom padding.
+- Removed the diary composer modal height/top override based on `visualViewport`; the modal now stays full app height instead of shrinking and adding keyboard padding at the same time.
+- Replaced `scrollIntoView({ block: 'center' })` with bounded scroll adjustment so focused title/body inputs are nudged into the visible area without scrolling the form into a blank padding region.
+- Built a replacement test APK at `artifacts/apk/FamilyScheduler-test-9152436-diary-fix2-20260612-135414-debug.apk`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+
+Remaining risks:
+- Actual Android keyboard and text-selection UI still need device testing because desktop browser verification cannot show the native IME/toolbar.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-12 - Build diary-fix test debug APK
+
+Source handoff:
+Direct user request in Codex to create a test APK before pushing.
+
+Applied:
+- Rebuilt the production web bundle after the diary keyboard/save fixes.
+- Synced the web bundle and Capacitor metadata into the Android project.
+- Built a debug APK for device testing.
+- Copied the test APK to `artifacts/apk/FamilyScheduler-test-9152436-diary-fix-20260612-134712-debug.apk`.
+
+Verification:
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat assembleDebug`
+
+Remaining risks:
+- This is a debug/test APK, not a Play Store release artifact.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-12 - Fix diary keyboard, native selection popup, and stuck save flow
+
+Source handoff:
+Direct user report in Codex with Android screenshots showing diary text hidden by the keyboard, malformed copy/paste selection popup, and diary saves stuck on "저장 중..." without persisting.
+
+Applied:
+- Added visual viewport tracking and focused-field auto-scroll to the diary composer so long text entry stays visible when the mobile keyboard opens.
+- Added extra composer bottom padding tied to the keyboard inset and allowed the close button to respond even while a save request is pending.
+- Added timeouts around diary photo uploads, signed URL creation, storage cleanup, cloud diary fetch, and cloud diary add/update requests so the UI does not remain stuck indefinitely.
+- Added local fallback persistence and pending cloud retry registration when diary cloud save/upload is delayed or fails before Supabase persistence completes.
+- Updated pending diary retry calls so retries do not create duplicate pending entries.
+- Set Android diary WebView behavior to adjust for IME resize and include IME insets in edge-to-edge padding.
+- Changed the post-splash Android window background away from navy and added a light action mode style to reduce malformed native text selection popup rendering.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `./gradlew.bat assembleDebug`
+- Started local dev server on `http://127.0.0.1:5175/`
+- In-app browser mobile-width check for `/diary`: opened the composer, entered a long diary body, saved locally, confirmed the modal closed and the diary appeared, then deleted the test diary through the UI.
+
+Remaining risks:
+- Real Android IME and native text-selection toolbar rendering must still be confirmed on an actual device or emulator because desktop browser verification cannot display the Android keyboard or WebView floating toolbar.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/store/useStore.js`
+- `app/src/lib/diaryStorage.js`
+- `app/src/index.css`
+- `app/android/app/src/main/AndroidManifest.xml`
+- `app/android/app/src/main/java/com/coolspid/familyxscheduler/MainActivity.java`
+- `app/android/app/src/main/res/values/styles.xml`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-12 - Prepare 1.2.2 Android release bundle
 
 Source handoff:

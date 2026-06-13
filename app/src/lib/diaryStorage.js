@@ -3,6 +3,7 @@ export const DIARY_IMAGE_MAX_DIMENSION = 1000;
 export const DIARY_IMAGE_TARGET_BYTES = 450 * 1024;
 export const DIARY_IMAGE_QUALITY = 0.72;
 export const DIARY_SIGNED_URL_EXPIRES_IN = 1800;
+export const DIARY_STORAGE_OPERATION_TIMEOUT_MS = 15000;
 
 const signedUrlCache = new Map();
 let webpSupportPromise = null;
@@ -14,6 +15,17 @@ const toSafeString = (value, fallback = '') => {
 };
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+
+const withRejectingTimeout = (promise, timeoutMs, timeoutMessage) => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    globalThis.clearTimeout(timeoutId);
+  });
+};
 
 export const isDirectImageSource = (value) => (
   /^(data:image\/|blob:|https?:\/\/|\/)/i.test(toSafeString(value).trim())
@@ -174,7 +186,8 @@ export const uploadDiaryImagesToStorage = async ({
   client,
   images = [],
   familyId,
-  diaryId
+  diaryId,
+  timeoutMs = DIARY_STORAGE_OPERATION_TIMEOUT_MS
 }) => {
   const imageList = asArray(images);
 
@@ -205,13 +218,17 @@ export const uploadDiaryImagesToStorage = async ({
     const sourceBlob = await dataUrlToBlob(source);
     const blob = await compressDiaryImageBlob(sourceBlob);
     const storagePath = createStoragePath({ familyId, diaryId, index, blob });
-    const { error } = await client.storage
-      .from(DIARY_PHOTO_BUCKET)
-      .upload(storagePath, blob, {
-        cacheControl: '31536000',
-        contentType: blob.type || 'image/jpeg',
-        upsert: false
-      });
+    const { error } = await withRejectingTimeout(
+      client.storage
+        .from(DIARY_PHOTO_BUCKET)
+        .upload(storagePath, blob, {
+          cacheControl: '31536000',
+          contentType: blob.type || 'image/jpeg',
+          upsert: false
+        }),
+      timeoutMs,
+      '다이어리 사진 업로드 시간이 초과되었습니다.'
+    );
 
     if (error) throw error;
     imagePaths.push(storagePath);
@@ -236,7 +253,11 @@ export const removeDiaryImagesFromStorage = async ({
 
   for (let index = 0; index < uniquePaths.length; index += chunkSize) {
     const chunk = uniquePaths.slice(index, index + chunkSize);
-    const { error } = await client.storage.from(DIARY_PHOTO_BUCKET).remove(chunk);
+    const { error } = await withRejectingTimeout(
+      client.storage.from(DIARY_PHOTO_BUCKET).remove(chunk),
+      DIARY_STORAGE_OPERATION_TIMEOUT_MS,
+      '다이어리 사진 정리 시간이 초과되었습니다.'
+    );
     if (error) throw error;
   }
 };
@@ -262,9 +283,13 @@ export const createDiaryImageSignedUrl = async ({
     return cached.url;
   }
 
-  const { data, error } = await client.storage
-    .from(DIARY_PHOTO_BUCKET)
-    .createSignedUrl(storagePath, expiresIn);
+  const { data, error } = await withRejectingTimeout(
+    client.storage
+      .from(DIARY_PHOTO_BUCKET)
+      .createSignedUrl(storagePath, expiresIn),
+    DIARY_STORAGE_OPERATION_TIMEOUT_MS,
+    '다이어리 사진 주소 발급 시간이 초과되었습니다.'
+  );
 
   if (error) throw error;
   const signedUrl = data?.signedUrl || '';

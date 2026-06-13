@@ -49,6 +49,9 @@ const FAMILY_CONTEXT_CACHE_KEY = LOCAL_STORAGE_KEYS.FAMILY_CONTEXT;
 const DIARY_COMMENT_MAX_LENGTH = 50;
 const AUTH_SIGN_OUT_TIMEOUT_MS = 2500;
 const FAMILY_ACTION_TIMEOUT_MS = 12000;
+const DIARY_CLOUD_SAVE_TIMEOUT_MS = 18000;
+const DIARY_CLOUD_FETCH_TIMEOUT_MS = 10000;
+const DIARY_CLOUD_DELETE_TIMEOUT_MS = 12000;
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toSafeString = (value, fallback = '') => {
@@ -1233,6 +1236,60 @@ const queueCloudFailure = ({ get, type, payload, error }) => {
     return { ok: false, queued: true, error: message };
 };
 
+const getDiaryImageSources = (record) => {
+    const imageUrls = asArray(record?.imageUrls).map(toSafeString).filter(Boolean);
+    if (imageUrls.length > 0) return imageUrls;
+
+    const imageUrl = toSafeString(record?.imageUrl).trim();
+    if (imageUrl) return [imageUrl];
+
+    return asArray(record?.imagePaths).map(toSafeString).filter(Boolean);
+};
+
+const prepareDiaryImagesForCloud = async ({ record, familyId }) => {
+    const imageSources = getDiaryImageSources(record);
+    if (imageSources.length === 0) {
+        return {
+            imagePaths: asArray(record?.imagePaths).map(getDiaryStoragePath).filter(Boolean),
+            uploadedPaths: []
+        };
+    }
+
+    return withRejectingTimeout(
+        uploadDiaryImagesToStorage({
+            client: supabase,
+            images: imageSources,
+            familyId,
+            diaryId: record.id
+        }),
+        DIARY_CLOUD_SAVE_TIMEOUT_MS,
+        '다이어리 사진 저장 시간이 초과되었습니다.'
+    );
+};
+
+const saveDiaryLocalFallback = ({ set, get, diaryData, mutationType, error }) => {
+    const nextRecord = normalizeDiaryRecords([diaryData])[0];
+
+    set((state) => {
+        const hasExisting = state.diaries.some(record => record.id === nextRecord.id);
+        const nextDiaries = hasExisting
+            ? state.diaries.map(record => record.id === nextRecord.id ? nextRecord : record)
+            : [nextRecord, ...state.diaries];
+        saveLocalDiaryRecords(nextDiaries);
+        return { diaries: nextDiaries };
+    });
+
+    if (mutationType) {
+        get().queuePendingMutation({
+            type: mutationType,
+            payload: { diaryData: nextRecord },
+            lastError: getCloudErrorMessage(error)
+        });
+    }
+
+    return nextRecord;
+};
+
 const savedProfiles = (() => {
     try {
         return normalizeChildProfiles(JSON.parse(localStorage.getItem('spy_childProfiles')));
@@ -1646,6 +1703,9 @@ export const useStore = create(persistGuestData((set, get) => ({
         });
         return queuedMutation;
     },
+    saveDiaryLocalFallback: (diaryData, mutationType = 'diary:add', error = null) => (
+        saveDiaryLocalFallback({ set, get, diaryData, mutationType, error })
+    ),
     clearPendingMutations: () => {
         savePendingMutations([]);
         set({ pendingMutations: [] });
@@ -1674,11 +1734,11 @@ export const useStore = create(persistGuestData((set, get) => ({
         for (const mutation of pending) {
             try {
                 if (mutation.type === 'diary:add') {
-                    await get().addDiary(mutation.payload.diaryData);
+                    await get().addDiary(mutation.payload.diaryData, { fromPendingRetry: true });
                 } else if (mutation.type === 'diary:update') {
-                    await get().updateDiary(mutation.payload.diaryData);
+                    await get().updateDiary(mutation.payload.diaryData, { fromPendingRetry: true });
                 } else if (mutation.type === 'diary:delete') {
-                    await get().removeDiary(mutation.payload.diaryId);
+                    await get().removeDiary(mutation.payload.diaryId, { fromPendingRetry: true });
                 } else if (mutation.type === 'diary:comment:add') {
                     await get().addDiaryComment(mutation.payload.diaryId, mutation.payload.comment);
                 } else if (mutation.type === 'schedule:add') {
@@ -2198,12 +2258,25 @@ export const useStore = create(persistGuestData((set, get) => ({
             return;
         }
 
-        const { data, error } = await supabase
-            .from('diary')
-            .select('*, diary_comments(*)')
-            .eq('family_id', currentFamilyId)
-            .order('date', { ascending: false })
-            .order('created_at', { ascending: false });
+        let result;
+        try {
+            result = await withRejectingTimeout(
+                supabase
+                    .from('diary')
+                    .select('*, diary_comments(*)')
+                    .eq('family_id', currentFamilyId)
+                    .order('date', { ascending: false })
+                    .order('created_at', { ascending: false }),
+                DIARY_CLOUD_FETCH_TIMEOUT_MS,
+                '다이어리 목록 불러오기 시간이 초과되었습니다.'
+            );
+        } catch (error) {
+            console.warn('Cloud diary fetch failed, falling back to local records:', error);
+            set({ diaries: loadCloudDiaryCache(currentFamilyId) || loadLocalDiaryRecords() });
+            return;
+        }
+
+        const { data, error } = result;
 
         if (error) {
             console.warn('Cloud diary fetch failed, falling back to local records:', error);
@@ -2291,7 +2364,7 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         markLocalDiariesSynced();
     },
-    addDiary: async (diaryData) => {
+    addDiary: async (diaryData, options = {}) => {
         const { session, currentFamilyId } = get();
         const nextLocal = normalizeDiaryRecords([diaryData])[0];
 
@@ -2304,43 +2377,73 @@ export const useStore = create(persistGuestData((set, get) => ({
             return nextLocal;
         }
 
-        const { data, error } = await supabase
-            .from('diary')
-            .insert([{
-                ...(isUuid(nextLocal.id) ? { id: nextLocal.id } : {}),
-                family_id: currentFamilyId,
-                user_id: session.user.id,
-                child: nextLocal.child,
-                date: nextLocal.isoDate,
-                time: nextLocal.time,
-                mood: nextLocal.mood,
-                title: nextLocal.title,
-                text: nextLocal.text,
-                image_paths: nextLocal.imagePaths || [],
-                reactions: nextLocal.reactions || [],
-                local_id: nextLocal.localId || null
-            }])
-            .select('*, diary_comments(*)')
-            .single();
+        let uploadedPaths = [];
+        let data = null;
+        let error = null;
+
+        try {
+            const uploadResult = await prepareDiaryImagesForCloud({
+                record: nextLocal,
+                familyId: currentFamilyId
+            });
+            uploadedPaths = uploadResult.uploadedPaths || [];
+
+            const result = await withRejectingTimeout(
+                supabase
+                    .from('diary')
+                    .insert([{
+                        ...(isUuid(nextLocal.id) ? { id: nextLocal.id } : {}),
+                        family_id: currentFamilyId,
+                        user_id: session.user.id,
+                        child: nextLocal.child,
+                        date: nextLocal.isoDate,
+                        time: nextLocal.time,
+                        mood: nextLocal.mood,
+                        title: nextLocal.title,
+                        text: nextLocal.text,
+                        image_paths: uploadResult.imagePaths || [],
+                        reactions: nextLocal.reactions || [],
+                        local_id: nextLocal.localId || null
+                    }])
+                    .select('*, diary_comments(*)')
+                    .single(),
+                DIARY_CLOUD_SAVE_TIMEOUT_MS,
+                '다이어리 저장 시간이 초과되었습니다.'
+            );
+            data = result.data;
+            error = result.error;
+        } catch (saveError) {
+            error = saveError;
+        }
 
         if (error) {
-            set((state) => {
-                const diaries = [nextLocal, ...state.diaries];
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
-            });
-            get().queuePendingMutation({
-                type: 'diary:add',
-                payload: { diaryData: nextLocal },
-                lastError: error.message
-            });
+            if (uploadedPaths.length > 0) {
+                removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
+                    console.warn('Uploaded diary images could not be cleaned after save failure:', cleanupError);
+                });
+            }
+            if (!isPendingReplay(options)) {
+                saveDiaryLocalFallback({
+                    set,
+                    get,
+                    diaryData: nextLocal,
+                    mutationType: 'diary:add',
+                    error
+                });
+            }
             throw error;
         }
 
-        await get().fetchDiariesFromDB();
+        await withRejectingTimeout(
+            get().fetchDiariesFromDB(),
+            DIARY_CLOUD_FETCH_TIMEOUT_MS,
+            '저장 후 다이어리 새로고침 시간이 초과되었습니다.'
+        ).catch((fetchError) => {
+            console.warn('Diary saved, but refresh timed out:', fetchError);
+        });
         return normalizeDiaryRecords([data])[0];
     },
-    updateDiary: async (diaryData) => {
+    updateDiary: async (diaryData, options = {}) => {
         const { session, currentFamilyId } = get();
         const nextRecord = normalizeDiaryRecords([diaryData])[0];
 
@@ -2353,69 +2456,121 @@ export const useStore = create(persistGuestData((set, get) => ({
             return nextRecord;
         }
 
-        const { error } = await supabase
-            .from('diary')
-            .update({
-                child: nextRecord.child,
-                date: nextRecord.isoDate,
-                time: nextRecord.time,
-                mood: nextRecord.mood,
-                title: nextRecord.title,
-                text: nextRecord.text,
-                image_paths: nextRecord.imagePaths || [],
-                reactions: nextRecord.reactions || [],
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', nextRecord.id)
-            .eq('family_id', currentFamilyId);
+        let uploadedPaths = [];
+        let error = null;
+
+        try {
+            const uploadResult = await prepareDiaryImagesForCloud({
+                record: nextRecord,
+                familyId: currentFamilyId
+            });
+            uploadedPaths = uploadResult.uploadedPaths || [];
+
+            const result = await withRejectingTimeout(
+                supabase
+                    .from('diary')
+                    .update({
+                        child: nextRecord.child,
+                        date: nextRecord.isoDate,
+                        time: nextRecord.time,
+                        mood: nextRecord.mood,
+                        title: nextRecord.title,
+                        text: nextRecord.text,
+                        image_paths: uploadResult.imagePaths || [],
+                        reactions: nextRecord.reactions || [],
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', nextRecord.id)
+                    .eq('family_id', currentFamilyId),
+                DIARY_CLOUD_SAVE_TIMEOUT_MS,
+                '다이어리 수정 저장 시간이 초과되었습니다.'
+            );
+            error = result.error;
+        } catch (saveError) {
+            error = saveError;
+        }
 
         if (error) {
-            set((state) => {
-                const diaries = state.diaries.map(record => record.id === nextRecord.id ? nextRecord : record);
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
-            });
-            get().queuePendingMutation({
-                type: 'diary:update',
-                payload: { diaryData: nextRecord },
-                lastError: error.message
-            });
+            if (uploadedPaths.length > 0) {
+                removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
+                    console.warn('Uploaded diary images could not be cleaned after update failure:', cleanupError);
+                });
+            }
+            if (!isPendingReplay(options)) {
+                saveDiaryLocalFallback({
+                    set,
+                    get,
+                    diaryData: nextRecord,
+                    mutationType: 'diary:update',
+                    error
+                });
+            }
             throw error;
         }
-        await get().fetchDiariesFromDB();
+        await withRejectingTimeout(
+            get().fetchDiariesFromDB(),
+            DIARY_CLOUD_FETCH_TIMEOUT_MS,
+            '수정 후 다이어리 새로고침 시간이 초과되었습니다.'
+        ).catch((fetchError) => {
+            console.warn('Diary updated, but refresh timed out:', fetchError);
+        });
         return nextRecord;
     },
-    removeDiary: async (diaryId) => {
+    removeDiary: async (diaryId, options = {}) => {
         const { session, currentFamilyId } = get();
+        let removedRecord = null;
+
+        set((state) => {
+            removedRecord = state.diaries.find(record => record.id === diaryId) || null;
+            const diaries = state.diaries.filter(record => record.id !== diaryId);
+            saveLocalDiaryRecords(diaries);
+            if (currentFamilyId) {
+                saveCloudDiaryCache(currentFamilyId, diaries);
+            }
+            return { diaries };
+        });
+
         if (!session || !currentFamilyId || !supabase || !isUuid(diaryId)) {
-            set((state) => {
-                const diaries = state.diaries.filter(record => record.id !== diaryId);
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
-            });
-            return;
+            return { ok: true, record: removedRecord };
         }
 
-        const { error } = await supabase
-            .from('diary')
-            .delete()
-            .eq('id', diaryId)
-            .eq('family_id', currentFamilyId);
+        let error = null;
+        try {
+            const result = await withRejectingTimeout(
+                supabase
+                    .from('diary')
+                    .delete()
+                    .eq('id', diaryId)
+                    .eq('family_id', currentFamilyId),
+                DIARY_CLOUD_DELETE_TIMEOUT_MS,
+                '다이어리 삭제 시간이 초과되었습니다.'
+            );
+            error = result.error;
+        } catch (deleteError) {
+            error = deleteError;
+        }
 
         if (error) {
-            set((state) => {
-                const diaries = state.diaries.filter(record => record.id !== diaryId);
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
-            });
-            get().queuePendingMutation({
-                type: 'diary:delete',
-                payload: { diaryId },
-                lastError: error.message
-            });
+            if (!isPendingReplay(options)) {
+                get().queuePendingMutation({
+                    type: 'diary:delete',
+                    payload: { diaryId },
+                    lastError: getCloudErrorMessage(error)
+                });
+                return { ok: false, queued: true, record: removedRecord, error };
+            }
             throw error;
         }
-        await get().fetchDiariesFromDB();
+
+        await withRejectingTimeout(
+            get().fetchDiariesFromDB(),
+            DIARY_CLOUD_FETCH_TIMEOUT_MS,
+            '삭제 후 다이어리 새로고침 시간이 초과되었습니다.'
+        ).catch((fetchError) => {
+            console.warn('Diary deleted, but refresh timed out:', fetchError);
+        });
+
+        return { ok: true, record: removedRecord };
     },
     addDiaryComment: async (diaryId, comment) => {
         const { session, currentFamilyId } = get();

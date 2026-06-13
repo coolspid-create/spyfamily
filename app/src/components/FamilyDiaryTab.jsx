@@ -25,6 +25,7 @@ const LEGACY_DIARY_RECORDS_STORAGE_KEY = 'memory-mvp-records-v2';
 const DIARY_TITLE_MAX_LENGTH = 25;
 const DIARY_TEXT_MAX_LENGTH = 500;
 const DIARY_COMMENT_MAX_LENGTH = 50;
+const DIARY_SAVE_OPERATION_TIMEOUT_MS = 22000;
 const DIARY_COLLAPSE_TEXT_LENGTH = 90;
 const DIARY_TEXT_COLLAPSED_HEIGHT = 68;
 const VIEWER_TEXT_COLLAPSED_HEIGHT = 73;
@@ -40,6 +41,17 @@ const DIARY_BOOK_PREVIEW_IMAGES = [
 const HIDDEN_SCROLLBAR_STYLE = {
   scrollbarWidth: 'none',
   msOverflowStyle: 'none'
+};
+
+const withDiaryOperationTimeout = (promise, timeoutMs, timeoutMessage) => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
 };
 
 const toSafeString = (value, fallback = '') => {
@@ -419,6 +431,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
   const addDiary = useStore(state => state.addDiary);
   const updateDiary = useStore(state => state.updateDiary);
+  const saveDiaryLocalFallback = useStore(state => state.saveDiaryLocalFallback);
   const removeDiary = useStore(state => state.removeDiary);
   const addDiaryComment = useStore(state => state.addDiaryComment);
 
@@ -457,8 +470,15 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
 
   // Photo Upload State
   const [selectedImages, setSelectedImages] = useState([]);
+  const composerScrollRef = useRef(null);
+  const diaryTextCardRef = useRef(null);
   const fileInputRef = useRef(null);
   const photoOpenRequestRef = useRef(0);
+  const [composerViewport, setComposerViewport] = useState({
+    height: 0,
+    offsetTop: 0,
+    keyboardInset: 0
+  });
 
   // Calendar Page States
   const [calendarMonthDate, setCalendarMonthDate] = useState(() => {
@@ -512,6 +532,104 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         }
       });
   }, []);
+
+  const scrollComposerTargetIntoView = useCallback((target, options = {}) => {
+    if (!target || !composerScrollRef.current) return;
+
+    const applyScroll = () => {
+      const scrollContainer = composerScrollRef.current;
+      if (!scrollContainer || !scrollContainer.contains(target)) return;
+
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const currentScrollTop = scrollContainer.scrollTop;
+      const targetTop = currentScrollTop + targetRect.top - containerRect.top;
+      const targetBottom = currentScrollTop + targetRect.bottom - containerRect.top;
+      const visibleTop = currentScrollTop + 12;
+      const visibleBottom = currentScrollTop + scrollContainer.clientHeight - 24;
+      const alignTop = options.alignTop === true;
+
+      if (alignTop) {
+        const nextTop = Math.max(0, targetTop - 12);
+        scrollContainer.scrollTo({ top: nextTop, behavior: 'smooth' });
+        return;
+      }
+
+      if (targetBottom > visibleBottom) {
+        const nextTop = Math.max(0, targetBottom - scrollContainer.clientHeight + 24);
+        scrollContainer.scrollTo({ top: nextTop, behavior: 'smooth' });
+        return;
+      }
+
+      if (targetTop < visibleTop) {
+        const nextTop = Math.max(0, targetTop - 12);
+        scrollContainer.scrollTo({ top: nextTop, behavior: 'smooth' });
+      }
+    };
+
+    window.requestAnimationFrame(applyScroll);
+  }, []);
+
+  const scrollDiaryTextCardIntoView = useCallback(() => {
+    const run = () => scrollComposerTargetIntoView(diaryTextCardRef.current);
+    run();
+    window.setTimeout(run, 90);
+    window.setTimeout(run, 240);
+    window.setTimeout(run, 420);
+  }, [scrollComposerTargetIntoView]);
+
+  useEffect(() => {
+    if (!composerOpen || typeof window === 'undefined') {
+      setComposerViewport({ height: 0, offsetTop: 0, keyboardInset: 0 });
+      return undefined;
+    }
+
+    const visualViewport = window.visualViewport;
+    const updateComposerViewport = () => {
+      const viewportHeight = visualViewport?.height || window.innerHeight;
+      const viewportOffsetTop = visualViewport?.offsetTop || 0;
+      const keyboardInset = Math.max(
+        0,
+        Math.round(window.innerHeight - viewportHeight - viewportOffsetTop)
+      );
+
+      setComposerViewport({
+        height: Math.round(viewportHeight),
+        offsetTop: Math.round(viewportOffsetTop),
+        keyboardInset
+      });
+
+      const activeElement = document.activeElement;
+      if (activeElement && composerScrollRef.current?.contains(activeElement)) {
+        if (activeElement.tagName === 'TEXTAREA') {
+          scrollDiaryTextCardIntoView();
+        } else {
+          scrollComposerTargetIntoView(activeElement);
+        }
+      }
+    };
+
+    updateComposerViewport();
+    visualViewport?.addEventListener('resize', updateComposerViewport);
+    window.addEventListener('resize', updateComposerViewport);
+
+    return () => {
+      visualViewport?.removeEventListener('resize', updateComposerViewport);
+      window.removeEventListener('resize', updateComposerViewport);
+    };
+  }, [composerOpen, scrollComposerTargetIntoView, scrollDiaryTextCardIntoView]);
+
+  useEffect(() => {
+    if (!composerOpen) return;
+    const activeElement = document.activeElement;
+    if (activeElement && composerScrollRef.current?.contains(activeElement)) {
+      if (activeElement.tagName === 'TEXTAREA') {
+        scrollDiaryTextCardIntoView();
+      } else {
+        scrollComposerTargetIntoView(activeElement);
+      }
+    }
+  }, [composerOpen, textInput, titleInput, composerViewport.keyboardInset, scrollComposerTargetIntoView, scrollDiaryTextCardIntoView]);
 
   // Gallery Scroll Observer & Indicator Logic
   useEffect(() => {
@@ -606,6 +724,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
 
   const handleTextInputChange = (event) => {
     setTextInput(limitText(event.target.value, DIARY_TEXT_MAX_LENGTH));
+    scrollDiaryTextCardIntoView();
   };
 
   const toggleRecordText = (recordId) => {
@@ -658,7 +777,28 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const displayTime = timeInput ? getFormattedTime(timeInput) : '';
     const diaryId = editingRecordId || createClientDiaryId();
     const existingRecord = editingRecordId ? records.find(record => record.id === editingRecordId) : null;
+    const selectedImageSources = selectedImages.map(toSafeString).filter(Boolean);
+    const fallbackImagePaths = selectedImageSources.map(getDiaryStoragePath).filter(Boolean);
+    const fallbackRecord = {
+      ...(existingRecord || {}),
+      id: diaryId,
+      child: existingRecord?.child || '아이1',
+      title: safeTitle,
+      text: safeText,
+      mood: selectedMood,
+      date: displayDate,
+      isoDate: dateInput,
+      time: displayTime,
+      hasMedia: selectedImageSources.length > 0,
+      imageUrl: selectedImageSources.length > 0 ? selectedImageSources[0] : null,
+      imageUrls: selectedImageSources,
+      imagePaths: fallbackImagePaths,
+      linked: existingRecord?.linked || '',
+      reactions: existingRecord?.reactions || [],
+      comments: existingRecord?.comments || []
+    };
     let uploadedPaths = [];
+    let storePersistStarted = false;
 
     setIsSavingRecord(true);
     try {
@@ -666,75 +806,95 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
         imagePaths,
         displayImages,
         uploadedPaths: nextUploadedPaths
-      } = await uploadDiaryImagesToStorage({
-        client: session && currentFamilyId ? supabase : null,
-        images: selectedImages,
-        familyId: currentFamilyId,
-        diaryId
-      });
+      } = await withDiaryOperationTimeout(
+        uploadDiaryImagesToStorage({
+          client: session && currentFamilyId ? supabase : null,
+          images: selectedImageSources,
+          familyId: currentFamilyId,
+          diaryId
+        }),
+        DIARY_SAVE_OPERATION_TIMEOUT_MS,
+        '다이어리 사진 저장 시간이 초과되었습니다.'
+      );
 
       uploadedPaths = nextUploadedPaths;
 
       const nextRecord = {
-        ...(existingRecord || {}),
-        id: diaryId,
-        child: existingRecord?.child || '아이1',
-        title: safeTitle,
-        text: safeText,
-        mood: selectedMood,
-        date: displayDate,
-        isoDate: dateInput,
-        time: displayTime,
+        ...fallbackRecord,
         hasMedia: displayImages.length > 0,
         imageUrl: displayImages.length > 0 ? displayImages[0] : null,
         imageUrls: displayImages,
-        imagePaths,
-        linked: existingRecord?.linked || '',
-        reactions: existingRecord?.reactions || [],
-        comments: existingRecord?.comments || []
+        imagePaths
       };
 
+      storePersistStarted = true;
       if (editingRecordId) {
-        await updateDiary(nextRecord);
+        await withDiaryOperationTimeout(
+          updateDiary(nextRecord),
+          DIARY_SAVE_OPERATION_TIMEOUT_MS,
+          '다이어리 수정 저장 시간이 초과되었습니다.'
+        );
       } else {
-        await addDiary(nextRecord);
+        await withDiaryOperationTimeout(
+          addDiary(nextRecord),
+          DIARY_SAVE_OPERATION_TIMEOUT_MS,
+          '다이어리 저장 시간이 초과되었습니다.'
+        );
       }
 
       if (editingRecordId && supabase && session && currentFamilyId) {
         const removedPaths = getRecordImagePaths(existingRecord).filter(path => !imagePaths.includes(path));
-        await removeDiaryImagesFromStorage({ client: supabase, paths: removedPaths });
+        removeDiaryImagesFromStorage({ client: supabase, paths: removedPaths }).catch((cleanupError) => {
+          console.warn('Removed diary images could not be cleaned after save:', cleanupError);
+        });
       }
 
       setComposerOpen(false);
       setSelectedImages([]);
     } catch (error) {
-      await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths });
+      await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
+        console.warn('Uploaded diary images could not be cleaned after failed save:', cleanupError);
+      });
+      if (!storePersistStarted) {
+        saveDiaryLocalFallback(
+          fallbackRecord,
+          editingRecordId ? 'diary:update' : 'diary:add',
+          error
+        );
+      }
       console.error('Diary save failed:', error);
-      alert('다이어리 저장에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+      alert('클라우드 저장이 지연되어 다이어리를 이 기기에 임시 저장했습니다. 연결이 안정되면 가족 공유 설정에서 로컬 대기 항목을 다시 저장해주세요.');
+      setComposerOpen(false);
+      setSelectedImages([]);
     } finally {
       setIsSavingRecord(false);
     }
   };
 
   const handleDeleteRecord = (id) => {
+    if (isDeletingRecord) return;
     setDeleteRecordTargetId(id);
     setActiveMenuId(null);
   };
 
   const confirmDeleteRecord = async () => {
     if (!deleteRecordTargetId || isDeletingRecord) return;
-    const targetRecord = records.find(record => record.id === deleteRecordTargetId);
+    const targetId = deleteRecordTargetId;
+    const targetRecord = records.find(record => record.id === targetId);
+    const imagePaths = getRecordImagePaths(targetRecord);
+
     setIsDeletingRecord(true);
+    setDeleteRecordTargetId(null);
     try {
-      await removeDiary(deleteRecordTargetId);
-      const imagePaths = getRecordImagePaths(targetRecord);
       if (imagePaths.length > 0 && supabase && session && currentFamilyId) {
-        await removeDiaryImagesFromStorage({ client: supabase, paths: imagePaths });
+        removeDiaryImagesFromStorage({ client: supabase, paths: imagePaths }).catch((cleanupError) => {
+          console.warn('Deleted diary images could not be cleaned immediately:', cleanupError);
+        });
       }
-      setDeleteRecordTargetId(null);
+      await removeDiary(targetId);
     } catch (error) {
       console.error('Diary delete failed:', error);
-      alert('기록 삭제에 실패했습니다.');
+      alert('삭제 요청 처리 중 문제가 발생했습니다. 화면에서는 제거했으며, 클라우드 삭제가 필요한 경우 로컬 대기열에서 다시 시도됩니다.');
     } finally {
       setIsDeletingRecord(false);
     }
@@ -1272,6 +1432,17 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     });
   }, [galleryPhotos, viewingPhoto]);
 
+  const composerModalStyle = useMemo(() => {
+    if (!composerOpen || composerViewport.height <= 0 || composerViewport.keyboardInset < 120) {
+      return undefined;
+    }
+
+    return {
+      bottom: 'auto',
+      height: `${composerViewport.height}px`
+    };
+  }, [composerOpen, composerViewport.height, composerViewport.keyboardInset]);
+
   const renderGalleryPage = () => {
     const activeVisibleMonth = visibleMonth || galleryData[0]?.month || '';
 
@@ -1434,13 +1605,18 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const renderComposerModal = () => (
     <AnimatePresence>
       {composerOpen && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="fixed inset-0 max-w-[420px] mx-auto left-0 right-0 z-[100] bg-background flex flex-col border-x-[3px] border-navy shadow-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          style={composerModalStyle}
+          className="fixed inset-0 left-0 right-0 z-[100] mx-auto flex max-w-[420px] flex-col border-x-[3px] border-navy bg-background shadow-2xl"
+        >
           <div className="bg-navy px-4 py-3 flex items-center justify-between shrink-0 shadow-md">
             <button
-              onClick={() => !isSavingRecord && setComposerOpen(false)}
-              disabled={isSavingRecord}
+              onClick={() => setComposerOpen(false)}
               aria-label="다이어리 작성 닫기"
-              className="p-2 -ml-2 text-white/70 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="p-2 -ml-2 text-white/70 hover:text-white"
             >
               <X size={20} />
             </button>
@@ -1458,7 +1634,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             </button>
           </div>
 
-          <div style={HIDDEN_SCROLLBAR_STYLE} className="flex-1 overflow-y-auto p-4 space-y-5 no-scrollbar [&::-webkit-scrollbar]:hidden">
+          <div
+            ref={composerScrollRef}
+            style={{
+              ...HIDDEN_SCROLLBAR_STYLE,
+              paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))'
+            }}
+            className="flex-1 overflow-y-auto px-4 pt-4 space-y-5 overscroll-contain no-scrollbar [&::-webkit-scrollbar]:hidden"
+          >
             <div className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
               <p className="text-[12px] font-bold text-navy/60 mb-3 border-b border-navy/10 pb-2">오늘의 기분은?</p>
               <div className="grid grid-cols-9 gap-0.5 px-0">
@@ -1498,13 +1681,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               />
             </div>
 
-            <div className="space-y-3 bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
+            <div ref={diaryTextCardRef} className="space-y-3 bg-white p-4 rounded-2xl border border-navy/5 shadow-md">
               <div className="flex items-center gap-3">
                 <input
                   type="text"
                   value={titleInput}
                   maxLength={DIARY_TITLE_MAX_LENGTH}
                   onChange={handleTitleInputChange}
+                  onFocus={() => scrollComposerTargetIntoView(diaryTextCardRef.current)}
                   placeholder="제목을 입력하세요"
                   className="min-w-0 flex-1 bg-transparent font-bold text-[18px] text-navy outline-none placeholder:text-navy/30"
                 />
@@ -1518,8 +1702,10 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 value={textInput}
                 maxLength={DIARY_TEXT_MAX_LENGTH}
                 onChange={handleTextInputChange}
+                onFocus={scrollDiaryTextCardIntoView}
+                onClick={scrollDiaryTextCardIntoView}
                 placeholder="오늘 있었던 일, 기억하고 싶은 순간, 혹은 아이에게 하고 싶은 말을 자유롭게 남겨주세요"
-                className="w-full bg-transparent text-[15px] font-medium text-navy/80 outline-none placeholder:text-navy/30 resize-none leading-relaxed"
+                className="diary-composer-textarea w-full scroll-mb-32 bg-transparent text-[15px] font-medium leading-relaxed text-navy/80 outline-none placeholder:text-navy/30 resize-none"
               />
               <div className="flex justify-end text-[10px] font-bold text-navy/35">
                 {textInput.length}/{DIARY_TEXT_MAX_LENGTH}

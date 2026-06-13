@@ -35,7 +35,6 @@ public class MainActivity extends BridgeActivity {
         }
 
         disableWebViewDarkening();
-
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
