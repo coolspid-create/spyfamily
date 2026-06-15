@@ -1,6 +1,181 @@
 # Codex Integration Log
 
 Latest integration:
+2026-06-16 - Prepare 1.2.4 production AAB
+
+Source handoff:
+Direct user request in Codex to create the 1.2.4 AAB, prepare release notes, and push the release changes.
+
+Applied:
+- Updated package metadata to `1.2.4`.
+- Updated Android release metadata to `versionCode 22` / `versionName 1.2.4`.
+- Added Korean Play Store release notes for the diary sync stabilization release.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.4-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.4-release.aab`
+- AAB size: `3928784` bytes
+- SHA-256: `86FC558BDCE40E92A2C41BC8206B593F2E368725DDA63AE3494B070361BCF6F3`
+- Release notes: `play-store/release-notes-1.2.4-ko-KR.txt`
+
+Remaining risks:
+- Real Android family-account save with mobile network timing should still be retested on-device because the local browser cannot fully reproduce WebView and Storage latency.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `app/package.json`
+- `app/package-lock.json`
+- `app/android/app/build.gradle`
+- `app/src/store/useStore.js`
+- `app/src/components/Login.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `artifacts/aab/FamilyScheduler-1.2.4-release.aab`
+- `play-store/release-notes-1.2.4-ko-KR.txt`
+- `play-store/releases/production-1.2.4.md`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-16 - Stabilize diary local pending and Supabase refresh merge
+
+Source handoff:
+Direct user report in Codex with Android screenshots showing newly saved family diary records disappearing after save, older records reappearing later, unclear local pending copy, and some diary photos rendering as placeholders.
+
+Findings:
+- The diary composer now closes immediately by saving an optimistic local/family-cache record while Supabase photo upload and DB persistence run in the background.
+- A successful `fetchDiariesFromDB()` still replaced the whole diary list with only the current server response, so a new record that was still uploading or queued for retry could disappear until a later cloud refresh.
+- Pending retry mutations could also accumulate duplicate diary save entries for the same local record identity.
+- The account modal used the internal term `로컬 대기 항목`, which did not explain that the app was holding failed or unfinished cloud writes for retry.
+
+Applied:
+- Added diary sync state tracking for optimistic family diary records and merged pending local diary records into cloud refresh results instead of dropping them.
+- Reconciled pending diary mutations after a cloud fetch, clearing save/delete retries that are already reflected in Supabase.
+- Deduped pending diary mutations by local record identity so repeated save failures do not inflate the retry count.
+- Committed successful cloud add/update records back into local state before the follow-up refresh so pending markers are removed once Supabase accepts the write.
+- Renamed user-facing pending copy to `클라우드 재저장 대기` and clarified that it means photo upload or server save did not finish yet.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+- Read-only Supabase check via `@supabase/supabase-js`: `diary` select ok, 5 diary rows counted, `diary-photos` bucket private.
+- Read-only Supabase Storage check: 7 sampled `image_paths` objects existed, 0 missing.
+- In-app browser check on `http://127.0.0.1:5175/diary`: page title loaded, diary/timeline content present, console error count 0.
+
+Remaining risks:
+- Existing Android installs may already have old pending entries in local storage; the updated fetch/retry reconciliation should clean up entries once matching cloud rows are visible.
+- Real Android family-account save with mobile network timing should still be retested on-device because the local browser cannot fully reproduce WebView and Storage latency.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/Login.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Rebuild 1.2.3 release AAB after diary storage separation
+
+Source handoff:
+Direct user request in Codex to rebuild the 1.2.3 AAB before the 1.2.3 update is submitted.
+
+Applied:
+- Confirmed app package version remains `1.2.3`.
+- Confirmed Android release metadata remains `versionCode 21` / `versionName 1.2.3`.
+- Rebuilt the production web bundle after the diary local/family-share storage separation fix.
+- Synced the rebuilt web assets into the Android Capacitor project.
+- Rebuilt the signed release App Bundle and replaced `artifacts/aab/FamilyScheduler-1.2.3-release.aab`.
+
+Verification:
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `Get-FileHash artifacts/aab/FamilyScheduler-1.2.3-release.aab -Algorithm SHA256`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.3-release.aab`
+- AAB size: `3928020` bytes
+- SHA-256: `C25B24E386711EABB6E64C71607CC6AE37650B92E196E49CAE502E9FE3B847D3`
+
+Remaining risks:
+- `bundletool` was not available locally, so manifest-level dump verification was not run.
+- Gradle still reports existing deprecation warnings for future Gradle 9 compatibility.
+
+Files changed:
+- `artifacts/aab/FamilyScheduler-1.2.3-release.aab`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Separate diary local and family-share storage
+
+Source handoff:
+Direct user report in Codex that local mode and family-sharing mode appeared to conflict after the diary save fix.
+
+Findings:
+- The local-first diary save fix used the existing `saveDiaryLocalFallback` action for immediate UI persistence.
+- That action always wrote to `family-diary-records-v1`, so family-sharing diary drafts or failed cloud saves could be treated later as guest local diary data.
+- Cloud diary fetch failures also fell back to guest local diary records when no family diary cache was available, which could show local-mode records inside a family-sharing context.
+
+Applied:
+- Added a mode-aware diary persistence path: local mode writes to `family-diary-records-v1`; family-sharing mode writes to the family-specific `spy_cloudDiaryCache_<familyId>` cache.
+- Added `saveDiaryOptimistic` for immediate composer close behavior without polluting guest local diary storage.
+- Updated cloud failure fallback, update, delete, and comment paths to use the same mode-aware diary persistence.
+- Changed family diary fetch failure fallback to use only the family diary cache, not guest local diary records.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+- Chrome Playwright check on `http://127.0.0.1:5177/diary`: local-mode save wrote 1 record to `family-diary-records-v1`, no cloud diary cache, composer closed, and `저장 중` was not visible.
+- Chrome Playwright store check: with a fake family context, `saveDiaryOptimistic` wrote 0 records to `family-diary-records-v1` and 1 record to `spy_cloudDiaryCache_<familyId>`.
+- Chrome Playwright store check: with a fake family context, `saveDiaryLocalFallback` wrote 0 records to `family-diary-records-v1`, 1 record to family diary cache, and queued 1 `diary:add` pending mutation.
+
+Remaining risks:
+- Existing app installs that already received a polluted local diary entry from an earlier test build cannot be distinguished safely from genuine local diary data without user confirmation.
+- Real Android family-account save with photo upload should still be verified on-device because no Android device was connected for `adb` logs.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
+2026-06-13 - Make diary save local-first
+
+Source handoff:
+Direct user report in Codex with Android screenshot showing the diary composer stuck on `저장 중...`, asking whether the cause is the app or Supabase.
+
+Findings:
+- Read-only Supabase checks succeeded for the configured project: REST endpoint reachable, `diary` table selectable, `diary-photos` bucket exists and is private, and Storage root listing with the service key succeeds.
+- The installed-device log could not be checked because no Android device was connected through `adb`.
+- The app save flow was still waiting for photo upload and cloud DB persistence before closing the composer, so mobile Storage/network delay could keep the UI on `저장 중...` even when Supabase itself was available.
+
+Applied:
+- Changed diary save to persist the record to local state/storage first, close the composer immediately, and then run Supabase photo upload plus diary add/update in the background when a cloud family context is available.
+- Preserved a stable `localId` for new diary records so delayed cloud retries can identify the same local record.
+- Skipped the background cloud path when the app is in local mode, avoiding duplicate local records after the new local-first save.
+- Kept the existing pending mutation fallback for cases where photo upload fails before the store add/update starts.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- Read-only Supabase check via `@supabase/supabase-js`: env present, `diary` select ok, `diary-photos` bucket found and private.
+- Local Chrome Playwright check on `http://127.0.0.1:5177/diary`: created a diary, clicked save, confirmed the composer closed, `저장 중...` was absent, the record appeared, and only one local record was stored.
+
+Remaining risks:
+- The exact Android device log for the screenshot was unavailable without a connected device.
+- Cloud upload failure now leaves the locally saved diary visible and queues retry where possible; actual photo upload success should still be verified on the installed app with a signed-in family account.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-13 - Prepare 1.2.3 release AAB
 
 Source handoff:

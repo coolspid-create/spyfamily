@@ -52,6 +52,7 @@ const FAMILY_ACTION_TIMEOUT_MS = 12000;
 const DIARY_CLOUD_SAVE_TIMEOUT_MS = 18000;
 const DIARY_CLOUD_FETCH_TIMEOUT_MS = 10000;
 const DIARY_CLOUD_DELETE_TIMEOUT_MS = 12000;
+const DIARY_SYNC_STATE_PENDING = 'pending';
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toSafeString = (value, fallback = '') => {
@@ -614,6 +615,7 @@ const normalizeDiaryRecords = (records) => (
         text: toSafeString(comment?.text).slice(0, DIARY_COMMENT_MAX_LENGTH),
         time: formatDiaryCommentTime(comment?.time ?? comment?.created_at)
     }));
+    const syncState = toSafeString(record?.syncState ?? record?.sync_state).trim();
 
     return {
         id: toSafeString(record?.id) || `diary-${isoDate}-${index}`,
@@ -631,7 +633,8 @@ const normalizeDiaryRecords = (records) => (
         imagePaths,
         linked: toSafeString(record?.linked),
         reactions: asArray(record?.reactions).filter(item => typeof item === 'string'),
-        comments
+        comments,
+        ...(syncState ? { syncState } : {})
     };
 });
 
@@ -1267,17 +1270,176 @@ const prepareDiaryImagesForCloud = async ({ record, familyId }) => {
     );
 };
 
-const saveDiaryLocalFallback = ({ set, get, diaryData, mutationType, error }) => {
+const clearDiarySyncState = (record) => {
+    if (!record || typeof record !== 'object') return record;
+    const { syncState, sync_state, ...rest } = record;
+    return rest;
+};
+
+const markDiaryPending = (record) => ({
+    ...record,
+    syncState: DIARY_SYNC_STATE_PENDING
+});
+
+const isPendingDiaryRecord = (record) => (
+    toSafeString(record?.syncState ?? record?.sync_state) === DIARY_SYNC_STATE_PENDING
+);
+
+const isSameDiaryRecordIdentity = (record, nextRecord) => {
+    const nextIds = new Set([nextRecord?.id, nextRecord?.localId].map(toSafeString).filter(Boolean));
+    if (nextIds.size === 0) return false;
+    return [record?.id, record?.localId].map(toSafeString).some(id => nextIds.has(id));
+};
+
+const getDiaryMutationRecord = (mutation) => {
+    if (!['diary:add', 'diary:update'].includes(mutation?.type)) return null;
+    return normalizeDiaryRecords([mutation?.payload?.diaryData])[0] || null;
+};
+
+const getDiaryPendingMutationKey = (mutation) => {
+    if (['diary:add', 'diary:update'].includes(mutation?.type)) {
+        const record = getDiaryMutationRecord(mutation);
+        const key = toSafeString(record?.localId || record?.id);
+        return key ? `diary:record:${key}` : '';
+    }
+
+    if (mutation?.type === 'diary:delete') {
+        const key = toSafeString(mutation?.payload?.diaryId);
+        return key ? `diary:delete:${key}` : '';
+    }
+
+    if (mutation?.type === 'diary:comment:add') {
+        const diaryId = toSafeString(mutation?.payload?.diaryId);
+        const comment = mutation?.payload?.comment || {};
+        const commentKey = toSafeString(comment.id || comment.text);
+        return diaryId && commentKey ? `diary:comment:${diaryId}:${commentKey}` : '';
+    }
+
+    return '';
+};
+
+const appendPendingMutation = (mutations, queuedMutation) => {
+    const mutationKey = getDiaryPendingMutationKey(queuedMutation);
+    if (!mutationKey) return [...mutations, queuedMutation];
+
+    const existingMutation = mutations.find(mutation => getDiaryPendingMutationKey(mutation) === mutationKey);
+    const nextMutation = (
+        existingMutation?.type === 'diary:add' && queuedMutation.type === 'diary:update'
+    )
+        ? { ...queuedMutation, type: 'diary:add' }
+        : queuedMutation;
+
+    return [
+        ...mutations.filter(mutation => getDiaryPendingMutationKey(mutation) !== mutationKey),
+        nextMutation
+    ];
+};
+
+const isDiaryRecordContentSynced = (cloudRecord, pendingRecord) => (
+    createDiaryRecordContentKey(cloudRecord) === createDiaryRecordContentKey(pendingRecord)
+);
+
+const reconcileDiaryPendingMutations = (pendingMutations, cloudRecords) => {
+    const cloudDiaries = normalizeDiaryRecords(cloudRecords);
+
+    return asArray(pendingMutations).filter((mutation) => {
+        if (['diary:add', 'diary:update'].includes(mutation?.type)) {
+            const pendingRecord = getDiaryMutationRecord(mutation);
+            if (!pendingRecord) return false;
+
+            const cloudRecord = cloudDiaries.find(record => isSameDiaryRecordIdentity(record, pendingRecord));
+            if (!cloudRecord) return true;
+            if (mutation.type === 'diary:add') return !isDiaryRecordContentSynced(cloudRecord, pendingRecord);
+            return !isDiaryRecordContentSynced(cloudRecord, pendingRecord);
+        }
+
+        if (mutation?.type === 'diary:delete') {
+            const diaryId = toSafeString(mutation?.payload?.diaryId);
+            return cloudDiaries.some(record => [record.id, record.localId].map(toSafeString).includes(diaryId));
+        }
+
+        return true;
+    });
+};
+
+const mergeCloudDiariesWithLocalPending = (cloudRecords, state) => {
+    const cloudDiaries = dedupeDiaryRecordsByContent(cloudRecords).map(clearDiarySyncState);
+    const queuedPendingDiaries = asArray(state?.pendingMutations)
+        .map(getDiaryMutationRecord)
+        .filter(Boolean)
+        .map(markDiaryPending);
+    const statePendingDiaries = normalizeDiaryRecords(state?.diaries)
+        .filter(isPendingDiaryRecord)
+        .map(markDiaryPending);
+    const pendingDiaries = dedupeDiaryRecordsByContent([
+        ...queuedPendingDiaries,
+        ...statePendingDiaries
+    ]);
+
+    const pendingOverrides = pendingDiaries.filter((pendingRecord) => {
+        const cloudRecord = cloudDiaries.find(record => isSameDiaryRecordIdentity(record, pendingRecord));
+        return cloudRecord && !isDiaryRecordContentSynced(cloudRecord, pendingRecord);
+    });
+    const pendingOnly = pendingDiaries.filter((pendingRecord) => (
+        !cloudDiaries.some(record => isSameDiaryRecordIdentity(record, pendingRecord))
+    ));
+    const mergedCloud = cloudDiaries.map((cloudRecord) => {
+        const pendingRecord = pendingOverrides.find(record => isSameDiaryRecordIdentity(record, cloudRecord));
+        return pendingRecord || cloudRecord;
+    });
+
+    return dedupeDiaryRecordsByContent([
+        ...pendingOnly,
+        ...mergedCloud
+    ]);
+};
+
+const commitDiaryCloudRecord = (set, record) => {
+    const syncedRecord = clearDiarySyncState(normalizeDiaryRecords([record])[0]);
+    if (!syncedRecord) return null;
+
+    set((state) => {
+        const hasExisting = state.diaries.some(existingRecord => isSameDiaryRecordIdentity(existingRecord, syncedRecord));
+        const diaries = hasExisting
+            ? state.diaries.map(existingRecord => (
+                isSameDiaryRecordIdentity(existingRecord, syncedRecord) ? syncedRecord : existingRecord
+            ))
+            : [syncedRecord, ...state.diaries];
+        return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
+    });
+
+    return syncedRecord;
+};
+
+const saveDiaryRecordsForCurrentMode = (state, records) => {
+    const nextRecords = dedupeDiaryRecordsByContent(records);
+    if (state.currentFamilyId) {
+        saveCloudDiaryCache(state.currentFamilyId, nextRecords);
+    } else {
+        saveLocalDiaryRecords(nextRecords);
+    }
+    return nextRecords;
+};
+
+const saveDiaryOptimistic = ({ set, diaryData }) => {
     const nextRecord = normalizeDiaryRecords([diaryData])[0];
 
     set((state) => {
-        const hasExisting = state.diaries.some(record => record.id === nextRecord.id);
+        const recordForState = isCloudReady(state)
+            ? markDiaryPending(nextRecord)
+            : clearDiarySyncState(nextRecord);
+        const hasExisting = state.diaries.some(record => isSameDiaryRecordIdentity(record, nextRecord));
         const nextDiaries = hasExisting
-            ? state.diaries.map(record => record.id === nextRecord.id ? nextRecord : record)
-            : [nextRecord, ...state.diaries];
-        saveLocalDiaryRecords(nextDiaries);
-        return { diaries: nextDiaries };
+            ? state.diaries.map(record => isSameDiaryRecordIdentity(record, nextRecord) ? recordForState : record)
+            : [recordForState, ...state.diaries];
+        return { diaries: saveDiaryRecordsForCurrentMode(state, nextDiaries) };
     });
+
+    return nextRecord;
+};
+
+const saveDiaryLocalFallback = ({ set, get, diaryData, mutationType, error }) => {
+    const nextRecord = saveDiaryOptimistic({ set, diaryData });
 
     if (mutationType) {
         get().queuePendingMutation({
@@ -1689,14 +1851,14 @@ export const useStore = create(persistGuestData((set, get) => ({
             attempts: mutation.attempts || 0,
             lastError: mutation.lastError || null
         };
-        const pendingMutations = [...get().pendingMutations, queuedMutation];
+        const pendingMutations = appendPendingMutation(get().pendingMutations, queuedMutation);
         savePendingMutations(pendingMutations);
         set({
             pendingMutations,
             storageMode: isCloudReady(get()) ? STORAGE_MODE.CLOUD_ERROR : STORAGE_MODE.LOCAL,
             syncStatus: {
                 phase: 'queued',
-                message: '클라우드 저장에 실패해 로컬 대기열에 보관했습니다.',
+                message: '클라우드 저장이 끝나지 않아 이 기기에 재저장 대기 항목으로 보관했습니다.',
                 error: queuedMutation.lastError,
                 backupKey: null
             }
@@ -1705,6 +1867,9 @@ export const useStore = create(persistGuestData((set, get) => ({
     },
     saveDiaryLocalFallback: (diaryData, mutationType = 'diary:add', error = null) => (
         saveDiaryLocalFallback({ set, get, diaryData, mutationType, error })
+    ),
+    saveDiaryOptimistic: (diaryData) => (
+        saveDiaryOptimistic({ set, diaryData })
     ),
     clearPendingMutations: () => {
         savePendingMutations([]);
@@ -1724,7 +1889,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             pendingMutations: [],
             syncStatus: {
                 phase: 'retrying',
-                message: '로컬 대기열을 클라우드로 다시 저장하는 중입니다.',
+                message: '재저장 대기 항목을 클라우드로 다시 저장하는 중입니다.',
                 error: null,
                 backupKey: null
             }
@@ -1814,13 +1979,13 @@ export const useStore = create(persistGuestData((set, get) => ({
             syncStatus: failed.length > 0
                 ? {
                     phase: 'queued',
-                    message: '일부 항목은 아직 로컬 대기열에 남아 있습니다.',
+                    message: '일부 항목은 아직 클라우드 재저장 대기 상태입니다.',
                     error: failed[0]?.lastError || null,
                     backupKey: null
                 }
                 : {
                     phase: 'complete',
-                    message: '로컬 대기열 저장을 완료했습니다.',
+                    message: '클라우드 재저장 대기 항목을 모두 저장했습니다.',
                     error: null,
                     backupKey: null
                 }
@@ -2271,25 +2436,45 @@ export const useStore = create(persistGuestData((set, get) => ({
                 '다이어리 목록 불러오기 시간이 초과되었습니다.'
             );
         } catch (error) {
-            console.warn('Cloud diary fetch failed, falling back to local records:', error);
-            set({ diaries: loadCloudDiaryCache(currentFamilyId) || loadLocalDiaryRecords() });
+            console.warn('Cloud diary fetch failed, falling back to family diary cache:', error);
+            const fallbackDiaries = mergeCloudDiariesWithLocalPending(
+                loadCloudDiaryCache(currentFamilyId) || [],
+                get()
+            );
+            saveCloudDiaryCache(currentFamilyId, fallbackDiaries);
+            set({ diaries: fallbackDiaries });
             return;
         }
 
         const { data, error } = result;
 
         if (error) {
-            console.warn('Cloud diary fetch failed, falling back to local records:', error);
-            set({ diaries: loadCloudDiaryCache(currentFamilyId) || loadLocalDiaryRecords() });
+            console.warn('Cloud diary fetch failed, falling back to family diary cache:', error);
+            const fallbackDiaries = mergeCloudDiariesWithLocalPending(
+                loadCloudDiaryCache(currentFamilyId) || [],
+                get()
+            );
+            saveCloudDiaryCache(currentFamilyId, fallbackDiaries);
+            set({ diaries: fallbackDiaries });
             return;
         }
 
-        const normalizedDiaries = dedupeRowsByContent(
+        const cloudDiaries = dedupeRowsByContent(
             normalizeDiaryRecords(data),
             createDiaryRecordContentKey
         );
+        const pendingMutations = reconcileDiaryPendingMutations(get().pendingMutations, cloudDiaries);
+        const normalizedDiaries = mergeCloudDiariesWithLocalPending(
+            cloudDiaries,
+            { ...get(), pendingMutations }
+        );
         saveCloudDiaryCache(currentFamilyId, normalizedDiaries);
-        set({ diaries: normalizedDiaries });
+        savePendingMutations(pendingMutations);
+        set({
+            diaries: normalizedDiaries,
+            pendingMutations,
+            ...(pendingMutations.length === 0 ? { storageMode: STORAGE_MODE.CLOUD } : {})
+        });
     },
     syncLocalDiariesToCloud: async () => {
         const { session, currentFamilyId } = get();
@@ -2370,9 +2555,12 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         if (!session || !currentFamilyId || !supabase) {
             set((state) => {
-                const diaries = [nextLocal, ...state.diaries];
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
+                const localRecord = clearDiarySyncState(nextLocal);
+                const hasExisting = state.diaries.some(record => isSameDiaryRecordIdentity(record, localRecord));
+                const diaries = hasExisting
+                    ? state.diaries.map(record => isSameDiaryRecordIdentity(record, localRecord) ? localRecord : record)
+                    : [localRecord, ...state.diaries];
+                return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
             });
             return nextLocal;
         }
@@ -2434,6 +2622,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             throw error;
         }
 
+        commitDiaryCloudRecord(set, data || nextLocal);
         await withRejectingTimeout(
             get().fetchDiariesFromDB(),
             DIARY_CLOUD_FETCH_TIMEOUT_MS,
@@ -2449,9 +2638,11 @@ export const useStore = create(persistGuestData((set, get) => ({
 
         if (!session || !currentFamilyId || !supabase || !isUuid(nextRecord.id)) {
             set((state) => {
-                const diaries = state.diaries.map(record => record.id === nextRecord.id ? nextRecord : record);
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
+                const localRecord = clearDiarySyncState(nextRecord);
+                const diaries = state.diaries.map(record => (
+                    isSameDiaryRecordIdentity(record, localRecord) ? localRecord : record
+                ));
+                return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
             });
             return nextRecord;
         }
@@ -2507,6 +2698,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             }
             throw error;
         }
+        commitDiaryCloudRecord(set, nextRecord);
         await withRejectingTimeout(
             get().fetchDiariesFromDB(),
             DIARY_CLOUD_FETCH_TIMEOUT_MS,
@@ -2523,11 +2715,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         set((state) => {
             removedRecord = state.diaries.find(record => record.id === diaryId) || null;
             const diaries = state.diaries.filter(record => record.id !== diaryId);
-            saveLocalDiaryRecords(diaries);
-            if (currentFamilyId) {
-                saveCloudDiaryCache(currentFamilyId, diaries);
-            }
-            return { diaries };
+            return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
         });
 
         if (!session || !currentFamilyId || !supabase || !isUuid(diaryId)) {
@@ -2588,8 +2776,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                         ? { ...record, comments: [...(record.comments || []), safeComment] }
                         : record
                 ));
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
+                return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
             });
             return;
         }
@@ -2611,8 +2798,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                         ? { ...record, comments: [...(record.comments || []), safeComment] }
                         : record
                 ));
-                saveLocalDiaryRecords(diaries);
-                return { diaries };
+                return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
             });
             get().queuePendingMutation({
                 type: 'diary:comment:add',

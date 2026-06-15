@@ -431,6 +431,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
   const addDiary = useStore(state => state.addDiary);
   const updateDiary = useStore(state => state.updateDiary);
+  const saveDiaryOptimistic = useStore(state => state.saveDiaryOptimistic);
   const saveDiaryLocalFallback = useStore(state => state.saveDiaryLocalFallback);
   const removeDiary = useStore(state => state.removeDiary);
   const addDiaryComment = useStore(state => state.addDiaryComment);
@@ -782,6 +783,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const fallbackRecord = {
       ...(existingRecord || {}),
       id: diaryId,
+      localId: existingRecord?.localId || diaryId,
       child: existingRecord?.child || '아이1',
       title: safeTitle,
       text: safeText,
@@ -797,78 +799,89 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       reactions: existingRecord?.reactions || [],
       comments: existingRecord?.comments || []
     };
-    let uploadedPaths = [];
-    let storePersistStarted = false;
+    const wasEditingRecord = Boolean(editingRecordId);
+    const mutationType = wasEditingRecord ? 'diary:update' : 'diary:add';
 
     setIsSavingRecord(true);
     try {
-      const {
-        imagePaths,
-        displayImages,
-        uploadedPaths: nextUploadedPaths
-      } = await withDiaryOperationTimeout(
-        uploadDiaryImagesToStorage({
-          client: session && currentFamilyId ? supabase : null,
-          images: selectedImageSources,
-          familyId: currentFamilyId,
-          diaryId
-        }),
-        DIARY_SAVE_OPERATION_TIMEOUT_MS,
-        '다이어리 사진 저장 시간이 초과되었습니다.'
-      );
-
-      uploadedPaths = nextUploadedPaths;
-
-      const nextRecord = {
-        ...fallbackRecord,
-        hasMedia: displayImages.length > 0,
-        imageUrl: displayImages.length > 0 ? displayImages[0] : null,
-        imageUrls: displayImages,
-        imagePaths
-      };
-
-      storePersistStarted = true;
-      if (editingRecordId) {
-        await withDiaryOperationTimeout(
-          updateDiary(nextRecord),
-          DIARY_SAVE_OPERATION_TIMEOUT_MS,
-          '다이어리 수정 저장 시간이 초과되었습니다.'
-        );
-      } else {
-        await withDiaryOperationTimeout(
-          addDiary(nextRecord),
-          DIARY_SAVE_OPERATION_TIMEOUT_MS,
-          '다이어리 저장 시간이 초과되었습니다.'
-        );
-      }
-
-      if (editingRecordId && supabase && session && currentFamilyId) {
-        const removedPaths = getRecordImagePaths(existingRecord).filter(path => !imagePaths.includes(path));
-        removeDiaryImagesFromStorage({ client: supabase, paths: removedPaths }).catch((cleanupError) => {
-          console.warn('Removed diary images could not be cleaned after save:', cleanupError);
-        });
-      }
-
-      setComposerOpen(false);
-      setSelectedImages([]);
-    } catch (error) {
-      await removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
-        console.warn('Uploaded diary images could not be cleaned after failed save:', cleanupError);
-      });
-      if (!storePersistStarted) {
-        saveDiaryLocalFallback(
-          fallbackRecord,
-          editingRecordId ? 'diary:update' : 'diary:add',
-          error
-        );
-      }
-      console.error('Diary save failed:', error);
-      alert('클라우드 저장이 지연되어 다이어리를 이 기기에 임시 저장했습니다. 연결이 안정되면 가족 공유 설정에서 로컬 대기 항목을 다시 저장해주세요.');
+      saveDiaryOptimistic(fallbackRecord);
       setComposerOpen(false);
       setSelectedImages([]);
     } finally {
       setIsSavingRecord(false);
     }
+
+    if (!session || !currentFamilyId || !supabase) return;
+
+    window.setTimeout(() => {
+      let uploadedPaths = [];
+      let storePersistStarted = false;
+
+      const persistRecordToCloud = async () => {
+        try {
+          const {
+            imagePaths,
+            displayImages,
+            uploadedPaths: nextUploadedPaths
+          } = await withDiaryOperationTimeout(
+            uploadDiaryImagesToStorage({
+              client: supabase,
+              images: selectedImageSources,
+              familyId: currentFamilyId,
+              diaryId
+            }),
+            DIARY_SAVE_OPERATION_TIMEOUT_MS,
+            '다이어리 사진 저장 시간이 초과되었습니다.'
+          );
+
+          uploadedPaths = nextUploadedPaths;
+
+          const nextRecord = {
+            ...fallbackRecord,
+            hasMedia: displayImages.length > 0,
+            imageUrl: displayImages.length > 0 ? displayImages[0] : null,
+            imageUrls: displayImages,
+            imagePaths
+          };
+
+          storePersistStarted = true;
+          if (wasEditingRecord) {
+            await withDiaryOperationTimeout(
+              updateDiary(nextRecord),
+              DIARY_SAVE_OPERATION_TIMEOUT_MS,
+              '다이어리 수정 저장 시간이 초과되었습니다.'
+            );
+          } else {
+            await withDiaryOperationTimeout(
+              addDiary(nextRecord),
+              DIARY_SAVE_OPERATION_TIMEOUT_MS,
+              '다이어리 저장 시간이 초과되었습니다.'
+            );
+          }
+
+          if (wasEditingRecord && supabase && session && currentFamilyId) {
+            const removedPaths = getRecordImagePaths(existingRecord).filter(path => !imagePaths.includes(path));
+            removeDiaryImagesFromStorage({ client: supabase, paths: removedPaths }).catch((cleanupError) => {
+              console.warn('Removed diary images could not be cleaned after save:', cleanupError);
+            });
+          }
+        } catch (error) {
+          removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
+            console.warn('Uploaded diary images could not be cleaned after failed save:', cleanupError);
+          });
+          if (!storePersistStarted) {
+            saveDiaryLocalFallback(
+              fallbackRecord,
+              mutationType,
+              error
+            );
+          }
+          console.error('Diary save failed:', error);
+        }
+      };
+
+      void persistRecordToCloud();
+    }, 0);
   };
 
   const handleDeleteRecord = (id) => {
@@ -894,7 +907,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       await removeDiary(targetId);
     } catch (error) {
       console.error('Diary delete failed:', error);
-      alert('삭제 요청 처리 중 문제가 발생했습니다. 화면에서는 제거했으며, 클라우드 삭제가 필요한 경우 로컬 대기열에서 다시 시도됩니다.');
+      alert('삭제 요청 처리 중 문제가 발생했습니다. 화면에서는 제거했으며, 클라우드 삭제가 필요한 경우 재저장 대기 항목으로 보관됩니다.');
     } finally {
       setIsDeletingRecord(false);
     }

@@ -253,7 +253,7 @@ export default function Login({ onClose }) {
             }
             await fetchDataFromDB();
             await fetchDiariesFromDB();
-            setStatusMsg('로컬 대기 항목을 클라우드에 다시 저장했습니다.');
+            setStatusMsg('클라우드 재저장 대기 항목을 다시 저장했습니다.');
         } finally {
             setIsRetryingPending(false);
         }
@@ -468,10 +468,10 @@ export default function Login({ onClose }) {
                             {pendingMutations.length > 0 && (
                                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
                                     <p className="text-[12px] font-black text-amber-700">
-                                        로컬 대기 항목 {pendingMutations.length}개
+                                        클라우드 재저장 대기 {pendingMutations.length}개
                                     </p>
                                     <p className="mt-1 text-[10px] font-bold leading-relaxed text-amber-700/70">
-                                        네트워크 또는 서버 저장 실패로 일부 변경사항을 이 기기에 보관 중입니다. 연결이 안정적일 때 다시 저장해 주세요.
+                                        사진 업로드나 서버 저장이 끝나지 않은 변경사항을 이 기기에 보관 중입니다. 연결이 안정적일 때 다시 저장해 주세요.
                                     </p>
                                     {syncStatus?.error && (
                                         <p className="mt-2 truncate rounded-lg bg-white/70 px-2 py-1 text-[9px] font-bold text-amber-700/70">
@@ -488,7 +488,7 @@ export default function Login({ onClose }) {
                                         {isRetryingPending && (
                                             <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/45 border-t-white" />
                                         )}
-                                        {isRetryingPending ? '다시 저장 중...' : '로컬 대기 항목 다시 저장'}
+                                        {isRetryingPending ? '다시 저장 중...' : '클라우드에 다시 저장'}
                                     </button>
                                 </div>
                             )}
