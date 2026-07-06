@@ -5,7 +5,7 @@ import PaymentTab from './components/PaymentTab';
 import RouteMapTab from './components/RouteMapTab';
 import SpecialOpsTab from './components/SpecialOpsTab';
 import FamilyDiaryTab from './components/FamilyDiaryTab';
-import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon, ShieldCheck } from 'lucide-react';
+import { Home, CalendarDays, CreditCard, Star, LogOut, ChevronDown, Plus, Edit2, CheckSquare, Coffee, Users, HardDrive, CircleHelp, BookOpen, Image as ImageIcon, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useStore } from './store/useStore';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { CONTENT_POLICY_URL, DATA_DELETE_URL, PRIVACY_POLICY_URL, openExternalPolicyPage } from './lib/policyLinks';
@@ -15,11 +15,15 @@ import { NativeSafeConfirmDialog, NativeSafeTextDialog } from './components/Nati
 
 const FAMILY_SHARING_ENABLED = import.meta.env.VITE_ENABLE_FAMILY_SHARING === 'true';
 const AUTH_SPLASH_DELAY_MS = 180;
-const MAIN_TAB_TRANSITION = { duration: 0.15 };
+const APP_PULL_REFRESH_THRESHOLD = 58;
+const APP_PULL_REFRESH_MAX_DISTANCE = 90;
+const APP_TOUCH_PULL_REFRESH_ID = 'app-touch';
+const APP_REFRESH_TIMEOUT_MS = 12000;
+const MAIN_TAB_TRANSITION = { duration: 0 };
 const MAIN_TAB_MOTION = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -10 },
+  initial: false,
+  animate: { opacity: 1 },
+  exit: { opacity: 1 },
   transition: MAIN_TAB_TRANSITION,
 };
 const DIARY_FLOATING_PANEL_MOTION = {
@@ -49,6 +53,21 @@ const PATH_TABS = {
   '/diary': 'diary',
   '/custom-memory': 'diary',
   '/memory-mvp.html': 'diary',
+};
+
+const withAppRefreshTimeout = (operation) => {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => {
+      reject(new Error('새로고침 시간이 초과되었습니다.'));
+    }, APP_REFRESH_TIMEOUT_MS);
+  });
+
+  return Promise.race([Promise.resolve(operation), timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  });
 };
 
 const getTabFromPath = () => {
@@ -108,6 +127,7 @@ function App() {
 
   const childProfiles = useStore(state => state.childProfiles);
   const updateChildName = useStore(state => state.updateChildName);
+  const isAuthChecking = useStore(state => state.isAuthChecking);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showLocalTooltip, setShowLocalTooltip] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
@@ -119,9 +139,17 @@ function App() {
   const [cloudSyncPromptOpen, setCloudSyncPromptOpen] = useState(false);
   const [cloudSyncAction, setCloudSyncAction] = useState(null);
   const [isHeaderSigningOut, setIsHeaderSigningOut] = useState(false);
+  const [isRefreshingCurrentView, setIsRefreshingCurrentView] = useState(false);
+  const [pullRefreshDistance, setPullRefreshDistance] = useState(0);
+  const [isShareAuthOpen, setIsShareAuthOpen] = useState(false);
+  const [showAuthSplash, setShowAuthSplash] = useState(false);
   const isSupportEnabled = import.meta.env.VITE_ENABLE_SUPPORT === 'true';
 
   const localTooltipRef = useRef(null);
+  const shareAuthHistoryMarkerRef = useRef(null);
+  const mainScrollAreaRef = useRef(null);
+  const activeRefreshRef = useRef({ id: 0, tab: activeTab });
+  const pullRefreshStateRef = useRef({ active: false, pointerId: null, startY: 0, dragging: false, distance: 0 });
 
   const maybeOpenCloudSyncPrompt = useCallback(async () => {
     try {
@@ -144,6 +172,206 @@ function App() {
       window.history.pushState({ tab }, '', nextPath);
     }
   }, []);
+
+  const resetPullRefreshState = useCallback(() => {
+    setPullRefreshDistance(0);
+    pullRefreshStateRef.current = {
+      active: false,
+      pointerId: null,
+      startY: 0,
+      dragging: false,
+      distance: 0
+    };
+  }, []);
+
+  const refreshCurrentView = useCallback(async () => {
+    if (isRefreshingCurrentView) return;
+
+    const refreshTab = activeTab;
+    const refreshId = activeRefreshRef.current.id + 1;
+    activeRefreshRef.current = { id: refreshId, tab: refreshTab };
+    setIsRefreshingCurrentView(true);
+    try {
+      const refreshOperation = refreshTab === 'diary'
+        ? fetchDiariesFromDB()
+        : fetchDataFromDB();
+      await withAppRefreshTimeout(refreshOperation);
+    } catch (error) {
+      console.warn('Current view refresh failed:', error);
+    } finally {
+      const isCurrentRefresh = activeRefreshRef.current.id === refreshId && activeRefreshRef.current.tab === refreshTab;
+      if (isCurrentRefresh) {
+        setIsRefreshingCurrentView(false);
+        resetPullRefreshState();
+      }
+    }
+  }, [
+    activeTab,
+    fetchDataFromDB,
+    fetchDiariesFromDB,
+    isRefreshingCurrentView,
+    resetPullRefreshState
+  ]);
+
+  useEffect(() => {
+    activeRefreshRef.current = {
+      id: activeRefreshRef.current.id + 1,
+      tab: activeTab
+    };
+    setIsRefreshingCurrentView(false);
+    resetPullRefreshState();
+  }, [activeTab, resetPullRefreshState]);
+
+  const shouldIgnorePullRefreshTarget = useCallback((target) => {
+    const targetElement = target instanceof Element ? target : target?.parentElement;
+    return Boolean(targetElement?.closest('input, textarea, select, button, a, [role="button"], [data-no-pull-refresh="true"]'));
+  }, []);
+
+  const beginPullRefreshGesture = useCallback(({ clientY, pointerId, target }) => {
+    if (
+      isRefreshingCurrentView ||
+      isShareAuthOpen ||
+      isSupportModalOpen ||
+      childDeleteTargetId ||
+      renameChildTargetId ||
+      cloudSyncPromptOpen
+    ) {
+      return;
+    }
+
+    if (shouldIgnorePullRefreshTarget(target)) {
+      return;
+    }
+
+    const scrollTop = mainScrollAreaRef.current?.scrollTop || 0;
+    if (scrollTop > 2) return;
+
+    pullRefreshStateRef.current = {
+      active: true,
+      pointerId,
+      startY: clientY,
+      dragging: false,
+      distance: 0
+    };
+  }, [
+    childDeleteTargetId,
+    cloudSyncPromptOpen,
+    isRefreshingCurrentView,
+    isShareAuthOpen,
+    isSupportModalOpen,
+    renameChildTargetId,
+    shouldIgnorePullRefreshTarget
+  ]);
+
+  const updatePullRefreshGesture = useCallback(({ clientY, pointerId, preventDefault }) => {
+    const pullState = pullRefreshStateRef.current;
+    if (!pullState.active || pullState.pointerId !== pointerId) return;
+
+    const distanceY = clientY - pullState.startY;
+    if (distanceY <= 0) {
+      pullState.distance = 0;
+      setPullRefreshDistance(0);
+      return;
+    }
+
+    const scrollTop = mainScrollAreaRef.current?.scrollTop || 0;
+    if (scrollTop > 2 && !pullState.dragging) return;
+
+    const nextDistance = Math.min(APP_PULL_REFRESH_MAX_DISTANCE, distanceY * 0.45);
+    pullState.distance = nextDistance;
+    if (nextDistance > 6) {
+      pullState.dragging = true;
+      setPullRefreshDistance(nextDistance);
+      if (preventDefault) preventDefault();
+    }
+  }, []);
+
+  const finishPullRefreshGesture = useCallback((pointerId) => {
+    const pullState = pullRefreshStateRef.current;
+    if (!pullState.active || pullState.pointerId !== pointerId) return;
+
+    const shouldRefresh = pullState.distance >= APP_PULL_REFRESH_THRESHOLD;
+    pullRefreshStateRef.current = {
+      active: false,
+      pointerId: null,
+      startY: 0,
+      dragging: false,
+      distance: 0
+    };
+
+    if (shouldRefresh) {
+      void refreshCurrentView();
+      return;
+    }
+
+    setPullRefreshDistance(0);
+  }, [refreshCurrentView]);
+
+  const handlePullRefreshPointerDown = useCallback((event) => {
+    if (event.pointerType === 'touch') return;
+    beginPullRefreshGesture({
+      clientY: event.clientY,
+      pointerId: event.pointerId,
+      target: event.target
+    });
+  }, [beginPullRefreshGesture]);
+
+  const handlePullRefreshPointerMove = useCallback((event) => {
+    if (event.pointerType === 'touch') return;
+    updatePullRefreshGesture({
+      clientY: event.clientY,
+      pointerId: event.pointerId,
+      preventDefault: () => {
+        if (event.cancelable) event.preventDefault();
+      }
+    });
+  }, [updatePullRefreshGesture]);
+
+  const handlePullRefreshPointerEnd = useCallback((event) => {
+    if (event.pointerType === 'touch') return;
+    finishPullRefreshGesture(event.pointerId);
+  }, [finishPullRefreshGesture]);
+
+  useEffect(() => {
+    const scrollArea = mainScrollAreaRef.current;
+    if (!scrollArea) return undefined;
+
+    const handleTouchStart = (event) => {
+      if (event.touches.length !== 1) return;
+      beginPullRefreshGesture({
+        clientY: event.touches[0].clientY,
+        pointerId: APP_TOUCH_PULL_REFRESH_ID,
+        target: event.target
+      });
+    };
+
+    const handleTouchMove = (event) => {
+      if (event.touches.length !== 1) return;
+      updatePullRefreshGesture({
+        clientY: event.touches[0].clientY,
+        pointerId: APP_TOUCH_PULL_REFRESH_ID,
+        preventDefault: () => {
+          if (event.cancelable) event.preventDefault();
+        }
+      });
+    };
+
+    const handleTouchEnd = () => {
+      finishPullRefreshGesture(APP_TOUCH_PULL_REFRESH_ID);
+    };
+
+    scrollArea.addEventListener('touchstart', handleTouchStart, { passive: true });
+    scrollArea.addEventListener('touchmove', handleTouchMove, { passive: false });
+    scrollArea.addEventListener('touchend', handleTouchEnd);
+    scrollArea.addEventListener('touchcancel', handleTouchEnd);
+
+    return () => {
+      scrollArea.removeEventListener('touchstart', handleTouchStart);
+      scrollArea.removeEventListener('touchmove', handleTouchMove);
+      scrollArea.removeEventListener('touchend', handleTouchEnd);
+      scrollArea.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [beginPullRefreshGesture, finishPullRefreshGesture, updatePullRefreshGesture]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -214,11 +442,6 @@ function App() {
     setCurrentChild(childId);
     setIsDropdownOpen(false);
   };
-
-  const isAuthChecking = useStore(state => state.isAuthChecking);
-  const [isShareAuthOpen, setIsShareAuthOpen] = useState(false);
-  const [showAuthSplash, setShowAuthSplash] = useState(false);
-  const shareAuthHistoryMarkerRef = useRef(null);
 
   const closeShareAuth = useCallback(() => {
     shareAuthHistoryMarkerRef.current = null;
@@ -437,6 +660,8 @@ function App() {
     );
   }
 
+  const pullRefreshReady = pullRefreshDistance >= APP_PULL_REFRESH_THRESHOLD;
+
   return (
     <div className="app-shell mx-auto flex h-[100dvh] min-h-[100dvh] w-full max-w-[420px] flex-col overflow-hidden bg-background shadow-[0_16px_46px_rgba(26,35,126,0.12)] relative">
       {/* PWA Update Notification */}
@@ -469,6 +694,17 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div
+        aria-live="polite"
+        className={`pointer-events-none absolute left-0 right-0 top-[86px] z-[60] flex justify-center transition-opacity duration-150 ${(pullRefreshDistance > 0 || isRefreshingCurrentView) ? 'opacity-100' : 'opacity-0'}`}
+        style={{ transform: `translateY(${Math.max(0, Math.min(34, pullRefreshDistance / 2))}px)` }}
+      >
+        <div className="inline-flex items-center gap-2 rounded-full border border-navy/10 bg-white/95 px-3 py-2 text-[11px] font-black text-navy shadow-md backdrop-blur-md">
+          <RefreshCw size={14} className={isRefreshingCurrentView ? 'animate-spin text-accent-red' : pullRefreshReady ? 'text-accent-red' : 'text-navy/50'} />
+          <span>{isRefreshingCurrentView ? '새로고침 중' : '아래로 당겨 새로고침'}</span>
+        </div>
+      </div>
 
       {/* Header / Dossier Tab */}
       <header className="relative z-50 shrink-0 bg-white/80 backdrop-blur-md pt-2.5 pb-4 px-4 border-b border-navy/5 text-navy shadow-sm">
@@ -644,7 +880,14 @@ function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="app-scroll-area p-3 flex-1 overflow-x-hidden overflow-y-auto pb-24">
+      <main
+        ref={mainScrollAreaRef}
+        onPointerDown={handlePullRefreshPointerDown}
+        onPointerMove={handlePullRefreshPointerMove}
+        onPointerUp={handlePullRefreshPointerEnd}
+        onPointerCancel={handlePullRefreshPointerEnd}
+        className="app-scroll-area p-3 flex-1 overflow-x-hidden overflow-y-auto pb-24"
+      >
         <AnimatePresence initial={false} mode="wait">
           <motion.div key={activeTab} className="min-h-full" {...MAIN_TAB_MOTION}>
             {activeTab === 'home' && <HomeBoard />}

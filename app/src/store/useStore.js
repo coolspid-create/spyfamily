@@ -49,10 +49,12 @@ const FAMILY_CONTEXT_CACHE_KEY = LOCAL_STORAGE_KEYS.FAMILY_CONTEXT;
 const DIARY_COMMENT_MAX_LENGTH = 50;
 const AUTH_SIGN_OUT_TIMEOUT_MS = 2500;
 const FAMILY_ACTION_TIMEOUT_MS = 12000;
-const DIARY_CLOUD_SAVE_TIMEOUT_MS = 18000;
+const DIARY_CLOUD_SAVE_TIMEOUT_MS = 30000;
 const DIARY_CLOUD_FETCH_TIMEOUT_MS = 10000;
 const DIARY_CLOUD_DELETE_TIMEOUT_MS = 12000;
 const DIARY_SYNC_STATE_PENDING = 'pending';
+let diaryFetchRequestSeq = 0;
+let diaryMutationSeq = 0;
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const toSafeString = (value, fallback = '') => {
@@ -84,6 +86,15 @@ const withRejectingTimeout = (promise, timeoutMs, timeoutMessage) => {
     return Promise.race([promise, timeoutPromise]).finally(() => {
         globalThis.clearTimeout(timeoutId);
     });
+};
+const markDiaryMutationBoundary = () => {
+    diaryMutationSeq += 1;
+    return diaryMutationSeq;
+};
+const createDiaryFetchGuard = () => {
+    const requestSeq = ++diaryFetchRequestSeq;
+    const mutationSeqAtStart = diaryMutationSeq;
+    return () => requestSeq === diaryFetchRequestSeq && mutationSeqAtStart === diaryMutationSeq;
 };
 const normalizeMethod = (method, fallback = '신용카드') => {
     const normalized = toSafeString(method, fallback).replace('성남', '지역').trim();
@@ -554,7 +565,9 @@ const dedupeGuestDataByContent = (guestData) => ({
 });
 
 const createDateLabelFromIso = (isoDate) => {
-    const [, month, day] = normalizeDateDashes(isoDate, getLocalDateString()).split('-');
+    const normalizedIsoDate = normalizeDateDashes(isoDate);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedIsoDate)) return '';
+    const [, month, day] = normalizedIsoDate.split('-');
     return `${parseInt(month, 10)}월 ${parseInt(day, 10)}일`;
 };
 
@@ -577,6 +590,64 @@ const normalizeDiaryTime = (value) => {
     return `${ampm} ${hour}:${minute}`;
 };
 
+const getDiaryTimeSortMinutes = (value) => {
+    const raw = toSafeString(value).trim();
+    const koreanMatch = raw.match(/^(오전|오후)\s*(\d{1,2}):(\d{1,2})/);
+    if (koreanMatch) {
+        let hour = Math.min(Math.max(parseInt(koreanMatch[2], 10) || 0, 0), 12);
+        const minute = Math.min(Math.max(parseInt(koreanMatch[3], 10) || 0, 0), 59);
+        if (koreanMatch[1] === '오후' && hour < 12) hour += 12;
+        if (koreanMatch[1] === '오전' && hour === 12) hour = 0;
+        return (hour * 60) + minute;
+    }
+
+    const numericMatch = raw.match(/^(\d{1,2}):(\d{1,2})/);
+    if (!numericMatch) return 0;
+
+    const hour = Math.min(Math.max(parseInt(numericMatch[1], 10) || 0, 0), 23);
+    const minute = Math.min(Math.max(parseInt(numericMatch[2], 10) || 0, 0), 59);
+    return (hour * 60) + minute;
+};
+
+const getDiaryDateSortBase = (isoDate) => {
+    const normalizedIsoDate = normalizeDateDashes(isoDate);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedIsoDate)) return null;
+
+    const [year, month, day] = normalizedIsoDate.split('-').map(part => parseInt(part, 10));
+    const date = new Date(year, month - 1, day);
+    if (
+        date.getFullYear() !== year ||
+        date.getMonth() !== month - 1 ||
+        date.getDate() !== day
+    ) {
+        return null;
+    }
+
+    return Date.UTC(year, month - 1, day);
+};
+
+const getDiaryRecordSortTimestamp = (record) => {
+    const dateBase = getDiaryDateSortBase(record?.isoDate ?? record?.date);
+    if (dateBase === null) return 0;
+    return dateBase + (getDiaryTimeSortMinutes(record?.time) * 60 * 1000);
+};
+
+const getDiaryRecordTieBreakerTimestamp = (record) => (
+    Date.parse(record?.updatedAt || record?.updated_at || record?.createdAt || record?.created_at || '') || 0
+);
+
+const compareDiaryRecordsNewestFirst = (a, b) => {
+    const dateDiff = getDiaryRecordSortTimestamp(b) - getDiaryRecordSortTimestamp(a);
+    if (dateDiff !== 0) return dateDiff;
+
+    const tieBreakerDiff = getDiaryRecordTieBreakerTimestamp(b) - getDiaryRecordTieBreakerTimestamp(a);
+    if (tieBreakerDiff !== 0) return tieBreakerDiff;
+
+    return toSafeString(b?.id || b?.localId).localeCompare(toSafeString(a?.id || a?.localId));
+};
+
+const sortDiaryRecordsNewestFirst = (records) => [...asArray(records)].sort(compareDiaryRecordsNewestFirst);
+
 const formatDiaryCommentTime = (value) => {
     const raw = toSafeString(value).trim();
     if (!raw) return '';
@@ -592,13 +663,33 @@ const formatDiaryCommentTime = (value) => {
     return `${date.getMonth() + 1}월 ${date.getDate()}일 ${ampm} ${hour12}:${minute}`;
 };
 
+const normalizeDiaryChildId = (record) => {
+    const explicitChildId = toSafeString(record?.child_id ?? record?.childId).trim();
+    if (/^child[1-3]$/.test(explicitChildId)) return explicitChildId;
+
+    const childName = toSafeString(record?.child).trim();
+    const defaultChild = Object.entries(DEFAULT_CHILD_PROFILES).find(([, defaultName]) => childName === defaultName);
+    return defaultChild?.[0] || '';
+};
+
+const normalizeDiaryIsoDate = (record) => {
+    const candidates = [
+        record?.isoDate,
+        record?.date
+    ];
+
+    for (const candidate of candidates) {
+        const normalized = normalizeDateDashes(candidate);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+    }
+
+    return createIsoDateFromLabel(record?.date) || '';
+};
+
 const normalizeDiaryRecords = (records) => (
     Array.isArray(records) ? records : []
-).map((record, index) => {
-    const isoDate = normalizeDateDashes(
-        record?.isoDate ?? record?.date,
-        createIsoDateFromLabel(record?.date) || getLocalDateString()
-    );
+).filter(record => record && typeof record === 'object').map((record, index) => {
+    const isoDate = normalizeDiaryIsoDate(record);
     const imagePaths = asArray(record?.image_paths ?? record?.imagePaths)
         .map(getDiaryStoragePath)
         .filter(Boolean);
@@ -616,12 +707,17 @@ const normalizeDiaryRecords = (records) => (
         time: formatDiaryCommentTime(comment?.time ?? comment?.created_at)
     }));
     const syncState = toSafeString(record?.syncState ?? record?.sync_state).trim();
+    const childId = normalizeDiaryChildId(record);
+    const duplicateIds = [...new Set(asArray(record?.duplicateIds ?? record?.duplicate_ids)
+        .map(toSafeString)
+        .filter(Boolean))];
 
     return {
         id: toSafeString(record?.id) || `diary-${isoDate}-${index}`,
         localId: toSafeString(record?.local_id ?? record?.localId),
+        ...(childId ? { childId } : {}),
         child: toSafeString(record?.child, '아이1') || '아이1',
-        date: createDateLabelFromIso(isoDate),
+        date: createDateLabelFromIso(isoDate) || '날짜 미상',
         isoDate,
         time: normalizeDiaryTime(record?.time),
         mood: toSafeString(record?.mood, '😊') || '😊',
@@ -634,13 +730,15 @@ const normalizeDiaryRecords = (records) => (
         linked: toSafeString(record?.linked),
         reactions: asArray(record?.reactions).filter(item => typeof item === 'string'),
         comments,
+        duplicateIds,
+        createdAt: toSafeString(record?.created_at ?? record?.createdAt),
+        updatedAt: toSafeString(record?.updated_at ?? record?.updatedAt),
         ...(syncState ? { syncState } : {})
     };
 });
 
 const createDiaryRecordContentKey = (record) => createContentKey(
     'diary',
-    record?.child,
     record?.isoDate,
     record?.time,
     record?.mood,
@@ -651,9 +749,58 @@ const createDiaryRecordContentKey = (record) => createContentKey(
     asArray(record?.comments).length
 );
 
-const dedupeDiaryRecordsByContent = (records) => (
-    dedupeRowsByContent(normalizeDiaryRecords(records), createDiaryRecordContentKey)
-);
+const createDiaryRecordDeleteContentKey = (record) => {
+    const normalizedRecord = normalizeDiaryRecords([record])[0];
+    if (!normalizedRecord) return '';
+
+    return createContentKey(
+        'diary-delete',
+        normalizedRecord.isoDate,
+        normalizedRecord.time,
+        normalizedRecord.mood,
+        normalizedRecord.title,
+        normalizedRecord.text,
+        asArray(normalizedRecord.imagePaths).join(','),
+        asArray(normalizedRecord.imageUrls).length
+    );
+};
+
+const getDiaryRecordIds = (record) => ([
+    record?.id,
+    record?.localId,
+    ...asArray(record?.duplicateIds ?? record?.duplicate_ids)
+]).map(toSafeString).filter(Boolean);
+
+const mergeDiaryDuplicateRecords = (existing, record) => ({
+    ...existing,
+    syncState: existing?.syncState || record?.syncState,
+    duplicateIds: [...new Set([
+        ...getDiaryRecordIds(existing),
+        ...getDiaryRecordIds(record)
+    ])]
+});
+
+const dedupeDiaryRecordsByContent = (records) => {
+    const mergedRecords = [];
+
+    normalizeDiaryRecords(records).forEach((record) => {
+        const key = createDiaryRecordContentKey(record);
+        const ids = new Set(getDiaryRecordIds(record));
+        const existingIndex = mergedRecords.findIndex(existing => (
+            createDiaryRecordContentKey(existing) === key
+            || getDiaryRecordIds(existing).some(id => ids.has(id))
+        ));
+
+        if (existingIndex === -1) {
+            mergedRecords.push(record);
+            return;
+        }
+
+        mergedRecords[existingIndex] = mergeDiaryDuplicateRecords(mergedRecords[existingIndex], record);
+    });
+
+    return sortDiaryRecordsNewestFirst(mergedRecords);
+};
 
 const loadLocalDiaryRecords = () => {
     try {
@@ -1286,14 +1433,72 @@ const isPendingDiaryRecord = (record) => (
 );
 
 const isSameDiaryRecordIdentity = (record, nextRecord) => {
-    const nextIds = new Set([nextRecord?.id, nextRecord?.localId].map(toSafeString).filter(Boolean));
-    if (nextIds.size === 0) return false;
-    return [record?.id, record?.localId].map(toSafeString).some(id => nextIds.has(id));
+    const normalizedRecord = normalizeDiaryRecords([record])[0];
+    const normalizedNextRecord = normalizeDiaryRecords([nextRecord])[0];
+    if (!normalizedRecord || !normalizedNextRecord) return false;
+
+    const nextIds = new Set(getDiaryRecordIds(normalizedNextRecord));
+    if (nextIds.size > 0 && getDiaryRecordIds(normalizedRecord).some(id => nextIds.has(id))) {
+        return true;
+    }
+
+    return createDiaryRecordContentKey(normalizedRecord) === createDiaryRecordContentKey(normalizedNextRecord);
+};
+
+const isSameDiaryDeleteTarget = (record, nextRecord) => {
+    if (isSameDiaryRecordIdentity(record, nextRecord)) return true;
+
+    const recordKey = createDiaryRecordDeleteContentKey(record);
+    const nextRecordKey = createDiaryRecordDeleteContentKey(nextRecord);
+    return Boolean(recordKey && nextRecordKey && recordKey === nextRecordKey);
 };
 
 const getDiaryMutationRecord = (mutation) => {
     if (!['diary:add', 'diary:update'].includes(mutation?.type)) return null;
     return normalizeDiaryRecords([mutation?.payload?.diaryData])[0] || null;
+};
+
+const getDiaryDeleteMutationRecord = (mutation) => (
+    mutation?.type === 'diary:delete'
+        ? normalizeDiaryRecords([mutation?.payload?.diaryData])[0] || null
+        : null
+);
+
+const getDiaryDeleteMutationIds = (mutation) => new Set([
+    mutation?.payload?.diaryId,
+    ...asArray(mutation?.payload?.diaryIds),
+    ...asArray(mutation?.payload?.diaryLocalIds)
+].map(toSafeString).filter(Boolean));
+
+const isPendingDiaryMutationCancelledByDelete = (mutation, deleteMutation) => {
+    if (deleteMutation?.type !== 'diary:delete') return false;
+
+    const deleteRecord = getDiaryDeleteMutationRecord(deleteMutation);
+    const deleteIds = getDiaryDeleteMutationIds(deleteMutation);
+
+    if (['diary:add', 'diary:update'].includes(mutation?.type)) {
+        const pendingRecord = getDiaryMutationRecord(mutation);
+        if (!pendingRecord) return false;
+        if (deleteRecord && isSameDiaryDeleteTarget(pendingRecord, deleteRecord)) return true;
+        return getDiaryRecordIds(pendingRecord).some(id => deleteIds.has(id));
+    }
+
+    if (mutation?.type === 'diary:comment:add') {
+        return deleteIds.has(toSafeString(mutation?.payload?.diaryId));
+    }
+
+    return false;
+};
+
+const removePendingMutationsCancelledByDeletes = (mutations) => {
+    const pendingMutations = asArray(mutations);
+    const deleteMutations = pendingMutations.filter(mutation => mutation?.type === 'diary:delete');
+    if (deleteMutations.length === 0) return pendingMutations;
+
+    return pendingMutations.filter((mutation) => (
+        mutation?.type === 'diary:delete' ||
+        !deleteMutations.some(deleteMutation => isPendingDiaryMutationCancelledByDelete(mutation, deleteMutation))
+    ));
 };
 
 const getDiaryPendingMutationKey = (mutation) => {
@@ -1304,8 +1509,16 @@ const getDiaryPendingMutationKey = (mutation) => {
     }
 
     if (mutation?.type === 'diary:delete') {
-        const key = toSafeString(mutation?.payload?.diaryId);
-        return key ? `diary:delete:${key}` : '';
+        const record = normalizeDiaryRecords([mutation?.payload?.diaryData])[0];
+        const contentKey = record ? createDiaryRecordDeleteContentKey(record) : '';
+        if (contentKey) return `diary:delete:${contentKey}`;
+
+        const ids = [
+            mutation?.payload?.diaryId,
+            ...asArray(mutation?.payload?.diaryIds),
+            ...asArray(mutation?.payload?.diaryLocalIds)
+        ].map(toSafeString).filter(Boolean).sort();
+        return ids.length > 0 ? `diary:delete:${ids.join(':')}` : '';
     }
 
     if (mutation?.type === 'diary:comment:add') {
@@ -1320,9 +1533,13 @@ const getDiaryPendingMutationKey = (mutation) => {
 
 const appendPendingMutation = (mutations, queuedMutation) => {
     const mutationKey = getDiaryPendingMutationKey(queuedMutation);
-    if (!mutationKey) return [...mutations, queuedMutation];
+    const baseMutations = queuedMutation?.type === 'diary:delete'
+        ? asArray(mutations).filter(mutation => !isPendingDiaryMutationCancelledByDelete(mutation, queuedMutation))
+        : asArray(mutations);
 
-    const existingMutation = mutations.find(mutation => getDiaryPendingMutationKey(mutation) === mutationKey);
+    if (!mutationKey) return [...baseMutations, queuedMutation];
+
+    const existingMutation = baseMutations.find(mutation => getDiaryPendingMutationKey(mutation) === mutationKey);
     const nextMutation = (
         existingMutation?.type === 'diary:add' && queuedMutation.type === 'diary:update'
     )
@@ -1330,7 +1547,7 @@ const appendPendingMutation = (mutations, queuedMutation) => {
         : queuedMutation;
 
     return [
-        ...mutations.filter(mutation => getDiaryPendingMutationKey(mutation) !== mutationKey),
+        ...baseMutations.filter(mutation => getDiaryPendingMutationKey(mutation) !== mutationKey),
         nextMutation
     ];
 };
@@ -1339,10 +1556,27 @@ const isDiaryRecordContentSynced = (cloudRecord, pendingRecord) => (
     createDiaryRecordContentKey(cloudRecord) === createDiaryRecordContentKey(pendingRecord)
 );
 
+const isDiaryDeleteMutationTarget = (mutation, record) => {
+    if (mutation?.type !== 'diary:delete') return false;
+
+    const pendingRecord = normalizeDiaryRecords([mutation?.payload?.diaryData])[0];
+    if (pendingRecord && isSameDiaryDeleteTarget(record, pendingRecord)) return true;
+
+    const deleteIds = new Set([
+        mutation?.payload?.diaryId,
+        ...asArray(mutation?.payload?.diaryIds),
+        ...asArray(mutation?.payload?.diaryLocalIds)
+    ].map(toSafeString).filter(Boolean));
+    if (deleteIds.size === 0) return false;
+
+    return getDiaryRecordIds(record).some(id => deleteIds.has(id));
+};
+
 const reconcileDiaryPendingMutations = (pendingMutations, cloudRecords) => {
     const cloudDiaries = normalizeDiaryRecords(cloudRecords);
+    const prunedPendingMutations = removePendingMutationsCancelledByDeletes(pendingMutations);
 
-    return asArray(pendingMutations).filter((mutation) => {
+    return prunedPendingMutations.filter((mutation) => {
         if (['diary:add', 'diary:update'].includes(mutation?.type)) {
             const pendingRecord = getDiaryMutationRecord(mutation);
             if (!pendingRecord) return false;
@@ -1354,8 +1588,7 @@ const reconcileDiaryPendingMutations = (pendingMutations, cloudRecords) => {
         }
 
         if (mutation?.type === 'diary:delete') {
-            const diaryId = toSafeString(mutation?.payload?.diaryId);
-            return cloudDiaries.some(record => [record.id, record.localId].map(toSafeString).includes(diaryId));
+            return cloudDiaries.some(record => isDiaryDeleteMutationTarget(mutation, record));
         }
 
         return true;
@@ -1363,13 +1596,21 @@ const reconcileDiaryPendingMutations = (pendingMutations, cloudRecords) => {
 };
 
 const mergeCloudDiariesWithLocalPending = (cloudRecords, state) => {
-    const cloudDiaries = dedupeDiaryRecordsByContent(cloudRecords).map(clearDiarySyncState);
+    const pendingDeleteMutations = asArray(state?.pendingMutations).filter(mutation => mutation?.type === 'diary:delete');
+    const isBlockedByPendingDelete = (record) => (
+        pendingDeleteMutations.some(mutation => isDiaryDeleteMutationTarget(mutation, record))
+    );
+    const cloudDiaries = dedupeDiaryRecordsByContent(cloudRecords)
+        .map(clearDiarySyncState)
+        .filter(record => !isBlockedByPendingDelete(record));
     const queuedPendingDiaries = asArray(state?.pendingMutations)
         .map(getDiaryMutationRecord)
         .filter(Boolean)
+        .filter(record => !isBlockedByPendingDelete(record))
         .map(markDiaryPending);
     const statePendingDiaries = normalizeDiaryRecords(state?.diaries)
         .filter(isPendingDiaryRecord)
+        .filter(record => !isBlockedByPendingDelete(record))
         .map(markDiaryPending);
     const pendingDiaries = dedupeDiaryRecordsByContent([
         ...queuedPendingDiaries,
@@ -1394,10 +1635,44 @@ const mergeCloudDiariesWithLocalPending = (cloudRecords, state) => {
     ]);
 };
 
+const findCloudDiaryDeleteTargets = async ({ familyId, targetRecord }) => {
+    const normalizedTarget = normalizeDiaryRecords([targetRecord])[0];
+    if (!supabase || !familyId || !normalizedTarget) return [];
+
+    const title = toSafeString(normalizedTarget.title).trim();
+    if (!title && !normalizedTarget.isoDate && !toSafeString(normalizedTarget.text).trim()) {
+        return [];
+    }
+
+    let query = supabase
+        .from('diary')
+        .select('*, diary_comments(*)')
+        .eq('family_id', familyId);
+
+    if (normalizedTarget.isoDate) {
+        query = query.eq('date', normalizedTarget.isoDate);
+    }
+
+    if (title) {
+        query = query.eq('title', title);
+    }
+
+    const { data, error } = await withRejectingTimeout(
+        query,
+        DIARY_CLOUD_DELETE_TIMEOUT_MS,
+        '다이어리 중복 삭제 대상 확인 시간이 초과되었습니다.'
+    );
+
+    if (error) throw error;
+
+    return normalizeDiaryRecords(data).filter(record => isSameDiaryDeleteTarget(record, normalizedTarget));
+};
+
 const commitDiaryCloudRecord = (set, record) => {
     const syncedRecord = clearDiarySyncState(normalizeDiaryRecords([record])[0]);
     if (!syncedRecord) return null;
 
+    markDiaryMutationBoundary();
     set((state) => {
         const hasExisting = state.diaries.some(existingRecord => isSameDiaryRecordIdentity(existingRecord, syncedRecord));
         const diaries = hasExisting
@@ -1424,6 +1699,7 @@ const saveDiaryRecordsForCurrentMode = (state, records) => {
 const saveDiaryOptimistic = ({ set, diaryData }) => {
     const nextRecord = normalizeDiaryRecords([diaryData])[0];
 
+    markDiaryMutationBoundary();
     set((state) => {
         const recordForState = isCloudReady(state)
             ? markDiaryPending(nextRecord)
@@ -1881,7 +2157,11 @@ export const useStore = create(persistGuestData((set, get) => ({
             return { ok: false, error: '가족 공유 연결 후 다시 시도할 수 있습니다.' };
         }
 
-        const pending = [...state.pendingMutations];
+        const pending = removePendingMutationsCancelledByDeletes(state.pendingMutations);
+        if (pending.length !== asArray(state.pendingMutations).length) {
+            savePendingMutations(pending);
+            set({ pendingMutations: pending });
+        }
         if (pending.length === 0) return { ok: true, retried: 0, failed: 0 };
 
         savePendingMutations([]);
@@ -1903,7 +2183,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 } else if (mutation.type === 'diary:update') {
                     await get().updateDiary(mutation.payload.diaryData, { fromPendingRetry: true });
                 } else if (mutation.type === 'diary:delete') {
-                    await get().removeDiary(mutation.payload.diaryId, { fromPendingRetry: true });
+                    await get().removeDiary(mutation.payload.diaryData || mutation.payload.diaryId, { fromPendingRetry: true });
                 } else if (mutation.type === 'diary:comment:add') {
                     await get().addDiaryComment(mutation.payload.diaryId, mutation.payload.comment);
                 } else if (mutation.type === 'schedule:add') {
@@ -2423,6 +2703,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             return;
         }
 
+        const canApplyFetchResult = createDiaryFetchGuard();
         let result;
         try {
             result = await withRejectingTimeout(
@@ -2436,6 +2717,7 @@ export const useStore = create(persistGuestData((set, get) => ({
                 '다이어리 목록 불러오기 시간이 초과되었습니다.'
             );
         } catch (error) {
+            if (!canApplyFetchResult()) return;
             console.warn('Cloud diary fetch failed, falling back to family diary cache:', error);
             const fallbackDiaries = mergeCloudDiariesWithLocalPending(
                 loadCloudDiaryCache(currentFamilyId) || [],
@@ -2449,6 +2731,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         const { data, error } = result;
 
         if (error) {
+            if (!canApplyFetchResult()) return;
             console.warn('Cloud diary fetch failed, falling back to family diary cache:', error);
             const fallbackDiaries = mergeCloudDiariesWithLocalPending(
                 loadCloudDiaryCache(currentFamilyId) || [],
@@ -2459,10 +2742,8 @@ export const useStore = create(persistGuestData((set, get) => ({
             return;
         }
 
-        const cloudDiaries = dedupeRowsByContent(
-            normalizeDiaryRecords(data),
-            createDiaryRecordContentKey
-        );
+        if (!canApplyFetchResult()) return;
+        const cloudDiaries = dedupeDiaryRecordsByContent(data);
         const pendingMutations = reconcileDiaryPendingMutations(get().pendingMutations, cloudDiaries);
         const normalizedDiaries = mergeCloudDiariesWithLocalPending(
             cloudDiaries,
@@ -2554,6 +2835,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         const nextLocal = normalizeDiaryRecords([diaryData])[0];
 
         if (!session || !currentFamilyId || !supabase) {
+            markDiaryMutationBoundary();
             set((state) => {
                 const localRecord = clearDiarySyncState(nextLocal);
                 const hasExisting = state.diaries.some(record => isSameDiaryRecordIdentity(record, localRecord));
@@ -2637,6 +2919,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         const nextRecord = normalizeDiaryRecords([diaryData])[0];
 
         if (!session || !currentFamilyId || !supabase || !isUuid(nextRecord.id)) {
+            markDiaryMutationBoundary();
             set((state) => {
                 const localRecord = clearDiarySyncState(nextRecord);
                 const diaries = state.diaries.map(record => (
@@ -2708,32 +2991,124 @@ export const useStore = create(persistGuestData((set, get) => ({
         });
         return nextRecord;
     },
-    removeDiary: async (diaryId, options = {}) => {
+    removeDiary: async (diaryTarget, options = {}) => {
         const { session, currentFamilyId } = get();
+        const requestedRecord = typeof diaryTarget === 'object'
+            ? normalizeDiaryRecords([diaryTarget])[0]
+            : null;
+        const requestedId = toSafeString(requestedRecord?.id || diaryTarget);
         let removedRecord = null;
+        let removedRecords = [];
+        let nextPendingMutations = null;
 
+        markDiaryMutationBoundary();
         set((state) => {
-            removedRecord = state.diaries.find(record => record.id === diaryId) || null;
-            const diaries = state.diaries.filter(record => record.id !== diaryId);
-            return { diaries: saveDiaryRecordsForCurrentMode(state, diaries) };
+            const targetRecord = requestedRecord
+                || state.diaries.find(record => getDiaryRecordIds(record).includes(requestedId))
+                || null;
+            removedRecord = targetRecord;
+
+            const shouldRemoveRecord = (record) => (
+                targetRecord
+                    ? isSameDiaryRecordIdentity(record, targetRecord)
+                    : getDiaryRecordIds(record).includes(requestedId)
+            );
+            removedRecords = state.diaries.filter(shouldRemoveRecord);
+            const diaries = state.diaries.filter(record => !shouldRemoveRecord(record));
+            const pendingDeleteMatcher = {
+                type: 'diary:delete',
+                payload: {
+                    diaryId: requestedId,
+                    diaryIds: removedRecords.flatMap(getDiaryRecordIds).filter(isUuid),
+                    diaryLocalIds: [
+                        requestedId,
+                        ...removedRecords.flatMap(getDiaryRecordIds)
+                    ].map(toSafeString).filter(Boolean),
+                    diaryData: targetRecord
+                }
+            };
+            const pendingMutations = asArray(state.pendingMutations)
+                .filter(mutation => !isPendingDiaryMutationCancelledByDelete(mutation, pendingDeleteMatcher));
+            if (pendingMutations.length !== asArray(state.pendingMutations).length) {
+                nextPendingMutations = pendingMutations;
+            }
+
+            return {
+                diaries: saveDiaryRecordsForCurrentMode(state, diaries),
+                ...(nextPendingMutations ? { pendingMutations: nextPendingMutations } : {})
+            };
         });
 
-        if (!session || !currentFamilyId || !supabase || !isUuid(diaryId)) {
+        if (nextPendingMutations) {
+            savePendingMutations(nextPendingMutations);
+        }
+
+        let deleteIds = [...new Set([
+            requestedId,
+            ...getDiaryRecordIds(removedRecord),
+            ...removedRecords.flatMap(getDiaryRecordIds)
+        ].filter(isUuid))];
+        let deleteLocalIds = [...new Set([
+            requestedId,
+            ...getDiaryRecordIds(removedRecord),
+            ...removedRecords.flatMap(getDiaryRecordIds)
+        ].map(toSafeString).filter(Boolean))];
+
+        if (!session || !currentFamilyId || !supabase || (deleteIds.length === 0 && deleteLocalIds.length === 0)) {
             return { ok: true, record: removedRecord };
+        }
+
+        const deleteTargetRecord = removedRecord || requestedRecord;
+        let duplicateLookupError = null;
+
+        if (deleteTargetRecord) {
+            try {
+                const cloudDeleteTargets = await findCloudDiaryDeleteTargets({
+                    familyId: currentFamilyId,
+                    targetRecord: deleteTargetRecord
+                });
+                const cloudTargetIds = cloudDeleteTargets.flatMap(getDiaryRecordIds);
+                deleteIds = [...new Set([
+                    ...deleteIds,
+                    ...cloudTargetIds.filter(isUuid)
+                ])];
+                deleteLocalIds = [...new Set([
+                    ...deleteLocalIds,
+                    ...cloudTargetIds.map(toSafeString).filter(Boolean)
+                ])];
+            } catch (lookupError) {
+                duplicateLookupError = lookupError;
+                console.warn('Cloud diary duplicate delete lookup failed:', lookupError);
+            }
         }
 
         let error = null;
         try {
-            const result = await withRejectingTimeout(
-                supabase
-                    .from('diary')
-                    .delete()
-                    .eq('id', diaryId)
-                    .eq('family_id', currentFamilyId),
-                DIARY_CLOUD_DELETE_TIMEOUT_MS,
-                '다이어리 삭제 시간이 초과되었습니다.'
-            );
-            error = result.error;
+            if (deleteIds.length > 0) {
+                const result = await withRejectingTimeout(
+                    supabase
+                        .from('diary')
+                        .delete()
+                        .eq('family_id', currentFamilyId)
+                        .in('id', deleteIds),
+                    DIARY_CLOUD_DELETE_TIMEOUT_MS,
+                    '다이어리 삭제 시간이 초과되었습니다.'
+                );
+                if (result.error) throw result.error;
+            }
+
+            if (deleteLocalIds.length > 0) {
+                const result = await withRejectingTimeout(
+                    supabase
+                        .from('diary')
+                        .delete()
+                        .eq('family_id', currentFamilyId)
+                        .in('local_id', deleteLocalIds),
+                    DIARY_CLOUD_DELETE_TIMEOUT_MS,
+                    '다이어리 중복 기록 삭제 시간이 초과되었습니다.'
+                );
+                if (result.error) throw result.error;
+            }
         } catch (deleteError) {
             error = deleteError;
         }
@@ -2742,12 +3117,30 @@ export const useStore = create(persistGuestData((set, get) => ({
             if (!isPendingReplay(options)) {
                 get().queuePendingMutation({
                     type: 'diary:delete',
-                    payload: { diaryId },
+                    payload: {
+                        diaryId: requestedId,
+                        diaryIds: deleteIds,
+                        diaryLocalIds: deleteLocalIds,
+                        diaryData: removedRecord
+                    },
                     lastError: getCloudErrorMessage(error)
                 });
                 return { ok: false, queued: true, record: removedRecord, error };
             }
             throw error;
+        }
+
+        if (duplicateLookupError && !isPendingReplay(options)) {
+            get().queuePendingMutation({
+                type: 'diary:delete',
+                payload: {
+                    diaryId: requestedId,
+                    diaryIds: deleteIds,
+                    diaryLocalIds: deleteLocalIds,
+                    diaryData: removedRecord
+                },
+                lastError: getCloudErrorMessage(duplicateLookupError)
+            });
         }
 
         await withRejectingTimeout(
@@ -2758,7 +3151,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             console.warn('Diary deleted, but refresh timed out:', fetchError);
         });
 
-        return { ok: true, record: removedRecord };
+        return { ok: true, queued: Boolean(duplicateLookupError), record: removedRecord };
     },
     addDiaryComment: async (diaryId, comment) => {
         const { session, currentFamilyId } = get();
@@ -2770,6 +3163,7 @@ export const useStore = create(persistGuestData((set, get) => ({
         };
 
         if (!session || !currentFamilyId || !supabase || !isUuid(diaryId)) {
+            markDiaryMutationBoundary();
             set((state) => {
                 const diaries = state.diaries.map(record => (
                     record.id === diaryId
@@ -2792,6 +3186,7 @@ export const useStore = create(persistGuestData((set, get) => ({
             }]);
 
         if (error) {
+            markDiaryMutationBoundary();
             set((state) => {
                 const diaries = state.diaries.map(record => (
                     record.id === diaryId

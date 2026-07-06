@@ -145,14 +145,21 @@ export default function RouteMapTab() {
     const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
     const scrollToDay = (day, year, month) => {
-        const wasCollapsed = !isFundsExpanded || !isEventsExpanded;
-        setIsFundsExpanded(true);
-        setIsEventsExpanded(true);
+        const hasFundMatches = fundMissions.some(mission => Number(mission.day) === day);
+        const hasEventMatches = eventMissions.some(mission => (
+            Number(mission.day) === day &&
+            Number(mission.year) === year &&
+            Number(mission.month) === month
+        ));
+        const needsAccordionChange = isFundsExpanded !== hasFundMatches || isEventsExpanded !== hasEventMatches;
+
+        setIsFundsExpanded(hasFundMatches);
+        setIsEventsExpanded(hasEventMatches);
 
         const doScroll = () => {
             // Collect matching elements: fund missions match by day, event missions match by full date
             const fundElements = document.querySelectorAll(`[data-day="${day}"][data-type="fund"]`);
-            const eventElements = document.querySelectorAll(`[data-day="${day}"][data-year="${year}"][data-month="${month}"]`);
+            const eventElements = document.querySelectorAll(`[data-day="${day}"][data-year="${year}"][data-month="${month}"][data-type="event"]`);
             const allElements = [...fundElements, ...eventElements];
             if (allElements.length > 0) {
                 allElements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -164,7 +171,7 @@ export default function RouteMapTab() {
             }
         };
 
-        if (wasCollapsed) {
+        if (needsAccordionChange) {
             setTimeout(doScroll, 220);
         } else {
             setTimeout(doScroll, 60);
@@ -400,6 +407,7 @@ export default function RouteMapTab() {
                                                 data-day={item.day}
                                                 data-year={item.year}
                                                 data-month={item.month}
+                                                data-type="event"
                                                 {...TAB_LIKE_MOTION}
                                             >
                                                 <div className="bg-white border border-navy/5 rounded-xl p-3.5 flex min-w-0 items-center justify-between gap-2 shadow-sm group">

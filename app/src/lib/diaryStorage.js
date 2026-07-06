@@ -3,9 +3,60 @@ export const DIARY_IMAGE_MAX_DIMENSION = 1000;
 export const DIARY_IMAGE_TARGET_BYTES = 450 * 1024;
 export const DIARY_IMAGE_QUALITY = 0.72;
 export const DIARY_SIGNED_URL_EXPIRES_IN = 1800;
-export const DIARY_STORAGE_OPERATION_TIMEOUT_MS = 15000;
+export const DIARY_STORAGE_OPERATION_TIMEOUT_MS = 30000;
 
+const CACHE_STORAGE_KEY = 'spy_diarySignedUrlCache';
 const signedUrlCache = new Map();
+
+const getPersistentStorage = () => (
+  typeof localStorage === 'undefined' ? null : localStorage
+);
+
+const loadSignedUrlCache = () => {
+  try {
+    const storage = getPersistentStorage();
+    if (!storage) return;
+
+    const saved = storage.getItem(CACHE_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(([key, value]) => {
+          if (value && value.expiresAt > Date.now() + 60000) {
+            signedUrlCache.set(key, value);
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load signed URL cache from localStorage:', error);
+  }
+};
+
+const saveSignedUrlCache = () => {
+  try {
+    const storage = getPersistentStorage();
+    if (!storage) return;
+
+    const activeEntries = [];
+    signedUrlCache.forEach((value, key) => {
+      if (value && value.expiresAt > Date.now() + 60000) {
+        activeEntries.push([key, value]);
+      }
+    });
+    if (activeEntries.length > 0) {
+      storage.setItem(CACHE_STORAGE_KEY, JSON.stringify(activeEntries));
+    } else {
+      storage.removeItem(CACHE_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.warn('Failed to save signed URL cache to localStorage:', error);
+  }
+};
+
+// Initialize cache from localStorage
+loadSignedUrlCache();
+
 let webpSupportPromise = null;
 
 const toSafeString = (value, fallback = '') => {
@@ -298,6 +349,7 @@ export const createDiaryImageSignedUrl = async ({
       url: signedUrl,
       expiresAt: Date.now() + (expiresIn * 1000)
     });
+    saveSignedUrlCache();
   }
   return signedUrl;
 };
@@ -316,4 +368,15 @@ export const getCachedDiaryImageSignedUrl = ({
   }
 
   return '';
+};
+
+export const clearCachedDiaryImageSignedUrl = ({
+  path,
+  expiresIn = DIARY_SIGNED_URL_EXPIRES_IN
+}) => {
+  const storagePath = getDiaryStoragePath(path);
+  if (!storagePath) return;
+
+  signedUrlCache.delete(`${storagePath}:${expiresIn}`);
+  saveSignedUrlCache();
 };

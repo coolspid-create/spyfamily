@@ -1,6 +1,544 @@
 # Codex Integration Log
 
 Latest integration:
+2026-07-06 - Prepare 1.3.0 production AAB
+
+Source handoff:
+Direct user request in Codex to create and push the `1.3.0` Android App Bundle after the pull-to-refresh and diary save feedback stabilization work.
+
+Applied:
+- Updated package metadata to `1.3.0`.
+- Updated Android release metadata to `versionCode 28` / `versionName 1.3.0`.
+- Added Korean Play Store release notes and a production release checklist for version `1.3.0`.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.3.0-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.3.0-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+- `Get-FileHash -Algorithm SHA256 artifacts/aab/FamilyScheduler-1.3.0-release.aab`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.3.0-release.aab`
+- AAB size: `3934257` bytes
+- SHA-256: `613EF9154A15F44086F6BEFDCDF20A02082EE62266617871499707D1A3CE1B7F`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking `flatDir` and Gradle 9 deprecation warnings during release bundling.
+- PWA build output still reports `PWA v1.2.0` from the existing PWA plugin configuration.
+
+Previous integration:
+2026-07-06 - Stabilize pull refresh and diary save feedback
+
+Source handoff:
+Direct user report in Codex that pull-to-refresh sometimes stayed on `새로고침 중`, followed users across tabs, showed too many status labels, and that diary save feedback and diary tab entry animations felt noisy.
+
+Applied:
+- Added a 12-second safety timeout to app-level pull-to-refresh so the refresh indicator cannot remain indefinitely if a database request stalls.
+- Scoped the refresh indicator to the tab where the gesture started; switching tabs now immediately clears the visible refresh state and invalidates the old indicator.
+- Removed the `놓으면 새로고침` label so pull refresh only shows `아래로 당겨 새로고침` before refresh and `새로고침 중` while running.
+- Added the same 12-second timeout and simplified wording to the standalone diary pull-refresh path.
+- Reduced diary save feedback while saving to the single line `다이어리 저장 중입니다.` and kept concise success/error states.
+- Removed the extra embedded diary page animation wrapper and disabled the main tab fade/slide transition to reduce diary tab entry flicker.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+
+Intentionally left out:
+- No Supabase schema, RLS/storage policy, auth, payment, calendar sync, Android version metadata, release notes, or AAB files were changed.
+- Non-diary tabs still use the existing shared `fetchDataFromDB` refresh path because the store does not expose separate per-tab fetch functions for those areas.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+
+Open follow-ups:
+- Install a fresh Android build or AAB before device testing; this change was synced into the Android project but no new AAB was requested or built in this step.
+
+Previous integration:
+2026-07-06 - Prepare 1.2.9 production AAB
+
+Source handoff:
+Direct user request in Codex to create the `1.2.9` Android App Bundle including the diary 5-photo limit, 30-second save timeout, save feedback, Android pull-to-refresh, and gallery month header fixes.
+
+Applied:
+- Updated package metadata to `1.2.9`.
+- Updated Android release metadata to `versionCode 27` / `versionName 1.2.9`.
+- Added Korean Play Store release notes and a production release checklist for version `1.2.9`.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.9-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.2.9-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+- `Get-FileHash -Algorithm SHA256 artifacts/aab/FamilyScheduler-1.2.9-release.aab`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.9-release.aab`
+- AAB size: `3934228` bytes
+- SHA-256: `1F9F1F74D5DFBDACF23552E1EC1581CBCE3CAE7F6515FAF7333995476BBFE843`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking `flatDir` and Gradle 9 deprecation warnings during release bundling.
+- PWA build output still reports `PWA v1.2.0` from the existing PWA plugin configuration.
+
+Previous integration:
+2026-07-06 - Raise diary photo limit and add save feedback
+
+Source handoff:
+Direct user request in Codex to raise the diary photo limit from 3 to 5, increase timeout to 30 seconds, and make save errors clearly visible so users know when a saved record did not reach the cloud.
+
+Applied:
+- Increased the free diary photo limit to 5 while keeping the premium limit at 20.
+- Updated composer photo add/count text to use the shared limit value instead of hard-coded `3`.
+- Increased the diary save operation timeout, store cloud save timeout, and diary Storage operation timeout to 30 seconds.
+- Added diary save feedback states for saving, success, local-only save, and cloud-save failure.
+- On cloud save failure, the UI now shows that the record was kept on this device as a pending re-save item and may not yet appear on other devices.
+- Rebuilt the production web bundle and synced assets into the Android Capacitor project.
+
+Intentionally left out:
+- No Supabase schema, RLS/storage policy, auth, payment, calendar sync, Android version metadata, release notes, or AAB files were changed.
+- No production database mutation or cleanup was run.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/lib/diaryStorage.js`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `git diff --check -- app/src/components/FamilyDiaryTab.jsx app/src/lib/diaryStorage.js app/src/store/useStore.js docs/codex-integration-log.md`
+
+Open follow-ups:
+- Validate on an installed Android build with 5 photos over slow network to confirm the new feedback remains visible long enough.
+- Build a new Android AAB if this change should be distributed through Play Console.
+
+Previous integration:
+2026-07-06 - Fix Android pull-to-refresh and gallery month headers
+
+Source handoff:
+Direct user report in Codex that pull-to-refresh appeared to work on web but not in the installed app, and that gallery month labels such as `2026년 7월` / `2026년 6월` were floating abnormally while scrolling.
+
+Finding:
+- The app-level refresh gesture was implemented with React pointer events only. On Android WebView, vertical scroll gestures can be consumed by the native scroll path before pointer movement remains reliable.
+- The gallery month title used `sticky top-0`, so the month label intentionally stuck to the top of the scroll container. In the integrated app shell this looked like a detached floating strip under the header.
+
+Applied:
+- Added native `touchstart` / `touchmove` / `touchend` listeners on the shared app scroll area with a non-passive `touchmove`, so Android WebView can trigger the same pull-to-refresh flow.
+- Kept desktop/web pointer handling for mouse and non-touch pointer input while routing touch devices through the native touch path.
+- Added overscroll containment and momentum scrolling settings to `.app-scroll-area`.
+- Removed sticky positioning from gallery month headers so they scroll naturally with their photo groups.
+- Rebuilt the production web bundle and synced the updated assets into the Android Capacitor project.
+
+Intentionally left out:
+- No Supabase schema, auth, payment, calendar sync, Android version metadata, or release/AAB file was changed.
+- No production database mutation or cleanup was run.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/index.css`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `git diff --check -- app/src/App.jsx app/src/components/FamilyDiaryTab.jsx app/src/index.css docs/codex-integration-log.md`
+
+Open follow-ups:
+- Validate the pull gesture on a real installed Android build, because browser verification cannot fully reproduce WebView touch dispatch.
+- If this fix needs to be distributed, build a new Android AAB after review.
+
+Previous integration:
+2026-07-04 - Prepare 1.2.8 production AAB
+
+Source handoff:
+Direct user request in Codex to create the `1.2.8` Android App Bundle.
+
+Applied:
+- Updated package metadata to `1.2.8`.
+- Updated Android release metadata to `versionCode 26` / `versionName 1.2.8`.
+- Added Korean Play Store release notes and production release notes for the diary refresh, pull-to-refresh, and monthly schedule accordion update.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.8-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.2.8-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+- `Get-FileHash -Algorithm SHA256 artifacts/aab/FamilyScheduler-1.2.8-release.aab`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.8-release.aab`
+- AAB size: `3932840` bytes
+- SHA-256: `8D8303C672530E2C7440F8450AB4FDA2BDABDBB866E4936B56A16DAF092C10A8`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking `flatDir` and Gradle 9 deprecation warnings during release bundling.
+- PWA build output still reports `PWA v1.2.0` from the existing PWA plugin configuration.
+
+Previous integration:
+2026-07-04 - Scope monthly schedule accordion expansion
+
+Source handoff:
+Direct user report in Codex with screenshot showing that tapping a monthly schedule day expands both the payment and family-event sections even when only one section is relevant.
+
+Applied:
+- Updated the monthly schedule day-click behavior so only matching sections expand: payment items open `결제관리`, family event items open `가족일정`, and days containing both open both.
+- Collapsed the irrelevant section when the selected day only has one item type, keeping the lower list focused on what the user tapped.
+- Added an explicit `data-type="event"` marker to family event rows so scroll/highlight targeting is type-safe.
+
+Intentionally left out:
+- No payment, family-event, Supabase schema, Android packaging, or release file behavior was changed.
+
+Files changed:
+- `app/src/components/RouteMapTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser runtime route check for `/monthly` on `http://127.0.0.1:5175`
+
+Open follow-ups:
+- Build a new Android AAB before validating this behavior in the installed mobile app.
+
+Previous integration:
+2026-07-04 - Add app-wide pull-to-refresh
+
+Source handoff:
+Direct user request in Codex to let the current visible screen update by dragging the screen downward.
+
+Applied:
+- Added app-level pull-to-refresh handling on the shared `.app-scroll-area`, so the active tab can be refreshed by pulling down from the top.
+- Routed refresh behavior by current screen: diary uses `fetchDiariesFromDB()`, while schedule, daily tasks, monthly view, payments, and family screens use `fetchDataFromDB()`.
+- Added a compact refresh indicator with pulling, release threshold, and in-progress states.
+- Disabled the embedded diary component's own pull-to-refresh listener so the app-level refresh does not double-call diary updates.
+- Fixed a runtime initialization-order bug where the pull-to-refresh pointer handler referenced `isShareAuthOpen` before that state hook was declared.
+
+Intentionally left out:
+- No Android release/AAB file was regenerated in this step.
+- No Supabase schema, auth, payment, or calendar sync behavior was changed.
+
+Files changed:
+- `app/src/App.jsx`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+- Browser runtime route check for `/`, `/daily`, `/monthly`, `/payment`, `/family`, and `/diary` on `http://127.0.0.1:5175`
+
+Open follow-ups:
+- Build a new Android AAB before validating this behavior in the installed mobile app.
+
+Previous integration:
+2026-07-03 - Stabilize diary refresh races and add pull-to-refresh
+
+Source handoff:
+Direct user report in Codex with screenshots showing newly saved diary entries and photos appearing, disappearing, or only partially appearing in the timeline/gallery.
+
+Finding:
+- The app already listens to Supabase Realtime changes and calls `fetchDiariesFromDB()`, so Realtime is a trigger rather than the source of truth.
+- The unstable behavior is more consistent with older cloud fetches finishing after local save/delete boundaries and overwriting newer optimistic or just-saved diary state.
+- Gallery placeholders can also appear while signed URLs are being refreshed, but the larger timeline/gallery mismatch is driven by fetch/cache/pending merge timing.
+
+Applied:
+- Added a diary mutation/fetch guard so fetches that started before a local diary save/update/delete boundary cannot overwrite newer diary state when they complete late.
+- Kept cloud cache fallback from applying stale results when a newer diary mutation happened while the fetch was in flight.
+- Added pull-to-refresh to the diary screen: dragging downward at the top of the diary scroll area manually runs `fetchDiariesFromDB()` and reapplies the latest database-backed diary merge.
+- Added a compact refresh indicator for pulling, release threshold, and refresh-in-progress state.
+
+Intentionally left out:
+- No Supabase schema migration or direct production DB cleanup was run.
+- No Android release/AAB file was regenerated in this step.
+- Existing unrelated workspace artifacts and Antigravity-owned notes were not changed.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- A new Android AAB must be built after this fix before it can be validated on the installed app.
+- If gallery images still show placeholders, inspect specific Storage paths and signed URL failures separately from diary row synchronization.
+
+Previous integration:
+2026-06-25 - Prepare 1.2.7 production AAB
+
+Source handoff:
+Direct user request in Codex to create the `1.2.7` Android App Bundle including the pending diary save cancellation fix.
+
+Applied:
+- Updated package metadata to `1.2.7`.
+- Updated Android release metadata to `versionCode 25` / `versionName 1.2.7`.
+- Added Korean Play Store release notes and a production release checklist for the diary pending-delete stabilization update.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.7-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.2.7-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.7-release.aab`
+- AAB size: `3931409` bytes
+- SHA-256: `0E1DB02C3B2462470AE6FDBC657936B7AC9E3CB1FBE089AD7B2F2D3D411ED746`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking `flatDir` and Gradle 9 deprecation warnings during release bundling.
+- After installing this build, delete the already visible `ㅇㅇㅇ` diary card once more so the app can clear any stale same-record pending save queue.
+
+Previous integration:
+2026-06-23 - Cancel pending diary saves when deleting zombie records
+
+Source handoff:
+Direct user report in Codex that the same `ㅇㅇㅇ` diary card still resurrects infinitely after deletion.
+
+Finding:
+- The previous delete hardening removed matching cloud rows more aggressively, but a same-record `diary:add` or `diary:update` could still remain in local `pendingMutations`.
+- During diary merge, queued pending diary saves were merged back into the timeline even after the user deleted the visible card.
+- This made the record look like a cloud delete failure, but the more likely path was the local retry queue rehydrating the same card.
+
+Applied:
+- Added delete-aware pending mutation pruning so deleting a diary cancels same-record pending `diary:add`, `diary:update`, and comment mutations.
+- Made `diary:delete` queue insertion remove matching pending save mutations immediately.
+- Filtered queued pending diary records out of timeline merges whenever a matching pending delete exists.
+- Pruned old pending save mutations that are already cancelled by pending deletes during reconciliation and retry.
+
+Intentionally left out:
+- No Supabase schema migration or direct production DB cleanup was run.
+- No Android release/AAB file was regenerated in this step.
+- Existing unrelated workspace artifacts and Antigravity-owned notes were not changed.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- A new Android AAB must be built after this fix before it can be validated on the installed app.
+- If the existing app has a stale pending queue, this patch should clear same-record pending saves the next time that card is deleted or pending mutations are reconciled.
+
+Previous integration:
+2026-06-23 - Prepare 1.2.6 production AAB
+
+Source handoff:
+Direct user request in Codex to create the next-version Android App Bundle after the diary zombie delete and newest-first order fix.
+
+Applied:
+- Updated package metadata to `1.2.6`.
+- Updated Android release metadata to `versionCode 24` / `versionName 1.2.6`.
+- Added Korean Play Store release notes and a production release checklist for the diary delete/order stabilization update.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.6-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.2.6-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.6-release.aab`
+- AAB size: `3931170` bytes
+- SHA-256: `F695689A9A8B0CCCFD4EACE9346259981621AF012B4F21372C08727F888A9832`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking `flatDir` and Gradle 9 deprecation warnings during release bundling.
+- After installing this build, delete the already visible `ㅇㅇㅇ` diary card once more so the broadened cloud duplicate cleanup can remove matching hidden rows.
+
+Previous integration:
+2026-06-23 - Harden diary zombie delete and newest-first order
+
+Source handoff:
+Direct user report in Codex with screenshots showing the `ㅇㅇㅇ` diary card reappearing after deletion and diary cards no longer staying in newest-date-first order.
+
+Applied:
+- Added a central diary newest-first comparator using valid diary date plus diary time, with invalid/unknown dates sorted after dated records.
+- Sorted normalized/deduped diary records before saving local/cloud cache state so refreshed timelines stay stable.
+- Sorted the diary timeline/search results and photo gallery defensively in the UI.
+- Added a deletion-specific diary signature that ignores comment-count drift but still matches the same date, time, mood, title, text, and image signature.
+- Expanded cloud deletion to look up same-family matching diary rows by date/title, verify the deletion signature client-side, and delete every matched `id`/`local_id`.
+- Kept a pending delete mutation when duplicate lookup fails, so a matching cloud row stays hidden until retry/reconciliation instead of reappearing immediately.
+
+Intentionally left out:
+- No Supabase schema migration or direct production DB cleanup was run.
+- No Android release/AAB files were regenerated after this source fix.
+- Existing unrelated workspace artifacts and Antigravity-owned notes were not changed.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- The already visible `ㅇㅇㅇ` row may need to be deleted once more in the app after this patch is deployed so the broadened cloud cleanup can remove all matching hidden rows.
+- If multiple intentionally separate diary cards have exactly the same date, time, mood, title, text, and image set, deleting the visible merged card will remove all matching duplicates.
+
+Previous integration:
+2026-06-22 - Prepare 1.2.5 production AAB
+
+Source handoff:
+Direct user request in Codex to create the next-version Android App Bundle after the diary stability fixes.
+
+Applied:
+- Updated package metadata to `1.2.5`.
+- Updated Android release metadata to `versionCode 23` / `versionName 1.2.5`.
+- Added Korean Play Store release notes and a production release checklist for the diary stability update.
+- Rebuilt the production web bundle and synced it into the Android Capacitor project.
+- Built the signed release App Bundle and copied it to `artifacts/aab/FamilyScheduler-1.2.5-release.aab`.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- `npx cap sync android`
+- `./gradlew.bat bundleRelease`
+- `jar tf artifacts/aab/FamilyScheduler-1.2.5-release.aab` confirmed `META-INF/FAMILYXS.SF` and `META-INF/FAMILYXS.RSA`
+
+Result:
+- AAB path: `artifacts/aab/FamilyScheduler-1.2.5-release.aab`
+- AAB size: `3930211` bytes
+- SHA-256: `B6523958A73ED546B3625F18630B5D5D8CB43214AA2C0742148E368E5A16CC23`
+
+Open follow-ups:
+- Upload to Play Console was not performed in Codex.
+- Android/Gradle emitted existing non-blocking deprecation warnings during release bundling.
+- On Android, clear app data once before testing if old WebView localStorage state masks the new diary cache behavior.
+
+Previous integration:
+2026-06-22 - Antigravity diary handoff integration hardening
+
+Source handoff:
+`docs/antigravity-out.md` and user-provided Antigravity summary covering diary date fallback, signed URL flicker, authored-day markers, and duplicate cleanup risks.
+
+Integrated:
+- Accepted Antigravity's direction to keep invalid diary dates out of search/calendar matching.
+- Reworked date parsing with diary-specific strict ISO parsing so invalid dates do not fall back to today through shared date helpers.
+- Kept invalid/legacy diary rows displayable as `날짜 미상` in the timeline while excluding them from date search and calendar dots.
+- Accepted persistent signed URL cache for private diary photos and added a browser-safe storage guard plus stale-entry cleanup.
+- Preserved Codex's prior signed URL retry/cache-clear behavior and duplicate `id`/`local_id` delete handling.
+
+Intentionally left out:
+- No Supabase schema migration or direct DB cleanup was run.
+- No payment, auth, Android, release asset, or calendar sync files were changed.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/lib/diaryStorage.js`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- Existing Supabase duplicate diary rows that cannot be linked by `id`, `local_id`, or matching content may still need a reviewed one-time cleanup.
+- On Android, clear app data once before testing if old WebView localStorage state masks the new cache behavior.
+
+Previous integration:
+2026-06-22 - Diary data/date/photo stability pass
+
+Source handoff:
+Direct user request in Codex with screenshots showing stale diary search results, intermittent photos, difficult deletion, and missing authored-day markers in date search.
+
+Integrated:
+- Fixed cloud diary fetch dedupe to preserve duplicate row IDs, so deleting one visible duplicate can target the hidden duplicate rows too.
+- Expanded diary deletion to remove matching cloud rows by both `id` and `local_id`, and kept pending delete retries aware of those IDs.
+- Tightened diary date filtering so invalid or missing dates no longer fall back to today during search/calendar matching.
+- Added authored-day red dots to the popup date picker used by diary date search.
+- Added signed URL cache clearing, retry, and periodic refresh for private diary photos.
+
+Intentionally left out:
+- No Supabase schema migration or direct production data cleanup was run.
+- Existing unrelated artifact and release file changes were not touched.
+
+Files changed:
+- `app/src/components/FamilyDiaryTab.jsx`
+- `app/src/components/NativeSafeControls.jsx`
+- `app/src/lib/diaryStorage.js`
+- `app/src/store/useStore.js`
+- `docs/codex-integration-log.md`
+
+Commands run:
+- `npm run lint`
+- `npm run build`
+
+Open follow-ups:
+- If already-deleted duplicate rows remain in Supabase, they may need a one-time reviewed cleanup after confirming which records should be removed.
+
+Previous integration:
+2026-06-16 - Stabilize duplicate diary deletion and child labels
+
+Source handoff:
+Direct user report in Codex with Android screenshot showing two old test diary cards appearing together, both menus active-looking, deletion not clearing them, and diary labels still showing `아이1` instead of the selected child name in the top menu.
+
+Findings:
+- Diary duplicate cleanup compared records mostly by `id` / `localId`, so a cloud row and an older optimistic/local row with the same visible diary content could survive as separate cards.
+- Delete only removed the selected `record.id`, so a duplicate row with another cloud ID or cached local ID could reappear on the next diary refresh.
+- Queued diary deletes were not used to hide matching cloud rows during a fallback merge, which made failed or timed-out deletes look like they did nothing.
+- The diary composer did not subscribe to the global current child/profile state, so new records fell back to the old `아이1` label.
+
+Applied:
+- Added diary child identity normalization for legacy `아이1` / `아이2` / `아이3` labels without changing the Supabase schema.
+- Changed diary content dedupe to group matching diary records even when their child display label changed from a default label to a renamed profile.
+- Preserved duplicate diary IDs on the canonical record so one delete can remove all known matching cloud/local IDs.
+- Updated pending diary delete reconciliation and cloud/local merge behavior so queued deletes keep matching records hidden until Supabase confirms removal.
+- Wired the diary composer and timeline/calendar/PDF labels to the current child profile names from the top menu.
+
+Verification:
+- `npm run lint`
+- `npm run build`
+- In-app browser check on `http://127.0.0.1:5175/diary`: page title loaded and console error count 0.
+
+Remaining risks:
+- Existing duplicate cloud rows that no longer share the same visible diary content may still need manual cleanup because the app cannot safely infer they are the same record.
+- Real Android family-account delete should still be retested on-device because local browser verification cannot reproduce mobile WebView network timing.
+
+Files changed:
+- `app/src/store/useStore.js`
+- `app/src/components/FamilyDiaryTab.jsx`
+- `docs/codex-integration-log.md`
+
+Previous integration:
 2026-06-16 - Prepare 1.2.4 production AAB
 
 Source handoff:

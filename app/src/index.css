@@ -80,6 +80,8 @@
   .app-scroll-area {
     scrollbar-width: none;
     -ms-overflow-style: none;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .app-shell::-webkit-scrollbar {

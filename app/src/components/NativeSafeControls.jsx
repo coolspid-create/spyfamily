@@ -223,6 +223,7 @@ export function NativeSafeDateInput({
     disabled = false,
     compact = false,
     iconOnly = false,
+    markedDates = [],
 }) {
     const selectedDate = parseDateValue(value);
     const [open, setOpen] = useState(false);
@@ -233,6 +234,10 @@ export function NativeSafeDateInput({
     const [viewDate, setViewDate] = useState(() => selectedDate || new Date());
     const layoutClassName = stacked ? 'flex flex-col gap-1.5' : 'flex items-center gap-2';
     const visibleValue = displayValue ?? formatDateDisplay(value, placeholder);
+    const markedDateSet = useMemo(() => {
+        const dates = markedDates instanceof Set ? Array.from(markedDates) : markedDates;
+        return new Set((Array.isArray(dates) ? dates : []).filter(Boolean));
+    }, [markedDates]);
 
     const updatePopupPosition = useCallback(() => {
         const anchor = ref.current;
@@ -370,6 +375,7 @@ export function NativeSafeDateInput({
                                         if (!date) return <div key={`empty-${index}`} />;
                                         const dateValue = toDateInput(date);
                                         const selected = value === dateValue;
+                                        const marked = markedDateSet.has(dateValue);
                                         return (
                                             <button
                                                 key={dateValue}
@@ -379,9 +385,12 @@ export function NativeSafeDateInput({
                                                     setViewDate(date);
                                                     setOpen(false);
                                                 }}
-                                                className={`h-8 rounded-full text-[12px] font-black transition-colors ${selected ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'}`}
+                                                className={`relative flex h-8 items-center justify-center rounded-full text-[12px] font-black transition-colors ${selected ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'}`}
                                             >
-                                                {date.getDate()}
+                                                <span className="relative z-10">{date.getDate()}</span>
+                                                {marked && (
+                                                    <span className="absolute bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-accent-red ring-1 ring-white" />
+                                                )}
                                             </button>
                                         );
                                     })}

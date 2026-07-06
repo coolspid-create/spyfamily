@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronLeft, ChevronRight, MoreHorizontal, X, Camera, CalendarHeart, Video, Trash2, Edit2, MessageCircle, Heart, Smile, Send } from 'lucide-react';
+import { Plus, CalendarDays, Image as ImageIcon, Lock, Home, ImagePlus, ChevronLeft, ChevronRight, MoreHorizontal, X, Camera, CalendarHeart, Video, Trash2, Edit2, MessageCircle, Heart, Smile, Send, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NativeSafeConfirmDialog, NativeSafeDateInput, NativeSafeSelect, NativeSafeTimeInput } from './NativeSafeControls';
 import { supabase } from '../lib/supabase';
 import {
   DIARY_SIGNED_URL_EXPIRES_IN,
+  clearCachedDiaryImageSignedUrl,
   compressDiaryImageFileToDataUrl,
   createDiaryImageSignedUrl,
   getCachedDiaryImageSignedUrl,
@@ -20,15 +21,23 @@ import { useStore } from '../store/useStore';
 const INITIAL_RECORDS = [];
 
 const MOODS = ['😊', '🥰', '😮', '😴', '🤒', '😭', '😠', '🥳', '🤔'];
+const DEFAULT_CHILD_PROFILE_LABELS = { child1: '아이1', child2: '아이2', child3: '아이3' };
 const DIARY_RECORDS_STORAGE_KEY = 'family-diary-records-v1';
 const LEGACY_DIARY_RECORDS_STORAGE_KEY = 'memory-mvp-records-v2';
 const DIARY_TITLE_MAX_LENGTH = 25;
 const DIARY_TEXT_MAX_LENGTH = 500;
 const DIARY_COMMENT_MAX_LENGTH = 50;
-const DIARY_SAVE_OPERATION_TIMEOUT_MS = 22000;
+const DIARY_SAVE_OPERATION_TIMEOUT_MS = 30000;
+const DIARY_FREE_PHOTO_LIMIT = 5;
+const DIARY_PREMIUM_PHOTO_LIMIT = 20;
+const DIARY_SAVE_FEEDBACK_AUTO_HIDE_MS = 6500;
+const DIARY_SAVE_ERROR_FEEDBACK_AUTO_HIDE_MS = 14000;
+const DIARY_REFRESH_TIMEOUT_MS = 12000;
 const DIARY_COLLAPSE_TEXT_LENGTH = 90;
 const DIARY_TEXT_COLLAPSED_HEIGHT = 68;
 const VIEWER_TEXT_COLLAPSED_HEIGHT = 73;
+const DIARY_PULL_REFRESH_THRESHOLD = 56;
+const DIARY_PULL_REFRESH_MAX_DISTANCE = 86;
 const DIARY_TEXT_EXPAND_TRANSITION = { duration: 0.25, ease: [0.04, 0.62, 0.23, 0.98] };
 const DIARY_TOGGLE_LABEL_TRANSITION = { duration: 0.16, ease: 'easeOut' };
 const APP_ASSET_SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://nsuxjflmexbfjsmbmlax.supabase.co').replace(/\/$/, '');
@@ -71,8 +80,17 @@ const normalizeIsoDate = (value) => {
   return `${match[1]}-${String(parseInt(match[2], 10)).padStart(2, '0')}-${String(parseInt(match[3], 10)).padStart(2, '0')}`;
 };
 
+const normalizeIsoDateStrict = (value) => {
+  const raw = toSafeString(value).trim().replace(/\./g, '-');
+  const match = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return '';
+  return `${match[1]}-${String(parseInt(match[2], 10)).padStart(2, '0')}-${String(parseInt(match[3], 10)).padStart(2, '0')}`;
+};
+
 const createDateLabelFromIso = (isoDate) => {
-  const [, month, day] = normalizeIsoDate(isoDate).split('-');
+  const normalizedIsoDate = normalizeIsoDateStrict(isoDate);
+  if (!normalizedIsoDate) return '';
+  const [, month, day] = normalizedIsoDate.split('-');
   return `${parseInt(month, 10)}월 ${parseInt(day, 10)}일`;
 };
 
@@ -84,15 +102,77 @@ const createIsoDateFromLabel = (date, fallbackYear = new Date().getFullYear()) =
 
 const getDiaryRecordIsoDate = (record) => {
   const rawIsoDate = toSafeString(record?.isoDate).trim();
-  if (rawIsoDate) return normalizeIsoDate(rawIsoDate);
-  return createIsoDateFromLabel(record?.date) || getLocalDateString();
+  const isoDate = normalizeIsoDateStrict(rawIsoDate);
+  if (isoDate) return isoDate;
+
+  const dateIso = normalizeIsoDateStrict(record?.date);
+  if (dateIso) return dateIso;
+
+  return createIsoDateFromLabel(record?.date) || '';
+};
+
+const getDiaryRecordComparableIsoDate = (record) => {
+  return getDiaryRecordIsoDate(record);
+};
+
+const isDiaryRecordOnIsoDate = (record, isoDate) => (
+  Boolean(isoDate && getDiaryRecordComparableIsoDate(record) === isoDate)
+);
+
+const getDiaryTimeSortMinutes = (value) => {
+  const raw = toSafeString(value).trim();
+  const koreanMatch = raw.match(/^(오전|오후)\s*(\d{1,2}):(\d{1,2})/);
+  if (koreanMatch) {
+    let hour = Math.min(Math.max(parseInt(koreanMatch[2], 10) || 0, 0), 12);
+    const minute = Math.min(Math.max(parseInt(koreanMatch[3], 10) || 0, 0), 59);
+    if (koreanMatch[1] === '오후' && hour < 12) hour += 12;
+    if (koreanMatch[1] === '오전' && hour === 12) hour = 0;
+    return (hour * 60) + minute;
+  }
+
+  const numericMatch = raw.match(/^(\d{1,2}):(\d{1,2})/);
+  if (!numericMatch) return 0;
+
+  const hour = Math.min(Math.max(parseInt(numericMatch[1], 10) || 0, 0), 23);
+  const minute = Math.min(Math.max(parseInt(numericMatch[2], 10) || 0, 0), 59);
+  return (hour * 60) + minute;
+};
+
+const getDiaryDateSortBase = (record) => {
+  const isoDate = getDiaryRecordComparableIsoDate(record);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
+
+  const [year, month, day] = isoDate.split('-').map(part => parseInt(part, 10));
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return Date.UTC(year, month - 1, day);
+};
+
+const getDiaryRecordSortTimestamp = (record) => {
+  const dateBase = getDiaryDateSortBase(record);
+  if (dateBase === null) return 0;
+  return dateBase + (getDiaryTimeSortMinutes(record?.time) * 60 * 1000);
+};
+
+const compareDiaryRecordsNewestFirst = (a, b) => {
+  const dateDiff = getDiaryRecordSortTimestamp(b) - getDiaryRecordSortTimestamp(a);
+  if (dateDiff !== 0) return dateDiff;
+
+  return toSafeString(b?.id || b?.localId).localeCompare(toSafeString(a?.id || a?.localId));
 };
 
 const normalizeDiaryDateLabel = (date, isoDate) => {
   const raw = toSafeString(date).trim();
   const match = raw.match(/^(\d{1,2})월\s*(\d{1,2})일/);
   if (match) return `${parseInt(match[1], 10)}월 ${parseInt(match[2], 10)}일`;
-  return createDateLabelFromIso(isoDate);
+  return createDateLabelFromIso(isoDate) || '날짜 미상';
 };
 
 const normalizeDiaryTime = (value) => {
@@ -191,7 +271,7 @@ const primeDiaryImageSource = async (src) => {
   return resolvedSrc;
 };
 
-function useSignedUrl(imagePath) {
+function useSignedUrl(imagePath, refreshToken = 0) {
   const getInitialSignedUrl = () => {
     const path = toSafeString(imagePath).trim();
     const storagePath = getDiaryStoragePath(path);
@@ -206,17 +286,25 @@ function useSignedUrl(imagePath) {
 
   useEffect(() => {
     let isMounted = true;
+    let refreshTimer = null;
     const path = toSafeString(imagePath).trim();
     const applySignedUrl = (nextUrl) => {
       queueMicrotask(() => {
         if (isMounted) setSignedUrl(nextUrl);
       });
     };
+    const clearRefreshTimer = () => {
+      if (refreshTimer) {
+        globalThis.clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+    };
 
     if (!path) {
       applySignedUrl('');
       return () => {
         isMounted = false;
+        clearRefreshTimer();
       };
     }
 
@@ -226,6 +314,7 @@ function useSignedUrl(imagePath) {
       applySignedUrl(path);
       return () => {
         isMounted = false;
+        clearRefreshTimer();
       };
     }
 
@@ -236,27 +325,40 @@ function useSignedUrl(imagePath) {
       applySignedUrl('');
     }
 
-    createDiaryImageSignedUrl({ client: supabase, path: storagePath || path, expiresIn: DIARY_SIGNED_URL_EXPIRES_IN })
-      .then((nextSignedUrl) => {
-        if (!isMounted) return;
-        setSignedUrl(nextSignedUrl);
-      })
-      .catch((error) => {
-        if (!isMounted) return;
-        console.warn('Signed URL 발급 실패:', error);
-        setSignedUrl('');
-      });
+    const refreshDelayMs = Math.max(60000, (DIARY_SIGNED_URL_EXPIRES_IN - 60) * 1000);
+    const refreshSignedUrl = () => {
+      clearRefreshTimer();
+      createDiaryImageSignedUrl({ client: supabase, path: storagePath || path, expiresIn: DIARY_SIGNED_URL_EXPIRES_IN })
+        .then((nextSignedUrl) => {
+          if (!isMounted) return;
+          setSignedUrl(nextSignedUrl);
+          if (nextSignedUrl) {
+            refreshTimer = globalThis.setTimeout(refreshSignedUrl, refreshDelayMs);
+          }
+        })
+        .catch((error) => {
+          if (!isMounted) return;
+          console.warn('Signed URL 발급 실패:', error);
+          setSignedUrl('');
+        });
+    };
+
+    refreshSignedUrl();
 
     return () => {
       isMounted = false;
+      clearRefreshTimer();
     };
-  }, [imagePath]);
+  }, [imagePath, refreshToken]);
 
   return signedUrl;
 }
 
 const DiaryImage = ({ src, alt, className = '', onClick, loading = 'lazy' }) => {
-  const resolvedSrc = useSignedUrl(src);
+  const [retryState, setRetryState] = useState({ source: '', token: 0, count: 0 });
+  const retryToken = retryState.source === src ? retryState.token : 0;
+  const retryCount = retryState.source === src ? retryState.count : 0;
+  const resolvedSrc = useSignedUrl(src, retryToken);
   const [failedImage, setFailedImage] = useState({ source: '', resolvedSrc: '' });
   const imageFailed = Boolean(
     resolvedSrc
@@ -268,6 +370,27 @@ const DiaryImage = ({ src, alt, className = '', onClick, loading = 'lazy' }) => 
     if (!resolvedSrc) return;
     preloadBrowserImage(resolvedSrc).catch(() => {});
   }, [resolvedSrc]);
+
+  const handleImageError = () => {
+    setFailedImage({ source: src, resolvedSrc });
+
+    const storagePath = getDiaryStoragePath(src) || getDiaryStoragePath(resolvedSrc);
+    if (!storagePath || retryCount >= 2) return;
+
+    clearCachedDiaryImageSignedUrl({
+      path: storagePath,
+      expiresIn: DIARY_SIGNED_URL_EXPIRES_IN
+    });
+    setRetryState((state) => {
+      const currentCount = state.source === src ? state.count : 0;
+      if (currentCount >= 2) return state;
+      return {
+        source: src,
+        count: currentCount + 1,
+        token: (state.source === src ? state.token : 0) + 1
+      };
+    });
+  };
 
   if (!resolvedSrc || imageFailed) {
     return (
@@ -285,7 +408,7 @@ const DiaryImage = ({ src, alt, className = '', onClick, loading = 'lazy' }) => 
       decoding="async"
       fetchPriority={loading === 'eager' ? 'high' : undefined}
       onClick={onClick}
-      onError={() => setFailedImage({ source: src, resolvedSrc })}
+      onError={handleImageError}
       className={className}
     />
   );
@@ -428,6 +551,8 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const records = useStore(state => state.diaries);
   const session = useStore(state => state.session);
   const currentFamilyId = useStore(state => state.currentFamilyId);
+  const currentChild = useStore(state => state.currentChild);
+  const childProfiles = useStore(state => state.childProfiles);
   const fetchDiariesFromDB = useStore(state => state.fetchDiariesFromDB);
   const addDiary = useStore(state => state.addDiary);
   const updateDiary = useStore(state => state.updateDiary);
@@ -467,10 +592,16 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   const [activeReactionMenu, setActiveReactionMenu] = useState(null);
   const [isSavingRecord, setIsSavingRecord] = useState(false);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+  const [isRefreshingDiaries, setIsRefreshingDiaries] = useState(false);
+  const [pullRefreshDistance, setPullRefreshDistance] = useState(0);
+  const [saveFeedback, setSaveFeedback] = useState(null);
   const [savingCommentIds, setSavingCommentIds] = useState({});
 
   // Photo Upload State
   const [selectedImages, setSelectedImages] = useState([]);
+  const diaryRootRef = useRef(null);
+  const pullRefreshStateRef = useRef({ active: false, pointerId: null, startY: 0, dragging: false });
+  const saveFeedbackTimerRef = useRef(null);
   const composerScrollRef = useRef(null);
   const diaryTextCardRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -511,6 +642,172 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     setPaywallOpen(false);
     setPaywallMode('default');
   }, []);
+
+  const photoLimit = isPremium ? DIARY_PREMIUM_PHOTO_LIMIT : DIARY_FREE_PHOTO_LIMIT;
+
+  const showSaveFeedback = useCallback((feedback, autoHideMs = DIARY_SAVE_FEEDBACK_AUTO_HIDE_MS) => {
+    if (saveFeedbackTimerRef.current) {
+      window.clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+
+    setSaveFeedback({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      ...feedback
+    });
+
+    if (autoHideMs > 0) {
+      saveFeedbackTimerRef.current = window.setTimeout(() => {
+        setSaveFeedback(null);
+        saveFeedbackTimerRef.current = null;
+      }, autoHideMs);
+    }
+  }, []);
+
+  const clearSaveFeedback = useCallback(() => {
+    if (saveFeedbackTimerRef.current) {
+      window.clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = null;
+    }
+    setSaveFeedback(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (saveFeedbackTimerRef.current) {
+      window.clearTimeout(saveFeedbackTimerRef.current);
+    }
+  }, []);
+
+  const getSaveErrorDetail = useCallback((error) => {
+    const message = toSafeString(error?.message || error).trim();
+    if (!message) return '';
+    if (message.includes('timeout') || message.includes('시간이 초과')) {
+      return '네트워크가 느리거나 사진 업로드 시간이 길어 저장 확인이 끝나지 않았습니다.';
+    }
+    return message;
+  }, []);
+
+  const currentChildName = useMemo(() => (
+    toSafeString(childProfiles?.[currentChild], '아이').trim() || '아이'
+  ), [childProfiles, currentChild]);
+
+  const resolveDiaryChildId = useCallback((record) => {
+    const explicitChildId = toSafeString(record?.childId ?? record?.child_id).trim();
+    if (/^child[1-3]$/.test(explicitChildId)) return explicitChildId;
+
+    const rawChildName = toSafeString(record?.child).trim();
+    const profileEntry = Object.entries(childProfiles || {}).find(([, childName]) => (
+      toSafeString(childName).trim() === rawChildName
+    ));
+    if (profileEntry) return profileEntry[0];
+
+    const defaultEntry = Object.entries(DEFAULT_CHILD_PROFILE_LABELS).find(([, defaultName]) => (
+      defaultName === rawChildName
+    ));
+    return defaultEntry?.[0] || '';
+  }, [childProfiles]);
+
+  const getDiaryChildName = useCallback((record) => {
+    const childId = resolveDiaryChildId(record);
+    if (childId && childProfiles?.[childId]) return childProfiles[childId];
+
+    return toSafeString(record?.child).trim() || currentChildName;
+  }, [childProfiles, currentChildName, resolveDiaryChildId]);
+
+  const diaryMarkedDates = useMemo(() => (
+    [...new Set(records.map(getDiaryRecordComparableIsoDate).filter(Boolean))]
+  ), [records]);
+
+  const getDiaryScrollContainer = useCallback(() => (
+    diaryRootRef.current?.closest('.app-scroll-area') || null
+  ), []);
+
+  const refreshDiariesNow = useCallback(async () => {
+    if (isRefreshingDiaries) return;
+
+    setIsRefreshingDiaries(true);
+    try {
+      await withDiaryOperationTimeout(
+        fetchDiariesFromDB(),
+        DIARY_REFRESH_TIMEOUT_MS,
+        '다이어리 새로고침 시간이 초과되었습니다.'
+      );
+    } catch (error) {
+      console.warn('Manual diary refresh failed:', error);
+    } finally {
+      setIsRefreshingDiaries(false);
+      setPullRefreshDistance(0);
+      pullRefreshStateRef.current = { active: false, pointerId: null, startY: 0, dragging: false };
+    }
+  }, [fetchDiariesFromDB, isRefreshingDiaries]);
+
+  const handlePullRefreshPointerDown = useCallback((event) => {
+    if (
+      composerOpen ||
+      viewingPhoto ||
+      pdfExportOpen ||
+      paywallOpen ||
+      deleteRecordTargetId ||
+      isRefreshingDiaries
+    ) {
+      return;
+    }
+
+    const scrollContainer = getDiaryScrollContainer();
+    const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+    if (scrollTop > 2) return;
+
+    pullRefreshStateRef.current = {
+      active: true,
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      dragging: false
+    };
+  }, [
+    composerOpen,
+    deleteRecordTargetId,
+    getDiaryScrollContainer,
+    isRefreshingDiaries,
+    paywallOpen,
+    pdfExportOpen,
+    viewingPhoto
+  ]);
+
+  const handlePullRefreshPointerMove = useCallback((event) => {
+    const pullState = pullRefreshStateRef.current;
+    if (!pullState.active || pullState.pointerId !== event.pointerId) return;
+
+    const distanceY = event.clientY - pullState.startY;
+    if (distanceY <= 0) {
+      setPullRefreshDistance(0);
+      return;
+    }
+
+    const scrollContainer = getDiaryScrollContainer();
+    const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+    if (scrollTop > 2 && !pullState.dragging) return;
+
+    const nextDistance = Math.min(DIARY_PULL_REFRESH_MAX_DISTANCE, distanceY * 0.45);
+    if (nextDistance > 6) {
+      pullState.dragging = true;
+      setPullRefreshDistance(nextDistance);
+    }
+  }, [getDiaryScrollContainer]);
+
+  const handlePullRefreshPointerEnd = useCallback((event) => {
+    const pullState = pullRefreshStateRef.current;
+    if (!pullState.active || pullState.pointerId !== event.pointerId) return;
+
+    const shouldRefresh = pullRefreshDistance >= DIARY_PULL_REFRESH_THRESHOLD;
+    pullRefreshStateRef.current = { active: false, pointerId: null, startY: 0, dragging: false };
+
+    if (shouldRefresh) {
+      void refreshDiariesNow();
+      return;
+    }
+
+    setPullRefreshDistance(0);
+  }, [pullRefreshDistance, refreshDiariesNow]);
 
   const openPhotoViewer = useCallback((photo) => {
     const requestId = photoOpenRequestRef.current + 1;
@@ -744,7 +1041,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    const maxPhotos = isPremium ? 20 : 3;
+    const maxPhotos = photoLimit;
     
     if (selectedImages.length + files.length > maxPhotos) {
       if (!isPremium) {
@@ -780,11 +1077,14 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const existingRecord = editingRecordId ? records.find(record => record.id === editingRecordId) : null;
     const selectedImageSources = selectedImages.map(toSafeString).filter(Boolean);
     const fallbackImagePaths = selectedImageSources.map(getDiaryStoragePath).filter(Boolean);
+    const recordChildId = existingRecord ? (resolveDiaryChildId(existingRecord) || currentChild) : currentChild;
+    const recordChildName = toSafeString(childProfiles?.[recordChildId], currentChildName).trim() || currentChildName;
     const fallbackRecord = {
       ...(existingRecord || {}),
       id: diaryId,
       localId: existingRecord?.localId || diaryId,
-      child: existingRecord?.child || '아이1',
+      childId: recordChildId,
+      child: recordChildName,
       title: safeTitle,
       text: safeText,
       mood: selectedMood,
@@ -801,6 +1101,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     };
     const wasEditingRecord = Boolean(editingRecordId);
     const mutationType = wasEditingRecord ? 'diary:update' : 'diary:add';
+    const saveActionLabel = wasEditingRecord ? '수정' : '저장';
+
+    showSaveFeedback({
+      type: 'saving',
+      title: '다이어리 저장 중입니다.'
+    }, 0);
 
     setIsSavingRecord(true);
     try {
@@ -811,7 +1117,13 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       setIsSavingRecord(false);
     }
 
-    if (!session || !currentFamilyId || !supabase) return;
+    if (!session || !currentFamilyId || !supabase) {
+      showSaveFeedback({
+        type: 'success',
+        title: '이 기기에 저장되었습니다'
+      });
+      return;
+    }
 
     window.setTimeout(() => {
       let uploadedPaths = [];
@@ -865,6 +1177,11 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               console.warn('Removed diary images could not be cleaned after save:', cleanupError);
             });
           }
+
+          showSaveFeedback({
+            type: 'success',
+            title: `다이어리 ${saveActionLabel} 완료`
+          });
         } catch (error) {
           removeDiaryImagesFromStorage({ client: supabase, paths: uploadedPaths }).catch((cleanupError) => {
             console.warn('Uploaded diary images could not be cleaned after failed save:', cleanupError);
@@ -876,6 +1193,12 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               error
             );
           }
+          showSaveFeedback({
+            type: 'error',
+            title: '클라우드 저장 실패',
+            message: '기록은 이 기기에 재저장 대기 항목으로 보관했습니다. 다른 기기에는 아직 보이지 않을 수 있습니다.',
+            detail: getSaveErrorDetail(error)
+          }, DIARY_SAVE_ERROR_FEEDBACK_AUTO_HIDE_MS);
           console.error('Diary save failed:', error);
         }
       };
@@ -985,9 +1308,10 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   // --- Pages ---
   const renderHomePage = () => {
     const formattedSearchDate = getFormattedDate(searchDate);
-    const displayedRecords = formattedSearchDate 
-      ? records.filter(r => normalizeIsoDate(r.isoDate) === searchDate || r.date === formattedSearchDate)
+    const displayedRecords = searchDate
+      ? records.filter(record => isDiaryRecordOnIsoDate(record, searchDate))
       : records;
+    const sortedDisplayedRecords = [...displayedRecords].sort(compareDiaryRecordsNewestFirst);
 
     return (
       <div className="flex flex-col gap-4 pb-6 w-full">
@@ -1001,6 +1325,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 pickerMode="popup"
                 popupAlign="left"
                 placeholder="날짜 검색"
+                markedDates={diaryMarkedDates}
                 className="min-w-[118px]"
                 buttonClassName="bg-navy/5 border border-navy/10 text-navy font-bold text-[11px] px-3.5 py-2 rounded-full hover:bg-navy/10 active:scale-95 transition-all"
               />
@@ -1019,21 +1344,21 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
           {formattedSearchDate && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <div className="bg-accent-red/10 border border-accent-red/20 text-accent-red text-[13px] font-bold p-3 rounded-lg flex justify-between items-center">
-                <span>✨ {formattedSearchDate} 검색 결과 ({displayedRecords.length}건)</span>
+                <span>✨ {formattedSearchDate} 검색 결과 ({sortedDisplayedRecords.length}건)</span>
                 <button onClick={() => setSearchDate('')} className="bg-white/50 px-2 py-1 rounded text-[11px]">초기화</button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <AnimatePresence mode="popLayout">
-          {displayedRecords.length === 0 ? (
+        <div key={`diary-record-list-${searchDate || 'all'}`} className="contents">
+          {sortedDisplayedRecords.length === 0 ? (
             <motion.div key="empty" layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="py-12 flex flex-col items-center justify-center text-navy/40">
               <CalendarHeart size={48} strokeWidth={1} className="mb-4" />
               <p className="font-bold text-[14px]">기록된 내용이 없습니다.</p>
             </motion.div>
           ) : (
-            displayedRecords.map(record => {
+            sortedDisplayedRecords.map(record => {
               const displayTitle = limitText(record.title, DIARY_TITLE_MAX_LENGTH);
               const displayText = limitText(record.text, DIARY_TEXT_MAX_LENGTH);
               const canToggleText = shouldCollapseDiaryText(displayText);
@@ -1044,7 +1369,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               <motion.div layout key={record.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }} className="bg-white p-4 rounded-2xl border border-navy/5 shadow-md relative">
                 <div className="flex items-center justify-between mb-3 border-b border-navy/10 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="bg-navy/5 border border-navy/10 text-navy text-[10px] font-bold px-2 py-0.5 rounded-full">{record.child}</span>
+                    <span className="bg-navy/5 border border-navy/10 text-navy text-[10px] font-bold px-2 py-0.5 rounded-full">{getDiaryChildName(record)}</span>
                     <span className="text-[11px] font-bold text-navy/60">{record.date} · {record.time}</span>
                   </div>
                   
@@ -1228,7 +1553,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
               );
             })
           )}
-        </AnimatePresence>
+        </div>
       </div>
     );
   };
@@ -1242,7 +1567,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     const selectedDay = selectedDate ? parseInt(selectedDate.split('-')[2], 10) : null;
     const selectedDateLabel = selectedDate ? createDateLabelFromIso(selectedDate) : '';
     const selectedRecords = selectedDate
-      ? records.filter(r => normalizeIsoDate(r.isoDate) === selectedDate)
+      ? records.filter(record => isDiaryRecordOnIsoDate(record, selectedDate))
       : [];
 
     return (
@@ -1278,7 +1603,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
             {Array.from({length: daysInMonth}, (_, i) => {
               const day = i + 1;
               const dayIsoDate = `${calendarYear}-${String(calendarMonthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const dayRecords = records.filter(r => normalizeIsoDate(r.isoDate) === dayIsoDate);
+              const dayRecords = records.filter(record => isDiaryRecordOnIsoDate(record, dayIsoDate));
               const hasRecord = dayRecords.length > 0;
               const isSelected = selectedDate === dayIsoDate;
               
@@ -1357,7 +1682,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                       {limitText(selectedRecord.text, DIARY_TEXT_MAX_LENGTH)}
                     </p>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-navy/50">{selectedRecord.child} · {selectedRecord.time}</span>
+                      <span className="text-[10px] font-bold text-navy/50">{getDiaryChildName(selectedRecord)} · {selectedRecord.time}</span>
                       {selectedRecord.hasMedia && <Camera size={14} className="text-navy/40" />}
                     </div>
                   </motion.div>
@@ -1410,7 +1735,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
   };
 
   const galleryData = useMemo(() => {
-    const mediaRecords = records.filter(r => r.hasMedia && (r.imageUrls?.length > 0 || r.imageUrl)).sort((a, b) => new Date(b.isoDate) - new Date(a.isoDate));
+    const mediaRecords = records
+      .filter(r => r.hasMedia && (r.imageUrls?.length > 0 || r.imageUrl))
+      .sort(compareDiaryRecordsNewestFirst);
     const grouped = {};
     mediaRecords.forEach(record => {
       const d = new Date(record.isoDate);
@@ -1483,7 +1810,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
 
             return (
               <div key={group.month}>
-                <h3 data-month={group.month} className="gallery-month-header font-bold text-navy text-[15px] mb-3 sticky top-0 bg-background/90 backdrop-blur-sm py-2 z-10 border-b border-navy/5">
+                <h3 data-month={group.month} className="gallery-month-header mb-3 border-b border-navy/5 py-2 text-[15px] font-bold text-navy">
                   {group.month}
                 </h3>
                 <div className={isSinglePhoto ? 'inline-flex bg-white border border-navy/5 p-1.5 rounded-2xl shadow-md' : 'grid grid-cols-3 gap-1.5 bg-white border border-navy/5 p-1.5 rounded-2xl shadow-md'}>
@@ -1615,6 +1942,65 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     );
   };
 
+  const renderSaveFeedback = () => {
+    const config = {
+      saving: {
+        icon: RefreshCw,
+        iconClassName: 'animate-spin text-navy',
+        boxClassName: 'border-navy/10 bg-white/95 text-navy'
+      },
+      success: {
+        icon: CheckCircle2,
+        iconClassName: 'text-emerald-600',
+        boxClassName: 'border-emerald-200 bg-emerald-50/95 text-emerald-800'
+      },
+      error: {
+        icon: AlertCircle,
+        iconClassName: 'text-accent-red',
+        boxClassName: 'border-accent-red/25 bg-rose-50/95 text-accent-red'
+      }
+    }[saveFeedback?.type || 'saving'];
+    const FeedbackIcon = config.icon;
+
+    return (
+      <AnimatePresence>
+        {saveFeedback && (
+          <motion.div
+            key={saveFeedback.id}
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.18 }}
+            className="fixed left-1/2 top-[96px] z-[95] w-[min(390px,calc(100vw-24px))] -translate-x-1/2"
+          >
+            <div className={`flex items-start gap-2 rounded-2xl border px-3 py-3 shadow-[0_12px_28px_rgba(18,27,97,0.14)] backdrop-blur-md ${config.boxClassName}`}>
+              <FeedbackIcon size={17} className={`mt-0.5 shrink-0 ${config.iconClassName}`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-black leading-snug">{saveFeedback.title}</p>
+                {saveFeedback.message && (
+                  <p className="mt-1 text-[11px] font-bold leading-snug opacity-80 break-keep">{saveFeedback.message}</p>
+                )}
+                {saveFeedback.detail && (
+                  <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-snug opacity-65">{saveFeedback.detail}</p>
+                )}
+              </div>
+              {saveFeedback.type !== 'saving' && (
+                <button
+                  type="button"
+                  onClick={clearSaveFeedback}
+                  aria-label="저장 상태 알림 닫기"
+                  className="shrink-0 rounded-full p-1 text-current/55 transition-colors hover:bg-white/50 hover:text-current"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
   const renderComposerModal = () => (
     <AnimatePresence>
       {composerOpen && (
@@ -1738,10 +2124,10 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                         </button>
                       </div>
                     ))}
-                    {selectedImages.length < (isPremium ? 20 : 3) && (
+                    {selectedImages.length < photoLimit && (
                       <button onClick={() => fileInputRef.current?.click()} className="w-32 h-32 shrink-0 border-2 border-dashed border-navy/20 bg-background/50 rounded-lg flex flex-col items-center justify-center gap-1 text-navy/40 hover:bg-background transition-colors">
                         <Plus size={24} />
-                        <span className="text-[11px] font-bold">{selectedImages.length}/{isPremium ? 20 : 3}</span>
+                        <span className="text-[11px] font-bold">{selectedImages.length}/{photoLimit}</span>
                       </button>
                     )}
                   </div>
@@ -1751,7 +2137,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                   <ImagePlus size={28} strokeWidth={1.5} className="text-navy/50" />
                   <div className="text-center">
                     <p className="text-[13px] font-bold text-navy/70">사진 첨부하기</p>
-                    <p className="text-[11px] font-bold text-navy/40 mt-1">최대 {isPremium ? 20 : 3}장</p>
+                    <p className="text-[11px] font-bold text-navy/40 mt-1">최대 {photoLimit}장</p>
                   </div>
                 </button>
               )}
@@ -1920,7 +2306,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 {/* Subtitles */}
                 <p style={{ fontFamily: "'Jost', sans-serif", fontSize: '15px', color: '#7986cb', letterSpacing: '4px', textTransform: 'uppercase', marginBottom: '30px', fontWeight: '600' }}>My Precious Memories</p>
                 <h2 style={{ fontSize: '42px', color: '#1a237e', margin: '0 0 40px 0', letterSpacing: '2px', fontWeight: '800' }}>
-                  {filteredRecords.length > 0 ? filteredRecords[0].child : '아이'}
+                  {filteredRecords.length > 0 ? getDiaryChildName(filteredRecords[0]) : '아이'}
                 </h2>
                 <p style={{ fontFamily: "'Jost', sans-serif", fontSize: '18px', color: '#7986cb', letterSpacing: '6px', fontWeight: '500' }}>{startObj.replace(/-/g, '.')} - {endObj.replace(/-/g, '.')}</p>
 
@@ -2074,8 +2460,31 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
     );
   };
 
+  const pullRefreshReady = pullRefreshDistance >= DIARY_PULL_REFRESH_THRESHOLD;
+  const diaryPullRefreshEnabled = !isEmbedded;
+
   return (
-    <div className={isEmbedded ? "w-full bg-transparent text-navy font-sans flex flex-col relative pb-24" : "app-shell max-w-[420px] mx-auto h-screen bg-background text-navy font-sans flex flex-col relative overflow-hidden border-x-[3px] border-navy shadow-lg"}>
+    <div
+      ref={diaryRootRef}
+      onPointerDown={diaryPullRefreshEnabled ? handlePullRefreshPointerDown : undefined}
+      onPointerMove={diaryPullRefreshEnabled ? handlePullRefreshPointerMove : undefined}
+      onPointerUp={diaryPullRefreshEnabled ? handlePullRefreshPointerEnd : undefined}
+      onPointerCancel={diaryPullRefreshEnabled ? handlePullRefreshPointerEnd : undefined}
+      className={isEmbedded ? "w-full bg-transparent text-navy font-sans flex flex-col relative pb-24" : "app-shell max-w-[420px] mx-auto h-screen bg-background text-navy font-sans flex flex-col relative overflow-hidden border-x-[3px] border-navy shadow-lg"}
+    >
+      {diaryPullRefreshEnabled && (
+        <div
+          aria-live="polite"
+          className={`pointer-events-none absolute left-0 right-0 top-2 z-30 flex justify-center transition-opacity duration-150 ${(pullRefreshDistance > 0 || isRefreshingDiaries) ? 'opacity-100' : 'opacity-0'}`}
+          style={{ transform: `translateY(${Math.max(0, Math.min(32, pullRefreshDistance / 2))}px)` }}
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-navy/10 bg-white/95 px-3 py-2 text-[11px] font-black text-navy shadow-md backdrop-blur-md">
+            <RefreshCw size={14} className={isRefreshingDiaries ? 'animate-spin text-accent-red' : pullRefreshReady ? 'text-accent-red' : 'text-navy/50'} />
+            <span>{isRefreshingDiaries ? '새로고침 중' : '아래로 당겨 새로고침'}</span>
+          </div>
+        </div>
+      )}
+      {renderSaveFeedback()}
       {/* Header */}
       {!isEmbedded && (
         <header id="app-header" className="bg-white px-3.5 pt-1.5 pb-3 flex items-center justify-between border-b border-navy/5 sticky top-0 z-10 shrink-0 relative min-h-[58px]">
@@ -2098,6 +2507,7 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
                 pickerMode="popup"
                 popupAlign="right"
                 placeholder=""
+                markedDates={diaryMarkedDates}
                 className="w-[34px]"
                 buttonClassName="h-9 w-9 justify-center rounded-full p-0 text-navy/50 hover:bg-navy/5"
               />
@@ -2109,9 +2519,9 @@ export default function FamilyDiaryTab({ isEmbedded = false, embeddedActiveTab, 
       {/* Main Content Area */}
       {isEmbedded ? (
         <div className="w-full">
-          <motion.div key={activeTab} className="w-full" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.12 }}>
+          <div className="w-full">
             {renderActivePage()}
-          </motion.div>
+          </div>
         </div>
       ) : (
         <main className="app-scroll-area flex-1 overflow-y-auto overflow-x-hidden pb-24 p-4 scroll-smooth" onScroll={(e) => setShowScrollIndicator(e.target.scrollTop > 50 || window.scrollY > 50)}>
